@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Session, User as AuthUser } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import {
@@ -860,6 +860,7 @@ function Admin({
   const [importingProducts, setImportingProducts] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const productImportInput = useRef<HTMLInputElement>(null);
   const [transactionFilter, setTransactionFilter] = useState<"all" | "paid" | "pending" | "refunded">("all");
   const [dashboardDetail, setDashboardDetail] = useState<"sold-out" | "low-stock" | "pending" | null>(null);
   const [orderEditor, setOrderEditor] = useState<{ order: AdminOrder | null } | null>(null);
@@ -1144,16 +1145,24 @@ function Admin({
           <div className="admin-actions">
             {section === "products" && (
               <>
-                <label className="secondary admin-import-button">
+                <input
+                  ref={productImportInput}
+                  className="visually-hidden"
+                  type="file"
+                  accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(event) => void importProductsFromFile(event)}
+                  disabled={importingProducts}
+                  aria-label="Importar productos desde CSV o Excel"
+                  tabIndex={-1}
+                />
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={() => productImportInput.current?.click()}
+                  disabled={importingProducts}
+                >
                   <Upload size={16} /> {importingProducts ? "Importando..." : "Importar archivo"}
-                  <input
-                    type="file"
-                    accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    onChange={(event) => void importProductsFromFile(event)}
-                    disabled={importingProducts}
-                    aria-label="Importar productos desde CSV o Excel"
-                  />
-                </label>
+                </button>
                 <button className="primary" onClick={onAdd}><Plus size={17}/> Nuevo producto</button>
               </>
             )}

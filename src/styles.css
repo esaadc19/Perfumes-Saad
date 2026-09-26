@@ -245,8 +245,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .selected-image-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
 .selected-image-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .selected-image-list li span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
-.admin-import-button { position: relative; min-height: 48px; overflow: hidden; cursor: pointer; }
-.admin-import-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .import-feedback { margin: 0 0 14px; color: #3d7444; font-size: 13px; }
 .admin-actions { display: flex; gap: 10px; }
 .access-required { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center; }
@@ -358,7 +357,7 @@ footer a { color: #111; }
   .admin-main { min-width: 0; padding: 25px 16px; }
   .admin-top { align-items: start; gap: 16px; flex-direction: column; }
   .admin-actions { width: 100%; }
-  .admin-actions button, .admin-actions .admin-import-button { flex: 1 1 45%; }
+  .admin-actions button { flex: 1 1 45%; }
   .admin-section-tabs { display: flex; gap: 7px; margin: 0 -16px 18px; padding: 0 16px 6px; overflow-x: auto; }
   .admin-section-tabs button { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 9px 12px; border: 1px solid var(--border); border-radius: 999px; background: white; color: var(--ink); font-size: 12px; }
   .admin-section-tabs button.selected { border-color: #111; background: #111; color: white; }
@@ -421,7 +420,7 @@ footer a { color: #111; }
   .admin-top > div { min-width: 0; max-width: 100%; }
   .admin-top h1 { font-size: 34px; }
   .admin-actions { min-width: 0; flex-wrap: wrap; }
-  .admin-actions button, .admin-actions .admin-import-button { min-width: 0; min-height: 44px; padding: 0 10px; font-size: 12px; }
+  .admin-actions button { min-width: 0; min-height: 44px; padding: 0 10px; font-size: 12px; }
   .admin-section-tabs { margin-right: -12px; margin-left: -12px; padding-right: 12px; padding-left: 12px; }
   .admin-section-tabs button { padding: 9px 10px; }
   .admin-card { min-width: 0; padding: 16px 12px; margin-bottom: 14px; }
