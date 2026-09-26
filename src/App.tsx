@@ -1066,7 +1066,7 @@ function Admin({
               const stock = product.variants.reduce((s, v) => s + v.stock, 0);
               const available = product.active !== false && stock > 0;
               return (
-                <div className="table-row" key={product.id}>
+                <div className="table-row product-row" key={product.id}>
                   <div className="product-cell">
                     <img src={product.image} alt="" />
                     <div><b>{product.brand}</b><span>{product.name}</span></div>
@@ -1163,9 +1163,11 @@ function Admin({
                       <div className="profile-cell"><strong>{profile.full_name || "Sin nombre"}</strong><span>{profile.email || "Sin correo"}</span></div>
                       <span>{profile.phone || "—"}</span>
                       <span>{new Date(profile.created_at).toLocaleDateString("es-CO")}</span>
-                      <select aria-label={`Permiso de ${profile.email ?? profile.id}`} value={profile.role} disabled={profile.id === currentUserId || savingProfileId === profile.id} onChange={(event) => void saveProfileRole(profile, event.target.value as AdminProfile["role"])}>
-                        <option value="customer">Cliente</option><option value="admin">Administrador</option>
-                      </select>
+                      <label className="mobile-select-cell">
+                        <select aria-label={`Permiso de ${profile.email ?? profile.id}`} value={profile.role} disabled={profile.id === currentUserId || savingProfileId === profile.id} onChange={(event) => void saveProfileRole(profile, event.target.value as AdminProfile["role"])}>
+                          <option value="customer">Cliente</option><option value="admin">Administrador</option>
+                        </select>
+                      </label>
                     </div>
                   ))}
                   {!sectionLoading && visibleProfiles.length === 0 && <p className="insight">No hay perfiles que coincidan con la búsqueda.</p>}
@@ -1215,14 +1217,18 @@ function Admin({
                     <span>{order.payment_status !== "paid" ? "—" : order.order_items.some((item) => item.unit_cost_snapshot === null)
                       ? "Incompleta"
                       : money(Number(order.total) - order.order_items.reduce((sum, item) => sum + Number(item.unit_cost_snapshot) * item.quantity, 0))}</span>
-                    <select aria-label={`Estado del pedido ${order.id.slice(0, 8)}`} value={normalizeOrderStatus(order.status)} disabled={savingOrderId === order.id || order.payment_status === "paid"} onChange={(event) => void saveOrderStatus(order, event.target.value as "pending_confirmation" | "confirmed" | "cancelled", normalizePaymentStatus(order.payment_status))}>
-                      <option value="pending_confirmation">Por confirmar</option><option value="confirmed">Confirmado</option><option value="cancelled">Cancelado</option>
-                    </select>
-                    <select aria-label={`Pago del pedido ${order.id.slice(0, 8)}`} value={normalizePaymentStatus(order.payment_status)} disabled={savingOrderId === order.id} onChange={(event) => void saveOrderStatus(order, normalizeOrderStatus(order.status), event.target.value as "pending" | "paid" | "refunded")}>
-                      {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
-                      {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
-                      {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
-                    </select>
+                    <label className="mobile-select-cell">
+                      <select aria-label={`Estado del pedido ${order.id.slice(0, 8)}`} value={normalizeOrderStatus(order.status)} disabled={savingOrderId === order.id || order.payment_status === "paid"} onChange={(event) => void saveOrderStatus(order, event.target.value as "pending_confirmation" | "confirmed" | "cancelled", normalizePaymentStatus(order.payment_status))}>
+                        <option value="pending_confirmation">Por confirmar</option><option value="confirmed">Confirmado</option><option value="cancelled">Cancelado</option>
+                      </select>
+                    </label>
+                    <label className="mobile-select-cell">
+                      <select aria-label={`Pago del pedido ${order.id.slice(0, 8)}`} value={normalizePaymentStatus(order.payment_status)} disabled={savingOrderId === order.id} onChange={(event) => void saveOrderStatus(order, normalizeOrderStatus(order.status), event.target.value as "pending" | "paid" | "refunded")}>
+                        {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
+                        {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
+                        {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
+                      </select>
+                    </label>
                   </div>
                 ))}
                 {!sectionLoading && visibleOrders.length === 0 && <p className="insight">No hay pedidos que coincidan con la búsqueda.</p>}

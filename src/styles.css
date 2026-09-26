@@ -333,12 +333,136 @@ footer a { color: #111; }
   .insight-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
-  .product-grid { grid-template-columns: 1fr; }
-  .form-grid { grid-template-columns: 1fr; }
+  .topbar {
+    height: auto;
+    min-height: 62px;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: "brand account cart" "search search search";
+    gap: 10px;
+    padding: 10px 16px;
+  }
+  .mobile-menu, .nav-left { display: none; }
+  .brand { grid-area: brand; justify-self: start; font-size: 19px; }
+  .nav-actions { display: contents; }
+  .nav-actions .search-box { grid-area: search; display: flex; width: 100%; padding: 7px 0; }
+  .nav-actions .search-box input { width: 100%; min-width: 0; }
+  .nav-actions > button:first-of-type { grid-area: account; }
+  .nav-actions > button:last-of-type { grid-area: cart; }
+  .hero { padding: 42px 18px 30px; gap: 20px; }
+  .hero h1 { font-size: clamp(38px, 11vw, 54px); }
+  .hero-card { padding: 20px; }
+  .catalog-section { padding: 18px 16px 60px; }
+  .section-head { align-items: start; gap: 12px; }
+  .section-head h2, .card-title h2 { font-size: 27px; }
+  .category-pills { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 22px; padding: 0 16px 5px; }
+  .pill { flex: 0 0 auto; }
+  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; }
+  .product-info { padding-top: 10px; }
+  .product-info h3 { font-size: 14px; line-height: 1.35; }
+  .product-info > span, .product-info > p { font-size: 11px; }
+  .product-image { aspect-ratio: 1 / 1.1; }
+  .overlay { padding: 10px; align-items: center; }
+  .product-modal { max-height: 96dvh; overflow-y: auto; }
+  .product-detail-image { min-height: 0; height: min(34dvh, 270px); }
+  .product-detail-copy { padding: 26px 20px 28px; }
+  .product-detail-copy h2 { font-size: 30px; }
+  .detail-meta div { grid-template-columns: 72px minmax(0, 1fr); }
+  .cart-drawer { width: 100%; padding: 26px 18px; }
+  .auth-modal, .add-modal { max-height: 94dvh; overflow-y: auto; padding: 30px 22px; }
+  .auth-modal h2, .add-modal h2 { font-size: 30px; }
+  .form-grid { grid-template-columns: minmax(0, 1fr); }
   .form-grid .form-wide { grid-column: auto; }
-  .variant-form-row { gap: 6px; }
-  .metrics { grid-template-columns: 1fr 1fr; }
-  footer { flex-direction: column; }
+  .variant-form-row { align-items: end; gap: 7px; }
+  .variant-form-row label { min-width: 0; }
+  .variant-form-row input { padding: 0 8px; }
+  .admin-main { padding: 22px 12px 32px; }
+  .admin-top { gap: 12px; margin-bottom: 18px; }
+  .admin-top h1 { font-size: 34px; }
+  .admin-actions { flex-wrap: wrap; }
+  .admin-actions button { min-width: 0; padding: 0 10px; font-size: 12px; }
+  .admin-section-tabs { margin-right: -12px; margin-left: -12px; padding-right: 12px; padding-left: 12px; }
+  .admin-section-tabs button { padding: 9px 10px; }
+  .admin-card { padding: 16px 12px; margin-bottom: 14px; }
+  .card-title { flex-direction: column; gap: 14px; margin-bottom: 18px; }
+  .card-title > div { min-width: 0; }
+  .card-title span { display: block; margin-top: 5px; line-height: 1.5; }
+  .admin-search { min-width: 0; }
+  .metrics { gap: 8px; margin-bottom: 12px; }
+  .metric { grid-template-columns: 28px minmax(0, 1fr); gap: 7px; padding: 12px 9px; }
+  .metric-icon { width: 28px; height: 28px; }
+  .metric-icon svg { width: 16px; height: 16px; }
+  .metric span { font-size: 10px; line-height: 1.35; }
+  .metric strong { font-size: 15px; }
+  .insight-grid { gap: 0; }
+  .admin-table { overflow: visible; }
+  .table-row.header { display: none; }
+  .table-row:not(.header) {
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 13px;
+    border: 1px solid var(--border);
+    background: #fff;
+    align-items: start;
+  }
+  .table-row:not(.header) > * { min-width: 0; overflow-wrap: anywhere; }
+  .table-row:not(.header) > *::before {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .product-cell { grid-column: 1 / -1; position: relative; padding-top: 16px; }
+  .product-cell::before { position: absolute; top: 0; left: 0; content: "Producto"; }
+  .variant-cost-list { grid-column: 1 / -1; position: relative; padding-top: 16px; }
+  .variant-cost-list::before { position: absolute; top: 0; left: 0; content: "Presentación y costo unitario"; }
+  .table-row:not(.header) > :last-child:empty { display: none; }
+  .table-row:not(.header) > .status { grid-column: 1 / -1; width: 100%; justify-content: center; min-height: 40px; }
+  .transaction-row > :first-child { grid-column: 1 / -1; }
+  .product-row > :nth-child(2)::before { content: "Categoría"; }
+  .product-row > :nth-child(4)::before { content: "Stock total"; }
+  .product-row > :nth-child(5)::before { content: "Disponibilidad"; }
+  .top-product-row > :nth-child(1)::before { content: "Perfume"; }
+  .top-product-row > :nth-child(2)::before { content: "Presentación"; }
+  .top-product-row > :nth-child(3)::before { content: "Unidades"; }
+  .top-product-row > :nth-child(4)::before { content: "Vendido"; }
+  .top-product-row > :nth-child(5)::before { content: "Costo"; }
+  .top-product-row > :nth-child(6)::before { content: "Utilidad"; }
+  .customer-row > :nth-child(1)::before { content: "Cliente"; }
+  .customer-row > :nth-child(2)::before { content: "WhatsApp"; }
+  .customer-row > :nth-child(3)::before { content: "Correo"; }
+  .customer-row > :nth-child(4)::before { content: "Ciudad"; }
+  .customer-row > :nth-child(5)::before { content: "Pedidos"; }
+  .profile-row > :nth-child(1)::before { content: "Perfil"; }
+  .profile-row > :nth-child(2)::before { content: "WhatsApp"; }
+  .profile-row > :nth-child(3)::before { content: "Alta"; }
+  .profile-row > :nth-child(4)::before { content: "Permiso"; }
+  .transaction-row > :nth-child(1)::before { content: "Pedido / cliente"; }
+  .transaction-row > :nth-child(2)::before { content: "Fecha de venta"; }
+  .transaction-row > :nth-child(3)::before { content: "Vendido"; }
+  .transaction-row > :nth-child(4)::before { content: "Costo"; }
+  .transaction-row > :nth-child(5)::before { content: "Utilidad"; }
+  .transaction-row > :nth-child(6)::before { content: "Estado del pedido"; }
+  .transaction-row > :nth-child(7)::before { content: "Pago"; }
+  .profile-cell { gap: 3px; }
+  .profile-cell::before { margin-bottom: 4px; }
+  .admin-table select { min-width: 0; }
+  .transaction-filters { margin-right: -12px; padding-bottom: 4px; }
+  .profile-notice { align-items: flex-start; font-size: 11px; }
+  .receipt-dialog { width: 100%; max-height: 96dvh; overflow-y: auto; padding: 24px 14px; }
+  .receipt-paper { max-width: 100%; }
+  .receipt-actions { flex-direction: column; }
+  .receipt-actions button { width: 100%; }
+  footer { flex-direction: column; gap: 10px; padding: 24px 18px; }
+}
+
+@media (max-width: 380px) {
+  .product-grid { grid-template-columns: 1fr; gap: 24px; }
+  .product-image { aspect-ratio: 1 / 1.05; }
+  .metrics { grid-template-columns: 1fr; }
 }
 
 @media print {
