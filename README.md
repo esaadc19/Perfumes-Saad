@@ -1,2 +1,92 @@
-# Perfumes-Saad
-tienda de perfumes
+# Perfumes SAAD — MVP 0.1
+
+Primer artefacto del proyecto Perfumes SAAD.
+
+## Qué incluye
+
+- Catálogo público responsive.
+- Categorías y búsqueda.
+- Vista de producto inspirada en la referencia proporcionada.
+- Variantes por presentación (ml).
+- Cambio automático de precio al seleccionar presentación.
+- Control visual de stock/agotado.
+- Carrito/pedido.
+- Generación de pedido y apertura de WhatsApp con los productos y total.
+- Vista administrativa demo.
+- Métricas iniciales de inventario.
+- Alta de producto demo.
+- Esqueleto de Supabase.
+- Esquema SQL inicial.
+
+## Importante
+
+Esta primera versión NO realiza un cobro online. El flujo es:
+
+Catálogo → selección → pedido/recibo → WhatsApp → cierre manual de la venta.
+
+No se procesa ningún pago en línea; el recibo registra el pedido pendiente de confirmación.
+
+## Instalación
+
+```bash
+npm install
+npm run dev
+```
+
+Abrir la URL mostrada por Vite.
+
+## Configurar Supabase
+
+1. Crea un proyecto en Supabase y espera a que termine de aprovisionarse.
+2. En el panel del proyecto, abre **Project Settings → API** (o **API Keys**).
+3. Copia la **Project URL** y la clave pública **anon/public** o **publishable**. No uses `service_role` ni `sb_secret_*` en la aplicación web.
+4. Copia `.env.example` como `.env` en la raíz del proyecto y completa:
+
+   ```env
+   VITE_SUPABASE_URL=https://TU_PROYECTO.supabase.co
+   VITE_SUPABASE_ANON_KEY=TU_CLAVE_PUBLICA
+   VITE_WHATSAPP_NUMBER=573102318786
+   ```
+
+5. En **SQL Editor → New query**, abre `supabase/schema.sql`, copia su contenido, pégalo y selecciona **Run**. Este paso crea las tablas, políticas y funciones que usa la aplicación.
+6. Reinicia el servidor local (`Ctrl+C` y `npm run dev`) para que Vite cargue las variables nuevas.
+7. Prueba un pedido pequeño desde la tienda. Si aparece un error de clave, vuelve a copiar la URL y la clave pública del mismo proyecto. Si indica que falta `create_whatsapp_order`, vuelve a ejecutar el esquema.
+
+El archivo `.env` está excluido de Git. No publiques ni envíes claves privadas; las variables `VITE_*` se incorporan al frontend, por lo que solo deben contener la URL y una clave pública protegida con las políticas RLS del esquema.
+
+### Crear la primera cuenta de administrador
+
+1. En la tienda, abre **Cuenta → Crear una cuenta de cliente** y regístrate con un correo al que tengas acceso. Elige tu propia contraseña; la tienda no asigna contraseñas ni comparte credenciales.
+2. Si Supabase lo solicita, confirma la cuenta desde el correo e inicia sesión al menos una vez.
+3. En **Supabase → SQL Editor → New query**, promueve únicamente ese correo registrado:
+
+   ```sql
+   update public.profiles p
+   set role = 'admin'
+   from auth.users u
+   where p.id = u.id
+     and lower(u.email) = lower('TU_CORREO');
+   ```
+
+4. Cierra sesión y vuelve a entrar en la tienda. Abre **Administración**; el panel permitirá gestionar productos, pedidos, clientes y roles de perfiles.
+5. Después de iniciar sesión como administrador, asigna los roles de otras cuentas registradas desde **Perfiles**. No cambies tu propio rol ni elimines el último administrador.
+
+No registres contraseñas en SQL ni en perfiles. Las credenciales se administran exclusivamente desde Supabase Auth. Vuelve a ejecutar el `supabase/schema.sql` actualizado en el SQL Editor para habilitar las métricas y funciones administrativas.
+
+El número de WhatsApp se configura en `VITE_WHATSAPP_NUMBER`, en formato internacional, sin `+` ni espacios.
+
+## Vercel
+
+Conecta el repositorio de GitHub con Vercel. En **Project Settings → Environment Variables**, crea `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `VITE_WHATSAPP_NUMBER` con los valores locales. Luego vuelve a desplegar el proyecto. No agregues claves `service_role` o `sb_secret_*` al frontend.
+
+Build command:
+`npm run build`
+
+Output:
+`dist`
+
+No se necesita comprar hosting para este MVP. GitHub aloja el código y Vercel sirve el frontend; Supabase aloja la base de datos.
+
+## Estado de la integración
+
+La aplicación ya incluye autenticación, roles, gestión de productos y guardado de pedidos. Estas funciones requieren completar los pasos de configuración de Supabase anteriores. El flujo de pedido no cobra en línea: registra el pedido y lo envía a WhatsApp para confirmar la venta manualmente.

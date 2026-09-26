@@ -1,0 +1,1231 @@
+import { useEffect, useMemo, useState } from "react";
+import type { Session, User as AuthUser } from "@supabase/supabase-js";
+import { supabase } from "./lib/supabase";
+import {
+  createProduct,
+  getAdminProducts,
+  getProducts,
+  setProductActive,
+  type Product,
+} from "./services/products";
+import {
+  getAdminCustomers,
+  getAdminDashboardMetrics,
+  getAdminOrders,
+  getAdminProfiles,
+  updateAdminCustomer,
+  updateAdminOrderStatus,
+  updateAdminProfileRole,
+  type AdminCustomer,
+  type AdminDashboardMetrics,
+  type AdminOrder,
+  type AdminProfile,
+} from "./services/admin";
+import AuthDialog from "./components/AuthDialog";
+import ReceiptDialog from "./components/ReceiptDialog";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BarChart3,
+  Check,
+  ContactRound,
+  LayoutDashboard,
+  Menu,
+  Package,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  Trash2,
+  User,
+  Users,
+  X,
+} from "lucide-react";
+
+type Variant = {
+  id: string;
+  size: number;
+  price: number;
+  stock: number;
+};
+
+type CartItem = {
+  product: Product;
+  variant: Variant;
+  quantity: number;
+};
+
+const seedProducts: Product[] = [
+  {
+    id: "1",
+    brand: "Ariana Grande",
+    name: "Thank U, Next",
+    gender: "Mujeres",
+    category: "Comercial",
+    description:
+      "Fragancia Floral Frutal Gourmand. Un aroma dulce, juvenil y femenino con una salida frutal y un fondo cálido.",
+    family: "Floral Frutal Gourmand",
+    climate: ["Verano (Calor)", "Primavera (Templado, fresco)"],
+    image:
+      "https://images.unsplash.com/photo-1541643600914-78b084683601?auto=format&fit=crop&w=1000&q=85",
+    variants: [
+      { id: "1-30", size: 30, price: 25000, stock: 5 },
+      { id: "1-50", size: 50, price: 45000, stock: 3 },
+      { id: "1-100", size: 100, price: 65000, stock: 0 },
+    ],
+    featured: true,
+  },
+  {
+    id: "2",
+    brand: "Lattafa",
+    name: "Qaed Al Fursan",
+    gender: "Unisex",
+    category: "Árabes",
+    description:
+      "Fragancia dulce y frutal con un perfil marcado de piña, maderas y un fondo cálido.",
+    family: "Frutal Amaderado",
+    climate: ["Verano (Calor)", "Todo el año"],
+    image:
+      "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=1000&q=85",
+    variants: [
+      { id: "2-90", size: 90, price: 95000, stock: 7 },
+    ],
+  },
+  {
+    id: "3",
+    brand: "Armaf",
+    name: "Club de Nuit Intense Man",
+    gender: "Hombres",
+    category: "Árabes",
+    description:
+      "Perfil cítrico, ahumado y amaderado. Una opción versátil para salidas y ocasiones especiales.",
+    family: "Amaderado Especiado",
+    climate: ["Todo el año"],
+    image:
+      "https://images.unsplash.com/photo-1592945403244-b3fbafd7f539?auto=format&fit=crop&w=1000&q=85",
+    variants: [
+      { id: "3-105", size: 105, price: 130000, stock: 4 },
+    ],
+  },
+];
+
+const money = (value: number) =>
+  new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(value);
+
+function App() {
+  const [view, setView] = useState<"store" | "admin">("store");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [userRole, setUserRole] = useState<"customer" | "admin" | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [adminAccessPending, setAdminAccessPending] = useState(false);
+  const [loginFeedback, setLoginFeedback] = useState<string | null>(null);
+  const [showAccount, setShowAccount] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+
+    async function loadProducts() {
+      try {
+        setError(null);
+        if (!supabase) {
+          if (active) {
+            setProducts(seedProducts);
+            setCatalogNotice(
+              "Mostrando el catálogo de demostración. Configura Supabase para cargar tu inventario."
+            );
+          }
+          return;
+        }
+
+        const data = await getProducts();
+        if (active) setProducts(data);
+      } catch (err) {
+        console.error("No se pudo cargar el catálogo:", err);
+        if (active) setError("No pudimos cargar el catálogo. Revisa la conexión e inténtalo de nuevo.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    void loadProducts();
+    return () => {
+      active = false;
+    };
+  }, []);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState("");
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("Todos");
+  const [showLogin, setShowLogin] = useState(false);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [savingProduct, setSavingProduct] = useState(false);
+  const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
+    const client = supabase;
+    let active = true;
+    let lookup = 0;
+    const syncSession = async (session: Session | null) => {
+      const currentLookup = ++lookup;
+      if (!active) return;
+      setUser(session?.user ?? null);
+      if (!session?.user) {
+        setUserRole(null);
+        setAuthLoading(false);
+        return;
+      }
+
+      setUserRole(null);
+      setAuthLoading(true);
+      const { data, error: roleError } = await client
+        .from("profiles")
+        .select("role")
+        .eq("id", session.user.id)
+        .maybeSingle();
+      if (!active || currentLookup !== lookup) return;
+      if (roleError) {
+        console.error("No se pudo verificar el rol de la cuenta:", roleError);
+        setLoginFeedback("No se pudo verificar el rol de la cuenta. Vuelve a iniciar sesión.");
+        setUserRole(null);
+      } else {
+        setUserRole(data?.role === "admin" ? "admin" : "customer");
+      }
+      setAuthLoading(false);
+    };
+
+    const { data: authListener } = client.auth.onAuthStateChange((_event, session) => {
+      window.setTimeout(() => void syncSession(session), 0);
+    });
+    void client.auth.getSession().then(({ data, error: sessionError }) => {
+      if (sessionError) {
+        console.error("No se pudo recuperar la sesión:", sessionError);
+        setLoginFeedback("No se pudo recuperar la sesión. Inicia sesión nuevamente.");
+        setAuthLoading(false);
+        return;
+      }
+      void syncSession(data.session);
+    });
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!adminAccessPending || authLoading || !user || !userRole) return;
+    setAdminAccessPending(false);
+    if (userRole === "admin") {
+      setView("admin");
+      setShowLogin(false);
+      setLoginFeedback(null);
+    } else {
+      setLoginFeedback("Esta cuenta es de cliente y no tiene permisos de administración.");
+      setShowLogin(true);
+    }
+  }, [adminAccessPending, authLoading, user, userRole]);
+
+  useEffect(() => {
+    if (view !== "admin" || userRole !== "admin") return;
+    let active = true;
+    setAdminError(null);
+    void getAdminProducts()
+      .then((data) => {
+        if (active) setProducts(data);
+      })
+      .catch((loadError: unknown) => {
+        console.error("No se pudo cargar el inventario administrativo:", loadError);
+        if (active) setAdminError("No se pudo cargar el inventario. Revisa la conexión.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [view, userRole]);
+
+  const requestAdminAccess = () => {
+    setAdminAccessPending(true);
+    setLoginFeedback(null);
+    if (!supabase) {
+      setLoginFeedback("Configura Supabase para habilitar el acceso administrativo.");
+      setAdminAccessPending(false);
+      setShowLogin(true);
+      return;
+    }
+    if (user && userRole === "admin") {
+      setAdminAccessPending(false);
+      setView("admin");
+    } else {
+      setShowLogin(true);
+    }
+  };
+
+  const handleAuthenticated = (authenticatedUser: AuthUser) => {
+    setUser(authenticatedUser);
+    setShowLogin(false);
+  };
+
+  const handleProductSave = async (product: {
+    brand: string;
+    name: string;
+    gender: Product["gender"];
+    category: Product["category"];
+    description: string;
+    family: string;
+    climate: string[];
+    image_url: string;
+  }, variants: { size: number; price: number; stock: number }[]) => {
+    setSavingProduct(true);
+    setAdminError(null);
+    try {
+      await createProduct(product, variants);
+      setProducts(await getAdminProducts());
+      setShowAddProduct(false);
+    } catch (saveError) {
+      console.error("No se pudo guardar el producto:", saveError);
+      setAdminError("No se pudo guardar el producto. Verifica los datos y tus permisos.");
+    } finally {
+      setSavingProduct(false);
+    }
+  };
+
+  const handleProductActiveChange = async (product: Product) => {
+    const nextActive = product.active === false;
+    setUpdatingProductId(product.id);
+    setAdminError(null);
+    try {
+      await setProductActive(product.id, nextActive);
+      setProducts((current) => current.map((item) =>
+        item.id === product.id ? { ...item, active: nextActive } : item
+      ));
+    } catch (updateError) {
+      console.error("No se pudo cambiar la disponibilidad:", updateError);
+      setAdminError("No se pudo actualizar la disponibilidad del producto.");
+    } finally {
+      setUpdatingProductId(null);
+    }
+  };
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      if (p.active === false || p.variants.length === 0) return false;
+      const matchesSearch =
+        `${p.brand} ${p.name}`.toLowerCase().includes(search.toLowerCase());
+      const matchesCategory = category === "Todos" || p.category === category;
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, search, category]);
+
+  const openProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setSelectedVariantId(
+      product.variants.find((v) => v.stock > 0)?.id ?? product.variants[0].id
+    );
+  };
+
+  const selectedVariant =
+    selectedProduct?.variants.find((v) => v.id === selectedVariantId) ??
+    selectedProduct?.variants[0];
+
+  const addToCart = () => {
+    if (!selectedProduct || !selectedVariant || selectedVariant.stock <= 0) return;
+
+    setCart((current) => {
+      const existing = current.find(
+        (item) => item.variant.id === selectedVariant.id
+      );
+
+      if (existing) {
+        return current.map((item) =>
+          item.variant.id === selectedVariant.id
+            ? { ...item, quantity: Math.min(item.quantity + 1, selectedVariant.stock) }
+            : item
+        );
+      }
+
+      return [...current, { product: selectedProduct, variant: selectedVariant, quantity: 1 }];
+    });
+
+    setCartOpen(true);
+  };
+
+  const total = cart.reduce(
+    (sum, item) => sum + item.variant.price * item.quantity,
+    0
+  );
+
+  return (
+    <div className="app">
+      {view === "store" ? (
+        <>
+          <header className="topbar">
+            <button className="mobile-menu"><Menu size={19} /></button>
+            <nav className="nav-left">
+              <button onClick={() => setCategory("Comercial")}>Comercial</button>
+              <button onClick={() => setCategory("Diseñador")}>Diseñador</button>
+              <button onClick={() => setCategory("Árabes")}>Árabes</button>
+              <button onClick={() => setCategory("Nicho")}>Nicho</button>
+            </nav>
+
+            <button className="brand" onClick={() => setCategory("Todos")}>
+              Perfumes <span>SAAD</span>
+            </button>
+
+            <div className="nav-actions">
+              <div className="search-box">
+                <Search size={17} />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar"
+                />
+              </div>
+              <button title="Cuenta" onClick={() => user ? setShowAccount(true) : setShowLogin(true)}>
+                <User size={19} />
+              </button>
+              <button title="Carrito" onClick={() => setCartOpen(true)} className="cart-button">
+                <ShoppingBag size={19} />
+                {cart.length > 0 && <span>{cart.length}</span>}
+              </button>
+            </div>
+          </header>
+
+          <main>
+            <section className="hero">
+              <div>
+                <p className="eyebrow">PERFUMES SAAD</p>
+                <h1>Encuentra una fragancia que vaya contigo.</h1>
+                <p>
+                  Catálogo de perfumería con recomendaciones, diferentes
+                  presentaciones y atención personalizada por WhatsApp.
+                </p>
+                <button className="primary" onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })}>
+                  Ver catálogo
+                </button>
+              </div>
+              <div className="hero-card">
+                <Sparkles size={24} />
+                <strong>Compra sencilla</strong>
+                <span>Elige tu perfume, presentación y recibe tu pedido por WhatsApp.</span>
+              </div>
+            </section>
+
+            <section id="catalogo" className="catalog-section">
+              <div className="section-head">
+                <div>
+                  <p className="eyebrow">CATÁLOGO</p>
+                  <h2>Perfumes destacados</h2>
+                </div>
+                <span>{filteredProducts.length} productos</span>
+              </div>
+
+              <div className="category-pills">
+                {["Todos", "Comercial", "Diseñador", "Árabes", "Nicho"].map((item) => (
+                  <button
+                    key={item}
+                    className={category === item ? "pill active" : "pill"}
+                    onClick={() => setCategory(item)}
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
+
+              {catalogNotice && <p className="catalog-message">{catalogNotice}</p>}
+              <div className="product-grid">
+                {loading ? (
+                  <p className="catalog-message" role="status">Cargando perfumes...</p>
+                ) : error ? (
+                  <p className="catalog-message error-state" role="alert">{error}</p>
+                ) : filteredProducts.length === 0 ? (
+                  <p className="catalog-message">No encontramos perfumes con esos filtros.</p>
+                ) : filteredProducts.map((product) => {
+                  const firstAvailable =
+                    product.variants.find((v) => v.stock > 0) ?? product.variants[0];
+                  return (
+                    <article className="product-card" key={product.id}>
+                      <button className="product-image" onClick={() => openProduct(product)}>
+                        <img src={product.image} alt={product.name} />
+                        {firstAvailable.stock <= 0 && (
+                          <span className="sold-out">Agotado</span>
+                        )}
+                      </button>
+                      <div className="product-info">
+                        <span>{product.brand}</span>
+                        <h3>{product.name}</h3>
+                        <p>{product.gender}</p>
+                        <strong>{money(firstAvailable.price)}</strong>
+                        <button className="text-button" onClick={() => openProduct(product)}>
+                          Ver producto →
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          </main>
+
+          {selectedProduct && (
+            <div className="overlay">
+              <div className="product-modal">
+                <button className="close" onClick={() => setSelectedProduct(null)}>
+                  <X />
+                </button>
+                <div className="product-detail-image">
+                  <img src={selectedProduct.image} alt={selectedProduct.name} />
+                </div>
+                <div className="product-detail-copy">
+                  <span className="brand-small">{selectedProduct.brand}</span>
+                  <h2>{selectedProduct.name}</h2>
+                  <p className="gender">{selectedProduct.gender}</p>
+                  <div className="price">{selectedVariant ? money(selectedVariant.price) : "—"}</div>
+                  <p className="description">{selectedProduct.description}</p>
+
+                  <div className="detail-block">
+                    <label>Presentación</label>
+                    <div className="variant-row">
+                      {selectedProduct.variants.map((variant) => (
+                        <button
+                          key={variant.id}
+                          disabled={variant.stock <= 0}
+                          className={selectedVariantId === variant.id ? "variant active" : "variant"}
+                          onClick={() => setSelectedVariantId(variant.id)}
+                        >
+                          {variant.size} ml
+                          {variant.stock <= 0 && <small>Agotado</small>}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="detail-meta">
+                    <div><b>Familia</b><span>{selectedProduct.family}</span></div>
+                    <div><b>Clima</b><span>{selectedProduct.climate.join(" · ")}</span></div>
+                  </div>
+
+                  <button
+                    className="primary full"
+                    disabled={!selectedVariant || selectedVariant.stock <= 0}
+                    onClick={addToCart}
+                  >
+                    <ShoppingBag size={17} />
+                    {selectedVariant?.stock ? "Agregar al pedido" : "Agotado"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {cartOpen && (
+            <div className="overlay">
+              <aside className="cart-drawer">
+                <div className="drawer-head">
+                  <div>
+                    <p className="eyebrow">PEDIDO</p>
+                    <h2>Tu selección</h2>
+                  </div>
+                  <button className="close-small" onClick={() => setCartOpen(false)}><X /></button>
+                </div>
+
+                {cart.length === 0 ? (
+                  <div className="empty">
+                    <ShoppingBag size={32} />
+                    <p>Tu pedido está vacío.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="cart-items">
+                      {cart.map((item) => (
+                        <div className="cart-item" key={item.variant.id}>
+                          <img src={item.product.image} alt="" />
+                          <div>
+                            <strong>{item.product.name}</strong>
+                            <span>{item.variant.size} ml · x{item.quantity}</span>
+                            <b>{money(item.variant.price * item.quantity)}</b>
+                          </div>
+                          <button
+                            onClick={() =>
+                              setCart((current) =>
+                                current.filter((x) => x.variant.id !== item.variant.id)
+                              )
+                            }
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="cart-total">
+                      <span>Total</span>
+                      <strong>{money(total)}</strong>
+                    </div>
+                    <p className="checkout-note">
+                      Genera tu recibo tipo impresora, verifica los datos del cliente y
+                      envía el pedido a Perfumes SAAD por WhatsApp.
+                    </p>
+                    <button className="primary full" onClick={() => setReceiptOpen(true)}>
+                      Generar recibo del pedido
+                    </button>
+                  </>
+                )}
+              </aside>
+            </div>
+          )}
+
+          <footer>
+            <div className="footer-brand">Perfumes SAAD</div>
+            <span>Perfumería · Barranquilla · Colombia</span>
+            <a href="#" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
+              Administración
+            </a>
+          </footer>
+        </>
+      ) : userRole === "admin" ? (
+        <Admin
+          products={products}
+          currentUserId={user?.id ?? ""}
+          onBack={() => setView("store")}
+          onAdd={() => {
+            setAdminError(null);
+            setShowAddProduct(true);
+          }}
+          onProductActiveChange={handleProductActiveChange}
+          updatingProductId={updatingProductId}
+          error={adminError}
+          onSignOut={async () => {
+            if (!supabase) return;
+            const { error: signOutError } = await supabase.auth.signOut();
+            if (signOutError) {
+              console.error("No se pudo cerrar la sesión:", signOutError);
+              setAdminError("No se pudo cerrar la sesión. Inténtalo de nuevo.");
+              return;
+            }
+            setView("store");
+          }}
+        />
+      ) : (
+        <main className="access-required">
+          <p className="eyebrow">PERFUMES SAAD</p>
+          <h1>Acceso al panel</h1>
+          <p>
+            {authLoading
+              ? "Verificando tu sesión..."
+              : "Inicia sesión con una cuenta autorizada para administrar la tienda."}
+          </p>
+          {loginFeedback && <p className="form-error" role="alert">{loginFeedback}</p>}
+          <button className="primary" onClick={requestAdminAccess} disabled={authLoading}>
+            Iniciar sesión como administrador
+          </button>
+          <button className="secondary full" onClick={() => setView("store")}>Volver a la tienda</button>
+        </main>
+      )}
+
+      {showAddProduct && (
+        <AddProductModal
+          onClose={() => setShowAddProduct(false)}
+          onSave={handleProductSave}
+          saving={savingProduct}
+          error={adminError}
+        />
+      )}
+      {showLogin && (
+        <AuthDialog
+          notice={loginFeedback}
+          onClose={() => {
+            setShowLogin(false);
+            setAdminAccessPending(false);
+            setLoginFeedback(null);
+          }}
+          onAuthenticated={handleAuthenticated}
+        />
+      )}
+      {showAccount && user && (
+        <div className="overlay">
+          <div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
+            <button className="close" onClick={() => setShowAccount(false)} aria-label="Cerrar"><X /></button>
+            <p className="eyebrow">MI CUENTA</p>
+            <h2 id="account-title">Hola</h2>
+            <p>{user.email}</p>
+            {userRole === "admin" && (
+              <button className="primary full" onClick={() => {
+                setShowAccount(false);
+                setView("admin");
+              }}>Abrir panel de administración</button>
+            )}
+            <button className="secondary full" onClick={async () => {
+              if (!supabase) return;
+              const { error: signOutError } = await supabase.auth.signOut();
+              if (signOutError) {
+                console.error("No se pudo cerrar la sesión:", signOutError);
+                setLoginFeedback("No se pudo cerrar la sesión. Inténtalo de nuevo.");
+                return;
+              }
+              setShowAccount(false);
+            }}>Cerrar sesión</button>
+          </div>
+        </div>
+      )}
+      {receiptOpen && (
+        <ReceiptDialog
+          cart={cart}
+          user={user}
+          onClose={() => setReceiptOpen(false)}
+          onSignIn={() => {
+            setReceiptOpen(false);
+            setShowLogin(true);
+          }}
+          onOrderSaved={() => {
+            setCart([]);
+            setCartOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function Admin({
+  products,
+  currentUserId,
+  onBack,
+  onAdd,
+  onProductActiveChange,
+  updatingProductId,
+  error,
+  onSignOut,
+}: {
+  products: Product[];
+  currentUserId: string;
+  onBack: () => void;
+  onAdd: () => void;
+  onProductActiveChange: (product: Product) => void;
+  updatingProductId: string | null;
+  error: string | null;
+  onSignOut: () => void;
+}) {
+  const [section, setSection] = useState<"overview" | "products" | "orders" | "customers" | "profiles">("overview");
+  const [sectionRevision, setSectionRevision] = useState(0);
+  const [sectionLoading, setSectionLoading] = useState(false);
+  const [sectionError, setSectionError] = useState<string | null>(null);
+  const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [customers, setCustomers] = useState<AdminCustomer[]>([]);
+  const [profiles, setProfiles] = useState<AdminProfile[]>([]);
+  const [search, setSearch] = useState("");
+  const [editingCustomer, setEditingCustomer] = useState<AdminCustomer | null>(null);
+  const [customerSaving, setCustomerSaving] = useState(false);
+  const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
+  const [savingProfileId, setSavingProfileId] = useState<string | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const visibleProducts = products.filter((product) =>
+    `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase())
+  );
+  const totalStock = products.reduce(
+    (sum, p) => sum + p.variants.reduce((s, v) => s + v.stock, 0),
+    0
+  );
+  const lowStock = products.filter((p) =>
+    p.variants.some((v) => v.stock > 0 && v.stock <= 2)
+  ).length;
+  const soldOut = products.filter((p) => p.variants.every((v) => v.stock <= 0)).length;
+  const sections = [
+    { id: "overview", title: "Dashboard", icon: <LayoutDashboard size={17} /> },
+    { id: "products", title: "Productos", icon: <Package size={17} /> },
+    { id: "orders", title: "Pedidos", icon: <ShoppingBag size={17} /> },
+    { id: "customers", title: "Clientes", icon: <Users size={17} /> },
+    { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
+  ] as const;
+
+  useEffect(() => {
+    let active = true;
+    const loadSection = async () => {
+      if (section === "products") {
+        setSectionLoading(false);
+        setSectionError(null);
+        return;
+      }
+      setSectionLoading(true);
+      setSectionError(null);
+      try {
+        if (section === "overview") {
+          const result = await getAdminDashboardMetrics();
+          if (active) setMetrics(result);
+        } else if (section === "orders") {
+          const result = await getAdminOrders();
+          if (active) setOrders(result);
+        } else if (section === "customers") {
+          const result = await getAdminCustomers();
+          if (active) setCustomers(result);
+        } else {
+          const result = await getAdminProfiles();
+          if (active) setProfiles(result);
+        }
+      } catch (loadError) {
+        console.error(`No se pudo cargar la sección ${section}:`, loadError);
+        if (active) setSectionError("No se pudo cargar esta sección. Ejecuta el esquema actualizado de Supabase y vuelve a intentar.");
+      } finally {
+        if (active) setSectionLoading(false);
+      }
+    };
+    void loadSection();
+    return () => {
+      active = false;
+    };
+  }, [section, sectionRevision]);
+
+  const saveCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingCustomer) return;
+    setCustomerSaving(true);
+    setSectionError(null);
+    const form = new FormData(event.currentTarget);
+    try {
+      await updateAdminCustomer({
+        customerId: editingCustomer.id,
+        fullName: String(form.get("full_name") ?? "").trim(),
+        phone: String(form.get("phone") ?? "").trim(),
+        email: String(form.get("email") ?? "").trim(),
+        city: String(form.get("city") ?? "").trim(),
+      });
+      setEditingCustomer(null);
+      setSectionRevision((current) => current + 1);
+    } catch (saveError) {
+      console.error("No se pudo guardar el perfil del cliente:", saveError);
+      setSectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar el cliente.");
+    } finally {
+      setCustomerSaving(false);
+    }
+  };
+
+  const saveOrderStatus = async (
+    order: AdminOrder,
+    status: "pending_confirmation" | "confirmed" | "cancelled",
+    paymentStatus: "pending" | "paid" | "refunded"
+  ) => {
+    setSavingOrderId(order.id);
+    setSectionError(null);
+    try {
+      await updateAdminOrderStatus(order.id, status, paymentStatus);
+      setOrders((current) => current.map((item) => item.id === order.id
+        ? { ...item, status, payment_status: paymentStatus }
+        : item
+      ));
+    } catch (updateError) {
+      console.error("No se pudo actualizar el estado del pedido:", updateError);
+      setSectionError("No se pudo actualizar el pedido. Revisa tus permisos.");
+    } finally {
+      setSavingOrderId(null);
+    }
+  };
+
+  const saveProfileRole = async (profile: AdminProfile, role: AdminProfile["role"]) => {
+    setSavingProfileId(profile.id);
+    setSectionError(null);
+    try {
+      await updateAdminProfileRole(profile.id, role);
+      setProfiles((current) => current.map((item) => item.id === profile.id ? { ...item, role } : item));
+    } catch (roleError) {
+      console.error("No se pudo cambiar el rol del perfil:", roleError);
+      setSectionError(roleError instanceof Error ? roleError.message : "No se pudo cambiar el rol.");
+    } finally {
+      setSavingProfileId(null);
+    }
+  };
+
+  const query = search.trim().toLowerCase();
+  const visibleCustomers = customers.filter((customer) =>
+    `${customer.full_name} ${customer.email ?? ""} ${customer.phone ?? ""}`.toLowerCase().includes(query)
+  );
+  const visibleProfiles = profiles.filter((profile) =>
+    `${profile.full_name ?? ""} ${profile.email ?? ""} ${profile.role}`.toLowerCase().includes(query)
+  );
+  const visibleOrders = orders.filter((order) =>
+    `${order.customers?.full_name ?? ""} ${order.customers?.email ?? ""} ${order.id}`.toLowerCase().includes(query)
+  );
+  const normalizeOrderStatus = (status: string): "pending_confirmation" | "confirmed" | "cancelled" =>
+    status === "confirmed" || status === "cancelled" ? status : "pending_confirmation";
+  const normalizePaymentStatus = (status: string): "pending" | "paid" | "refunded" =>
+    status === "paid" || status === "refunded" ? status : "pending";
+  const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
+
+  return (
+    <div className="admin-layout">
+      <aside className="sidebar">
+        <button className="admin-logo" onClick={onBack}>SAAD<span>.</span></button>
+        <nav>
+          {sections.map((item) => (
+            <button
+              key={item.id}
+              className={section === item.id ? "selected" : ""}
+              onClick={() => { setSection(item.id); setSearch(""); }}
+            >
+              {item.icon}{item.title}
+            </button>
+          ))}
+        </nav>
+        <button className="back-store" onClick={onBack}><ArrowLeft size={16}/> Ver tienda</button>
+      </aside>
+
+      <main className="admin-main">
+        <div className="admin-top">
+          <div>
+            <p className="eyebrow">PERFUMES SAAD</p>
+            <h1>{pageTitle}</h1>
+          </div>
+          <div className="admin-actions">
+            {section === "products" && <button className="primary" onClick={onAdd}><Plus size={17}/> Nuevo producto</button>}
+            <button className="secondary" onClick={onSignOut}>Cerrar sesión</button>
+            {section !== "products" && (
+              <button className="secondary" onClick={() => setSectionRevision((current) => current + 1)} disabled={sectionLoading} aria-label="Actualizar datos">
+                <RefreshCw size={16}/> Actualizar
+              </button>
+            )}
+          </div>
+        </div>
+        <nav className="admin-section-tabs" aria-label="Secciones de administración">
+          {sections.map((item) => (
+            <button
+              key={item.id}
+              className={section === item.id ? "selected" : ""}
+              onClick={() => { setSection(item.id); setSearch(""); }}
+            >
+              {item.icon}{item.title}
+            </button>
+          ))}
+        </nav>
+
+        {error && section === "products" && <p className="form-error" role="alert">{error}</p>}
+        {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
+        {sectionLoading && <p className="catalog-message" role="status">Cargando {pageTitle.toLowerCase()}...</p>}
+
+        {section === "overview" && metrics && (
+          <>
+            <div className="metrics">
+              <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
+              <Metric title="Valor de pedidos" value={money(Number(metrics.order_value))} icon={<BarChart3 />} />
+              <Metric title="Clientes con pedidos" value={String(metrics.customer_count)} icon={<Users />} />
+              <Metric title="Presentaciones con stock bajo" value={String(metrics.low_stock_variants)} icon={<AlertTriangle />} warning />
+            </div>
+            <div className="metrics">
+              <Metric title="Productos" value={products.length.toString()} icon={<Package />} />
+              <Metric title="Unidades en stock" value={totalStock.toString()} icon={<ShoppingBag />} />
+              <Metric title="Pedidos pendientes" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning />
+              <Metric title="Agotados" value={soldOut.toString()} icon={<X />} />
+            </div>
+            <section className="admin-card">
+              <div className="card-title">
+                <div><h2>Más solicitados</h2><span>Unidades incluidas en pedidos guardados, ordenadas por cantidad.</span></div>
+              </div>
+              {metrics.top_products.length ? (
+                <div className="admin-table">
+                  <div className="table-row top-product-row header"><span>Perfume</span><span>Presentación</span><span>Unidades</span><span>Valor en pedidos</span></div>
+                  {metrics.top_products.map((product) => (
+                    <div className="table-row top-product-row" key={`${product.name}-${product.size_ml}`}>
+                      <strong>{product.name}</strong><span>{product.size_ml} ml</span><span>{product.units}</span><span>{money(Number(product.order_value))}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="insight">Aún no hay pedidos registrados para generar métricas de productos.</p>}
+            </section>
+            <section className="insight-grid">
+              <div className="admin-card">
+                <div className="card-title"><div><h2>Consejo</h2><span>Lectura inicial del inventario</span></div><Sparkles size={18}/></div>
+                <p className="insight">{metrics.top_products[0]
+                  ? `“${metrics.top_products[0].name}” es el producto más solicitado (${metrics.top_products[0].units} unidades en pedidos). Revisa su stock antes de impulsar nuevas ventas.`
+                  : "Cuando registres pedidos, aquí aparecerá el producto más solicitado para ayudarte a planificar el inventario."}</p>
+              </div>
+              <div className="admin-card">
+                <div className="card-title"><div><h2>Alerta</h2><span>Inventario</span></div><AlertTriangle size={18}/></div>
+                <p className="insight">{metrics.low_stock_variants > 0
+                  ? `${metrics.low_stock_variants} presentación(es) están en su mínimo de stock o por debajo.`
+                  : "No hay presentaciones por debajo de su stock mínimo."}</p>
+              </div>
+            </section>
+          </>
+        )}
+
+        {section === "products" && <section className="admin-card">
+          <div className="card-title">
+            <div>
+              <h2>Productos</h2>
+              <span>Gestiona disponibilidad y variantes.</span>
+            </div>
+            <label className="admin-search">
+              <Search size={16} />
+              <input
+                aria-label="Buscar productos"
+                placeholder="Buscar productos"
+                value={productSearch}
+                onChange={(event) => setProductSearch(event.target.value)}
+              />
+            </label>
+          </div>
+
+          <div className="admin-table">
+            <div className="table-row header">
+              <span>Producto</span><span>Categoría</span><span>Presentaciones</span><span>Stock</span><span>Estado</span><span></span>
+            </div>
+            {visibleProducts.map((product) => {
+              const stock = product.variants.reduce((s, v) => s + v.stock, 0);
+              const available = product.active !== false && stock > 0;
+              return (
+                <div className="table-row" key={product.id}>
+                  <div className="product-cell">
+                    <img src={product.image} alt="" />
+                    <div><b>{product.brand}</b><span>{product.name}</span></div>
+                  </div>
+                  <span>{product.category}</span>
+                  <span>{product.variants.map((v) => `${v.size} ml`).join(", ")}</span>
+                  <span>{stock}</span>
+                  <button
+                    className={available ? "status available" : "status sold"}
+                    disabled={updatingProductId === product.id}
+                    onClick={() => onProductActiveChange(product)}
+                  >
+                    {updatingProductId === product.id
+                      ? "Guardando..."
+                      : product.active === false
+                        ? <>Oculto · mostrar</>
+                        : available ? <><Check size={13}/> Disponible · ocultar</> : <>Agotado · ocultar</>}
+                  </button>
+                  <span />
+                </div>
+              );
+            })}
+          </div>
+        </section>}
+
+        {(section === "customers" || section === "profiles" || section === "orders") && (
+          <section className="admin-card">
+            <div className="card-title">
+              <div>
+                <h2>{section === "customers" ? "Clientes y pedidos" : section === "profiles" ? "Cuentas y permisos" : "Pedidos guardados"}</h2>
+                <span>{section === "customers"
+                  ? "Consulta compras y actualiza los datos de contacto."
+                  : section === "profiles"
+                    ? "Asigna acceso administrativo únicamente a cuentas registradas."
+                    : "Confirma o cancela pedidos y actualiza su estado de pago."}</span>
+              </div>
+              <label className="admin-search">
+                <Search size={16} />
+                <input aria-label={`Buscar ${pageTitle.toLowerCase()}`} placeholder="Buscar" value={search} onChange={(event) => setSearch(event.target.value)} />
+              </label>
+            </div>
+            {section === "customers" && (
+              <div className="admin-table">
+                <div className="table-row customer-row header"><span>Cliente</span><span>WhatsApp</span><span>Correo</span><span>Ciudad</span><span>Pedidos</span><span></span></div>
+                {visibleCustomers.map((customer) => (
+                  <div className="table-row customer-row" key={customer.id}>
+                    <strong>{customer.full_name}</strong><span>{customer.phone || "—"}</span><span>{customer.email || "—"}</span><span>{customer.city || "—"}</span><span>{customer.orders?.length ?? 0}</span>
+                    <button className="icon-button" aria-label={`Editar ${customer.full_name}`} onClick={() => setEditingCustomer(customer)}><Pencil size={16}/></button>
+                  </div>
+                ))}
+                {!sectionLoading && visibleCustomers.length === 0 && <p className="insight">No hay clientes que coincidan con la búsqueda.</p>}
+              </div>
+            )}
+            {section === "profiles" && (
+              <>
+                <div className="profile-notice"><ShieldCheck size={17}/> Los usuarios se registran desde la tienda como clientes. Puedes promover una cuenta a administrador; no puedes cambiar tu propio rol.</div>
+                <div className="admin-table">
+                  <div className="table-row profile-row header"><span>Perfil</span><span>WhatsApp</span><span>Alta</span><span>Permiso</span></div>
+                  {visibleProfiles.map((profile) => (
+                    <div className="table-row profile-row" key={profile.id}>
+                      <div className="profile-cell"><strong>{profile.full_name || "Sin nombre"}</strong><span>{profile.email || "Sin correo"}</span></div>
+                      <span>{profile.phone || "—"}</span>
+                      <span>{new Date(profile.created_at).toLocaleDateString("es-CO")}</span>
+                      <select aria-label={`Permiso de ${profile.email ?? profile.id}`} value={profile.role} disabled={profile.id === currentUserId || savingProfileId === profile.id} onChange={(event) => void saveProfileRole(profile, event.target.value as AdminProfile["role"])}>
+                        <option value="customer">Cliente</option><option value="admin">Administrador</option>
+                      </select>
+                    </div>
+                  ))}
+                  {!sectionLoading && visibleProfiles.length === 0 && <p className="insight">No hay perfiles que coincidan con la búsqueda.</p>}
+                </div>
+              </>
+            )}
+            {section === "orders" && (
+              <div className="admin-table">
+                <div className="table-row order-row header"><span>Pedido / Cliente</span><span>Fecha</span><span>Total</span><span>Estado</span><span>Pago</span></div>
+                {visibleOrders.map((order) => (
+                  <div className="table-row order-row" key={order.id}>
+                    <div className="profile-cell"><strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong><span>{order.order_items?.map((item) => `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`).join(" · ") || order.customers?.phone || "Sin detalle"}</span></div>
+                    <span>{new Date(order.created_at).toLocaleDateString("es-CO")}</span>
+                    <strong>{money(Number(order.total))}</strong>
+                    <select aria-label={`Estado del pedido ${order.id.slice(0, 8)}`} value={normalizeOrderStatus(order.status)} disabled={savingOrderId === order.id} onChange={(event) => void saveOrderStatus(order, event.target.value as "pending_confirmation" | "confirmed" | "cancelled", normalizePaymentStatus(order.payment_status))}>
+                      <option value="pending_confirmation">Por confirmar</option><option value="confirmed">Confirmado</option><option value="cancelled">Cancelado</option>
+                    </select>
+                    <select aria-label={`Pago del pedido ${order.id.slice(0, 8)}`} value={normalizePaymentStatus(order.payment_status)} disabled={savingOrderId === order.id} onChange={(event) => void saveOrderStatus(order, normalizeOrderStatus(order.status), event.target.value as "pending" | "paid" | "refunded")}>
+                      <option value="pending">Pendiente</option><option value="paid">Pagado</option><option value="refunded">Reembolsado</option>
+                    </select>
+                  </div>
+                ))}
+                {!sectionLoading && visibleOrders.length === 0 && <p className="insight">No hay pedidos que coincidan con la búsqueda.</p>}
+              </div>
+            )}
+          </section>
+        )}
+      </main>
+      {editingCustomer && (
+        <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !customerSaving) setEditingCustomer(null); }}>
+          <form className="add-modal admin-customer-modal" onSubmit={(event) => void saveCustomer(event)}>
+            <button className="close" type="button" onClick={() => setEditingCustomer(null)} aria-label="Cerrar"><X/></button>
+            <p className="eyebrow">GESTIÓN DE CLIENTES</p>
+            <h2>Editar cliente</h2>
+            <label className="auth-label">Nombre completo<input name="full_name" defaultValue={editingCustomer.full_name} required/></label>
+            <label className="auth-label">WhatsApp<input name="phone" type="tel" defaultValue={editingCustomer.phone ?? ""}/></label>
+            <label className="auth-label">Correo<input name="email" type="email" defaultValue={editingCustomer.email ?? ""}/></label>
+            <label className="auth-label">Ciudad<input name="city" defaultValue={editingCustomer.city ?? ""}/></label>
+            {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
+            <button className="primary full" type="submit" disabled={customerSaving}>{customerSaving ? "Guardando..." : "Guardar cliente"}</button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Metric({
+  title,
+  value,
+  icon,
+  warning,
+}: {
+  title: string;
+  value: string;
+  icon: React.ReactNode;
+  warning?: boolean;
+}) {
+  return (
+    <div className="metric">
+      <div className={warning ? "metric-icon warning" : "metric-icon"}>{icon}</div>
+      <span>{title}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function AddProductModal({
+  onClose,
+  onSave,
+  saving,
+  error: saveError,
+}: {
+  onClose: () => void;
+  onSave: (product: {
+    brand: string;
+    name: string;
+    gender: Product["gender"];
+    category: Product["category"];
+    description: string;
+    family: string;
+    climate: string[];
+    image_url: string;
+  }, variants: { size: number; price: number; stock: number }[]) => Promise<void>;
+  saving: boolean;
+  error: string | null;
+}) {
+  const [brand, setBrand] = useState("");
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState<Product["category"]>("Comercial");
+  const [gender, setGender] = useState<Product["gender"]>("Unisex");
+  const [image, setImage] = useState("");
+  const [description, setDescription] = useState("");
+  const [family, setFamily] = useState("");
+  const [variants, setVariants] = useState([{ size: "100", price: "100000", stock: "1" }]);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    const parsedVariants = variants.map((variant) => ({
+      size: Number(variant.size),
+      price: Number(variant.price),
+      stock: Number(variant.stock),
+    }));
+    if (!brand.trim() || !name.trim()) {
+      setError("La marca y el nombre son obligatorios.");
+      return;
+    }
+    if (parsedVariants.some((variant) =>
+      !Number.isInteger(variant.size) || variant.size <= 0 ||
+      !Number.isFinite(variant.price) || variant.price < 0 ||
+      !Number.isInteger(variant.stock) || variant.stock < 0
+    )) {
+      setError("Revisa los tamaños, precios y cantidades de stock.");
+      return;
+    }
+    if (new Set(parsedVariants.map((variant) => variant.size)).size !== parsedVariants.length) {
+      setError("No puedes repetir el tamaño de una presentación.");
+      return;
+    }
+    setError(null);
+    await onSave({
+      brand,
+      name,
+      category,
+      gender,
+      description,
+      family,
+      climate: ["Todo el año"],
+      image_url: image,
+    }, parsedVariants);
+  };
+
+  return (
+    <div className="overlay">
+      <div className="add-modal">
+        <button className="close" onClick={onClose}><X /></button>
+        <p className="eyebrow">ADMINISTRACIÓN</p>
+        <h2>Nuevo producto</h2>
+        <div className="form-grid">
+          <label>Marca<input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ej. Lattafa" /></label>
+          <label>Nombre<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Qaed Al Fursan" /></label>
+          <label>Categoría<select value={category} onChange={(e) => setCategory(e.target.value as Product["category"])}><option>Comercial</option><option>Diseñador</option><option>Árabes</option><option>Nicho</option></select></label>
+          <label>Género<select value={gender} onChange={(e) => setGender(e.target.value as Product["gender"])}><option>Hombres</option><option>Mujeres</option><option>Unisex</option></select></label>
+          <label>Familia olfativa<input value={family} onChange={(e) => setFamily(e.target.value)} placeholder="Ej. Amaderado" /></label>
+          <label>URL de imagen<input value={image} onChange={(e) => setImage(e.target.value)} placeholder="https://..." /></label>
+          <label className="form-wide">Descripción<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción del perfume" /></label>
+        </div>
+        <div className="variant-editor">
+          <div className="variant-editor-head">
+            <strong>Presentaciones y stock</strong>
+            <button className="text-button" type="button" onClick={() => setVariants((current) => [...current, { size: "", price: "", stock: "0" }])}>
+              + Agregar presentación
+            </button>
+          </div>
+          {variants.map((variant, index) => (
+            <div className="variant-form-row" key={index}>
+              <label>ML<input type="number" min="1" value={variant.size} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, size: event.target.value } : item))} /></label>
+              <label>Precio<input type="number" min="0" value={variant.price} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, price: event.target.value } : item))} /></label>
+              <label>Stock<input type="number" min="0" value={variant.stock} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, stock: event.target.value } : item))} /></label>
+              <button className="icon-button" type="button" aria-label="Quitar presentación" disabled={variants.length === 1} onClick={() => setVariants((current) => current.filter((_, i) => i !== index))}>
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+        {(error || saveError) && <p className="form-error" role="alert">{error ?? saveError}</p>}
+        <button className="primary full" disabled={saving} onClick={() => void save()}>{saving ? "Guardando..." : "Guardar producto"}</button>
+      </div>
+    </div>
+  );
+}
+
+export default App;
