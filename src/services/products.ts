@@ -20,6 +20,7 @@ export interface Product {
   family: string;
   climate: string[];
   image: string;
+  images?: string[];
   featured?: boolean;
   active?: boolean;
   variants: ProductVariant[];
@@ -35,6 +36,7 @@ const productSelect = `
   family,
   climate,
   image_url,
+  image_urls,
   featured,
   active,
   product_variants (
@@ -57,6 +59,11 @@ function mapProducts(data: any[], includeInactiveVariants = false): Product[] {
     family: product.family ?? "",
     climate: product.climate ?? [],
     image: product.image_url ?? "",
+    images: Array.isArray(product.image_urls) && product.image_urls.length
+      ? product.image_urls
+      : product.image_url
+        ? [product.image_url]
+        : [],
     featured: product.featured ?? false,
     active: product.active ?? true,
     variants: (product.product_variants ?? [])
@@ -114,7 +121,7 @@ export async function getAdminProducts(): Promise<Product[]> {
   return mapProducts((data ?? []) as any[], true);
 }
 
-export async function createProduct(product: {
+export interface NewProductInput {
   brand: string;
   name: string;
   gender: Product["gender"];
@@ -123,17 +130,65 @@ export async function createProduct(product: {
   family: string;
   climate: string[];
   image_url: string;
-}, variants: { size: number; price: number; cost: number; stock: number }[]): Promise<void> {
+  image_urls?: string[];
+}
+
+export async function createProduct(
+  product: NewProductInput,
+  variants: { size: number; price: number; cost: number; stock: number }[],
+  imageFiles: File[] = []
+): Promise<void> {
   if (!supabase) {
     throw new Error("Supabase no está configurado.");
   }
 
-  const { error } = await supabase.rpc("admin_create_product", {
-    product_data: product,
-    variants_data: variants,
-  });
+  if (imageFiles.length + (product.image_urls?.length ?? 0) > 3) {
+    throw new Error("Cada perfume admite un máximo de tres imágenes.");
+  }
 
-  if (error) {
+  const uploadedPaths: string[] = [];
+  const uploadedUrls: string[] = [];
+  try {
+    for (const file of imageFiles) {
+      const extensionByType: Record<string, string> = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+        "image/avif": "avif",
+      };
+      const extension = extensionByType[file.type];
+      if (!extension) {
+        throw new Error("Las imágenes deben ser JPG, PNG, WebP o AVIF.");
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error("Cada imagen debe pesar máximo 5 MB.");
+      }
+      const path = `${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw uploadError;
+      uploadedPaths.push(path);
+      uploadedUrls.push(supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl);
+    }
+
+    const imageUrls = [...(product.image_urls ?? []), ...uploadedUrls];
+    const { error } = await supabase.rpc("admin_create_product", {
+      product_data: {
+        ...product,
+        image_url: imageUrls[0] ?? product.image_url,
+        image_urls: imageUrls,
+      },
+      variants_data: variants,
+    });
+    if (error) throw error;
+  } catch (error) {
+    if (uploadedPaths.length) {
+      const { error: cleanupError } = await supabase.storage
+        .from("product-images")
+        .remove(uploadedPaths);
+      if (cleanupError) console.error("No se pudieron limpiar las imágenes subidas:", cleanupError);
+    }
     console.error("Error creando producto:", error);
     throw error;
   }

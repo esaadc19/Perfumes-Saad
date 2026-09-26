@@ -77,8 +77,12 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: grid; place-items: center; padding: 20px; }
 .product-modal { width: min(1120px, 100%); max-height: 92vh; overflow: auto; background: #fff; display: grid; grid-template-columns: 1fr 1fr; position: relative; }
-.product-detail-image { background: #f4f1ed; min-height: 600px; }
-.product-detail-image img { width: 100%; height: 100%; object-fit: cover; }
+.product-detail-image { min-height: 600px; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: #f4f1ed; }
+.product-detail-image > img { width: 100%; height: 100%; min-height: 0; object-fit: cover; }
+.product-image-thumbnails { display: flex; justify-content: center; gap: 8px; padding: 10px; background: #fff; }
+.product-image-thumbnails button { width: 54px; height: 60px; padding: 2px; border: 1px solid var(--border); background: white; }
+.product-image-thumbnails button.selected { border: 2px solid var(--black); }
+.product-image-thumbnails img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .product-detail-copy { padding: 60px 55px; }
 .close, .close-small { border: 0; background: transparent; position: absolute; right: 16px; top: 16px; z-index: 3; }
 .close-small { position: static; }
@@ -235,6 +239,15 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .variant-form-row { border-top: 1px solid var(--border); padding: 10px 0; }
 .variant-form-row label { flex: 1; font-size: 11px; }
 .variant-form-row .icon-button { height: 46px; }
+.image-upload-control { display: grid; gap: 9px; margin: 18px 0; font-size: 12px; font-weight: 600; }
+.image-upload-control > label span { color: var(--muted); font-weight: 400; }
+.image-upload-control > input { width: 100%; height: auto; padding: 10px; border: 1px dashed #cfc8c1; background: #faf9f7; }
+.selected-image-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.selected-image-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.selected-image-list li span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.admin-import-button { position: relative; min-height: 48px; overflow: hidden; cursor: pointer; }
+.admin-import-button input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.import-feedback { margin: 0 0 14px; color: #3d7444; font-size: 13px; }
 .admin-actions { display: flex; gap: 10px; }
 .access-required { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center; }
 .access-required h1 { margin: 0; font: 500 42px "Playfair Display", serif; }
@@ -345,7 +358,7 @@ footer a { color: #111; }
   .admin-main { min-width: 0; padding: 25px 16px; }
   .admin-top { align-items: start; gap: 16px; flex-direction: column; }
   .admin-actions { width: 100%; }
-  .admin-actions button { flex: 1; }
+  .admin-actions button, .admin-actions .admin-import-button { flex: 1 1 45%; }
   .admin-section-tabs { display: flex; gap: 7px; margin: 0 -16px 18px; padding: 0 16px 6px; overflow-x: auto; }
   .admin-section-tabs button { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 9px 12px; border: 1px solid var(--border); border-radius: 999px; background: white; color: var(--ink); font-size: 12px; }
   .admin-section-tabs button.selected { border-color: #111; background: #111; color: white; }
@@ -408,7 +421,7 @@ footer a { color: #111; }
   .admin-top > div { min-width: 0; max-width: 100%; }
   .admin-top h1 { font-size: 34px; }
   .admin-actions { min-width: 0; flex-wrap: wrap; }
-  .admin-actions button { min-width: 0; min-height: 44px; padding: 0 10px; font-size: 12px; }
+  .admin-actions button, .admin-actions .admin-import-button { min-width: 0; min-height: 44px; padding: 0 10px; font-size: 12px; }
   .admin-section-tabs { margin-right: -12px; margin-left: -12px; padding-right: 12px; padding-left: 12px; }
   .admin-section-tabs button { padding: 9px 10px; }
   .admin-card { min-width: 0; padding: 16px 12px; margin-bottom: 14px; }

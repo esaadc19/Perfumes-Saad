@@ -52,6 +52,8 @@ Abrir la URL mostrada por Vite.
 6. Reinicia el servidor local (`Ctrl+C` y `npm run dev`) para que Vite cargue las variables nuevas.
 7. Prueba un pedido pequeño desde la tienda. Si aparece un error de clave, vuelve a copiar la URL y la clave pública del mismo proyecto. Si indica que falta `create_whatsapp_order`, vuelve a ejecutar el esquema.
 
+El esquema crea el bucket público `product-images` para mostrar las fotos del catálogo. Solo las cuentas con rol de administrador pueden cargar, cambiar o borrar imágenes; el límite es 5 MB por archivo.
+
 El archivo `.env` está excluido de Git. No publiques ni envíes claves privadas; las variables `VITE_*` se incorporan al frontend, por lo que solo deben contener la URL y una clave pública protegida con las políticas RLS del esquema.
 
 ### Enlaces de correo de autenticación
@@ -84,6 +86,8 @@ Al registrarse, el cliente debe aceptar el tratamiento de datos personales y las
 4. Cierra sesión y vuelve a entrar en la tienda. Abre **Administración**; el panel permitirá gestionar productos, pedidos, clientes y roles de perfiles.
 5. Después de iniciar sesión como administrador, asigna los roles de otras cuentas registradas desde **Perfiles**. No cambies tu propio rol ni elimines el último administrador.
 
+Para dar acceso administrativo a una cuenta concreta, esa persona primero debe registrarse, confirmar el correo si Supabase lo solicita e iniciar sesión al menos una vez. Desde otra cuenta administradora, abre **Perfiles**, busca el correo registrado y cambia su permiso a **Administrador**. No compartas contraseñas ni incluyas el correo o la contraseña en el código.
+
 No registres contraseñas en SQL ni en perfiles. Las credenciales se administran exclusivamente desde Supabase Auth. Vuelve a ejecutar el `supabase/schema.sql` actualizado en el SQL Editor para habilitar las métricas y funciones administrativas.
 
 ### Transacciones, costos y utilidad
@@ -93,6 +97,8 @@ En el panel, registra el costo unitario de cada presentación desde **Productos*
 En **Productos**, ajusta el stock de cada presentación; cada ajuste se registra como movimiento de inventario. En el dashboard, pulsa **Agotados**, **Pedidos pendientes** o **Presentaciones con stock bajo** para abrir el detalle y navegar a la sección correspondiente.
 
 En **Pedidos**, puedes crear pedidos con un cliente existente y seleccionar las presentaciones, o editar/eliminar pedidos todavía no pagados. Al guardar, el total se calcula con los precios actuales y se comprueba el stock. El stock se descuenta al marcar el pedido como **Pagado · completar venta**; entonces la función protegida confirma la venta, registra el movimiento y su fecha. Los pedidos pagados no se pueden editar ni eliminar; usa el flujo de reembolso, que restaura el inventario.
+
+En **Productos**, puedes añadir hasta tres imágenes JPG, PNG, WebP o AVIF por perfume. En la tienda, el cliente puede cambiar entre ellas desde la galería del detalle. Para importar productos, pulsa **Importar archivo** y selecciona CSV o Excel `.xlsx` (se lee la primera hoja). Usa estos encabezados: `brand`, `name`, `gender`, `category`, `description`, `family`, `image_url`, `image_urls`, `size_ml`, `price`, `cost`, `stock`. También se aceptan los equivalentes `marca`, `nombre`, `producto`, `genero`, `categoria`, `descripcion`, `familia`, `familia_olfativa`, `imagen_url`, `imagenes_url`, `size`, `ml`, `tamano_ml`, `presentacion_ml`, `precio`, `costo` y `existencias`. Las columnas `brand`, `name`, `gender`, `category`, `size_ml`, `price`, `cost` y `stock` son obligatorias; los demás campos son opcionales. Se importa una fila por presentación: repite marca y nombre para agrupar tamaños del mismo perfume. Género y categoría deben coincidir entre esas filas; descripción, familia e imágenes se pueden repetir o dejar en blanco en filas secundarias. En `image_urls`, separa hasta tres URL públicas con `|`. Los valores de precio/costo deben ser numéricos sin separador de miles; `gender` acepta `Mujeres`, `Hombres` o `Unisex`; `category` acepta `Comercial`, `Diseñador`, `Árabes` o `Nicho`. Las filas se validan antes de importar y, si falla la escritura de un producto, se informa sin ocultar los demás resultados.
 
 Los pedidos antiguos pueden no tener costo histórico. El panel los señala y deja su utilidad incompleta en lugar de inventar costos. Los importes son utilidad bruta y no incluyen domicilio, comisiones ni otros gastos.
 

@@ -8,8 +8,10 @@ import {
   setProductActive,
   setVariantCost,
   setVariantStock,
+  type NewProductInput,
   type Product,
 } from "./services/products";
+import type { ImportedProduct } from "./services/product-import";
 import {
   getAdminCustomers,
   getAdminDashboardMetrics,
@@ -45,6 +47,7 @@ import {
   Sparkles,
   Trash2,
   TrendingUp,
+  Upload,
   User,
   Users,
   X,
@@ -169,6 +172,7 @@ function App() {
     };
   }, []);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -300,20 +304,15 @@ function App() {
     setShowLogin(false);
   };
 
-  const handleProductSave = async (product: {
-    brand: string;
-    name: string;
-    gender: Product["gender"];
-    category: Product["category"];
-    description: string;
-    family: string;
-    climate: string[];
-    image_url: string;
-  }, variants: { size: number; price: number; cost: number; stock: number }[]) => {
+  const handleProductSave = async (
+    product: NewProductInput,
+    variants: { size: number; price: number; cost: number; stock: number }[],
+    images: File[]
+  ) => {
     setSavingProduct(true);
     setAdminError(null);
     try {
-      await createProduct(product, variants);
+      await createProduct(product, variants, images);
       setProducts(await getAdminProducts());
       setShowAddProduct(false);
     } catch (saveError) {
@@ -322,6 +321,30 @@ function App() {
     } finally {
       setSavingProduct(false);
     }
+  };
+
+  const handleProductImport = async (imports: ImportedProduct[]) => {
+    const failures: string[] = [];
+    let imported = 0;
+    for (const item of imports) {
+      try {
+        await createProduct(item.product, item.variants);
+        imported += 1;
+      } catch (importError) {
+        console.error(`No se pudo importar ${item.product.brand} ${item.product.name}:`, importError);
+        const reason = importError instanceof Error ? `: ${importError.message}` : "";
+        failures.push(`${item.product.brand} ${item.product.name} (filas ${item.sourceRows.join(", ")})${reason}`);
+      }
+    }
+    if (imported > 0) {
+      try {
+        setProducts(await getAdminProducts());
+      } catch (refreshError) {
+        console.error("Se importaron productos, pero no se pudo recargar el inventario:", refreshError);
+        failures.push("No se pudo recargar el inventario; actualiza la página para ver los productos importados.");
+      }
+    }
+    return { imported, failures };
   };
 
   const handleProductActiveChange = async (product: Product) => {
@@ -392,6 +415,7 @@ function App() {
 
   const openProduct = (product: Product) => {
     setSelectedProduct(product);
+    setSelectedImageIndex(0);
     setSelectedVariantId(
       product.variants.find((v) => v.stock > 0)?.id ?? product.variants[0].id
     );
@@ -547,7 +571,26 @@ function App() {
                   <X />
                 </button>
                 <div className="product-detail-image">
-                  <img src={selectedProduct.image} alt={selectedProduct.name} />
+                  <img
+                    src={selectedProduct.images?.[selectedImageIndex] ?? selectedProduct.image}
+                    alt={`${selectedProduct.name}, imagen ${selectedImageIndex + 1}`}
+                  />
+                  {(selectedProduct.images?.length ?? 0) > 1 && (
+                    <div className="product-image-thumbnails" aria-label="Imágenes del producto">
+                      {selectedProduct.images?.map((image, index) => (
+                        <button
+                          type="button"
+                          key={`${image}-${index}`}
+                          className={index === selectedImageIndex ? "selected" : ""}
+                          aria-label={`Ver imagen ${index + 1} de ${selectedProduct.name}`}
+                          aria-pressed={index === selectedImageIndex}
+                          onClick={() => setSelectedImageIndex(index)}
+                        >
+                          <img src={image} alt="" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="product-detail-copy">
                   <span className="brand-small">{selectedProduct.brand}</span>
@@ -651,15 +694,18 @@ function App() {
           <footer>
             <div className="footer-brand">Perfumes SAAD</div>
             <span>Perfumería · Barranquilla · Colombia</span>
-            <a href="#" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
-              Administración
-            </a>
+            {userRole === "admin" && (
+              <a href="#" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
+                Administración
+              </a>
+            )}
           </footer>
         </>
       ) : userRole === "admin" ? (
         <Admin
           products={products}
           currentUserId={user?.id ?? ""}
+          onImportProducts={handleProductImport}
           onVariantCostChange={handleVariantCostChange}
           savingCostVariantId={savingCostVariantId}
           onVariantStockChange={handleVariantStockChange}
@@ -769,6 +815,7 @@ function App() {
 function Admin({
   products,
   currentUserId,
+  onImportProducts,
   onVariantCostChange,
   savingCostVariantId,
   onVariantStockChange,
@@ -782,6 +829,7 @@ function Admin({
 }: {
   products: Product[];
   currentUserId: string;
+  onImportProducts: (items: ImportedProduct[]) => Promise<{ imported: number; failures: string[] }>;
   onVariantCostChange: (variantId: string, cost: number) => Promise<void>;
   savingCostVariantId: string | null;
   onVariantStockChange: (variantId: string, stock: number) => Promise<void>;
@@ -809,6 +857,9 @@ function Admin({
   const [costDrafts, setCostDrafts] = useState<Record<string, string>>({});
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
   const [productSearch, setProductSearch] = useState("");
+  const [importingProducts, setImportingProducts] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [transactionFilter, setTransactionFilter] = useState<"all" | "paid" | "pending" | "refunded">("all");
   const [dashboardDetail, setDashboardDetail] = useState<"sold-out" | "low-stock" | "pending" | null>(null);
   const [orderEditor, setOrderEditor] = useState<{ order: AdminOrder | null } | null>(null);
@@ -936,7 +987,9 @@ function Admin({
       setSectionRevision((current) => current + 1);
     } catch (updateError) {
       console.error("No se pudo actualizar el estado del pedido:", updateError);
-      setSectionError("No se pudo actualizar el pedido. Revisa tus permisos.");
+      setSectionError(updateError instanceof Error
+        ? updateError.message
+        : "No se pudo actualizar el pedido. Revisa tus permisos.");
     } finally {
       setSavingOrderId(null);
     }
@@ -987,6 +1040,37 @@ function Admin({
       setSectionError(roleError instanceof Error ? roleError.message : "No se pudo cambiar el rol.");
     } finally {
       setSavingProfileId(null);
+    }
+  };
+
+  const importProductsFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    setImportingProducts(true);
+    setImportFeedback(null);
+    setImportError(null);
+    try {
+      const { parseProductImportFile } = await import("./services/product-import");
+      const parsedProducts = await parseProductImportFile(file);
+      const variantCount = parsedProducts.reduce((sum, item) => sum + item.variants.length, 0);
+      if (!window.confirm(`Se importarán ${parsedProducts.length} productos y ${variantCount} presentaciones. ¿Continuar?`)) return;
+      const result = await onImportProducts(parsedProducts);
+      const skipped = parsedProducts.length - result.imported;
+      setImportFeedback(
+        `Importación terminada: ${result.imported} de ${parsedProducts.length} productos.`
+      );
+      if (result.failures.length) {
+        setImportError(`No se pudieron importar: ${result.failures.join(", ")}.`);
+      } else if (skipped > 0) {
+        setImportError(`Quedaron ${skipped} productos sin importar.`);
+      }
+    } catch (importError) {
+      console.error("No se pudo importar el archivo:", importError);
+      setImportError(importError instanceof Error ? importError.message : "No se pudo leer el archivo.");
+    } finally {
+      setImportingProducts(false);
     }
   };
 
@@ -1058,7 +1142,21 @@ function Admin({
             <h1>{pageTitle}</h1>
           </div>
           <div className="admin-actions">
-            {section === "products" && <button className="primary" onClick={onAdd}><Plus size={17}/> Nuevo producto</button>}
+            {section === "products" && (
+              <>
+                <label className="secondary admin-import-button">
+                  <Upload size={16} /> {importingProducts ? "Importando..." : "Importar archivo"}
+                  <input
+                    type="file"
+                    accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    onChange={(event) => void importProductsFromFile(event)}
+                    disabled={importingProducts}
+                    aria-label="Importar productos desde CSV o Excel"
+                  />
+                </label>
+                <button className="primary" onClick={onAdd}><Plus size={17}/> Nuevo producto</button>
+              </>
+            )}
             {section === "transactions" && <button className="primary" onClick={() => setOrderEditor({ order: null })}><Plus size={17}/> Nuevo pedido</button>}
             <button className="secondary" onClick={onSignOut}>Cerrar sesión</button>
             {section !== "products" && (
@@ -1081,6 +1179,8 @@ function Admin({
         </nav>
 
         {error && section === "products" && <p className="form-error" role="alert">{error}</p>}
+        {section === "products" && importFeedback && <p className="import-feedback" role="status">{importFeedback}</p>}
+        {section === "products" && importError && <p className="form-error" role="alert">{importError}</p>}
         {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
         {sectionLoading && <p className="catalog-message" role="status">Cargando {pageTitle.toLowerCase()}...</p>}
 
@@ -1151,7 +1251,7 @@ function Admin({
           <div className="card-title">
             <div>
               <h2>Productos</h2>
-              <span>Gestiona disponibilidad, costos y existencias de cada presentación.</span>
+              <span>Gestiona disponibilidad, costos y stock. Para importar, usa una fila por presentación y repite marca y nombre para agrupar variantes.</span>
             </div>
             <label className="admin-search">
               <Search size={16} />
@@ -1357,7 +1457,7 @@ function Admin({
                 <div className="table-row transaction-row header"><span>Pedido / Cliente</span><span>Fecha de venta</span><span>Vendido</span><span>Costo</span><span>Utilidad</span><span>Estado del pedido</span><span>Pago</span><span>Acciones</span></div>
                 {visibleOrders.map((order) => (
                   <div className="table-row transaction-row" key={order.id}>
-                    <div className="profile-cell"><strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong><span>{order.order_items?.map((item) => `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`).join(" · ") || order.customers?.phone || "Sin detalle"}</span></div>
+                    <div className="profile-cell" aria-readonly="true"><strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong><span>{order.order_items?.map((item) => `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`).join(" · ") || order.customers?.phone || "Sin detalle"}</span></div>
                     <span>{order.paid_at ? new Date(order.paid_at).toLocaleDateString("es-CO") : "—"}</span>
                     <strong>{order.payment_status === "paid" ? money(Number(order.total)) : "—"}</strong>
                     <span>{order.payment_status !== "paid" ? "—" : order.order_items.some((item) => item.unit_cost_snapshot === null)
@@ -1367,14 +1467,14 @@ function Admin({
                       ? "Incompleta"
                       : money(Number(order.total) - order.order_items.reduce((sum, item) => sum + Number(item.unit_cost_snapshot) * item.quantity, 0))}</span>
                     <label className="mobile-select-cell">
-                      <select aria-label={`Estado del pedido ${order.id.slice(0, 8)}`} value={normalizeOrderStatus(order.status)} disabled={savingOrderId === order.id || order.payment_status === "paid"} onChange={(event) => void saveOrderStatus(order, event.target.value as "pending_confirmation" | "confirmed" | "cancelled", normalizePaymentStatus(order.payment_status))}>
+                      <select aria-label={`Estado del pedido ${order.id.slice(0, 8)}`} value={normalizeOrderStatus(order.status)} disabled={savingOrderId === order.id || order.payment_status === "paid"} title={order.payment_status === "paid" ? "Reembolsa el pedido antes de cambiar su estado." : "El estado del pedido sigue editable aunque esté confirmado."} onChange={(event) => void saveOrderStatus(order, event.target.value as "pending_confirmation" | "confirmed" | "cancelled", normalizePaymentStatus(order.payment_status))}>
                         <option value="pending_confirmation">Por confirmar</option><option value="confirmed">Confirmado</option><option value="cancelled">Cancelado</option>
                       </select>
                     </label>
                     <label className="mobile-select-cell">
                       <select aria-label={`Pago del pedido ${order.id.slice(0, 8)}`} value={normalizePaymentStatus(order.payment_status)} disabled={savingOrderId === order.id} onChange={(event) => void saveOrderStatus(order, normalizeOrderStatus(order.status), event.target.value as "pending" | "paid" | "refunded")}>
                         {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
-                        {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
+                        {order.payment_status !== "refunded" && <option value="paid" disabled={order.status === "cancelled"}>Pagado · completar venta</option>}
                         {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
                       </select>
                     </label>
@@ -1676,7 +1776,7 @@ function AddProductModal({
     family: string;
     climate: string[];
     image_url: string;
-  }, variants: { size: number; price: number; cost: number; stock: number }[]) => Promise<void>;
+  }, variants: { size: number; price: number; cost: number; stock: number }[], images: File[]) => Promise<void>;
   saving: boolean;
   error: string | null;
 }) {
@@ -1684,7 +1784,7 @@ function AddProductModal({
   const [name, setName] = useState("");
   const [category, setCategory] = useState<Product["category"]>("Comercial");
   const [gender, setGender] = useState<Product["gender"]>("Unisex");
-  const [image, setImage] = useState("");
+  const [images, setImages] = useState<File[]>([]);
   const [description, setDescription] = useState("");
   const [family, setFamily] = useState("");
   const [variants, setVariants] = useState([{ size: "100", price: "100000", cost: "", stock: "1" }]);
@@ -1699,6 +1799,14 @@ function AddProductModal({
     }));
     if (!brand.trim() || !name.trim()) {
       setError("La marca y el nombre son obligatorios.");
+      return;
+    }
+    if (images.some((file) => file.size > 5 * 1024 * 1024)) {
+      setError("Cada imagen debe pesar máximo 5 MB.");
+      return;
+    }
+    if (images.some((file) => !["image/jpeg", "image/png", "image/webp", "image/avif"].includes(file.type))) {
+      setError("Selecciona imágenes JPG, PNG, WebP o AVIF.");
       return;
     }
     if (variants.some((variant) => !variant.cost.trim())) {
@@ -1727,8 +1835,8 @@ function AddProductModal({
       description,
       family,
       climate: ["Todo el año"],
-      image_url: image,
-    }, parsedVariants);
+      image_url: "",
+    }, parsedVariants, images);
   };
 
   return (
@@ -1743,8 +1851,39 @@ function AddProductModal({
           <label>Categoría<select value={category} onChange={(e) => setCategory(e.target.value as Product["category"])}><option>Comercial</option><option>Diseñador</option><option>Árabes</option><option>Nicho</option></select></label>
           <label>Género<select value={gender} onChange={(e) => setGender(e.target.value as Product["gender"])}><option>Hombres</option><option>Mujeres</option><option>Unisex</option></select></label>
           <label>Familia olfativa<input value={family} onChange={(e) => setFamily(e.target.value)} placeholder="Ej. Amaderado" /></label>
-          <label>URL de imagen<input value={image} onChange={(e) => setImage(e.target.value)} placeholder="https://..." /></label>
           <label className="form-wide">Descripción<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción del perfume" /></label>
+        </div>
+        <div className="image-upload-control">
+          <label htmlFor="product-image-files">Imágenes del perfume <span>(hasta 3; JPG, PNG, WebP o AVIF · máximo 5 MB cada una)</span></label>
+          <input
+            id="product-image-files"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/avif"
+            multiple
+            onChange={(event) => {
+              const selectedFiles = Array.from(event.currentTarget.files ?? []);
+              event.currentTarget.value = "";
+              setImages((current) => {
+                const next = [...current, ...selectedFiles];
+                if (next.length > 3) setError("Puedes seleccionar hasta tres imágenes por perfume.");
+                else setError(null);
+                return next.slice(0, 3);
+              });
+            }}
+            disabled={saving || images.length >= 3}
+          />
+          {images.length > 0 && (
+            <ul className="selected-image-list">
+              {images.map((file, index) => (
+                <li key={`${file.name}-${index}`}>
+                  <span>{index + 1}. {file.name}</span>
+                  <button type="button" className="text-button" onClick={() => setImages((current) => current.filter((_, fileIndex) => fileIndex !== index))}>
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div className="variant-editor">
           <div className="variant-editor-head">

@@ -30,11 +30,15 @@ create table if not exists public.products (
   family text,
   climate text[] default '{}',
   image_url text,
+  image_urls text[] not null default '{}',
   active boolean not null default true,
   featured boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.products
+  add column if not exists image_urls text[] not null default '{}';
 
 create table if not exists public.product_variants (
   id uuid primary key default gen_random_uuid(),
@@ -575,7 +579,7 @@ begin
   end if;
 
   insert into public.products (
-    brand, name, gender, category, description, family, climate, image_url, active
+    brand, name, gender, category, description, family, climate, image_url, image_urls, active
   )
   values (
     trim(product_data->>'brand'),
@@ -585,7 +589,17 @@ begin
     nullif(product_data->>'description', ''),
     nullif(product_data->>'family', ''),
     coalesce(array(select jsonb_array_elements_text(product_data->'climate')), '{}'),
-    nullif(product_data->>'image_url', ''),
+    coalesce(
+      nullif(product_data->>'image_url', ''),
+      nullif(product_data->'image_urls'->>0, '')
+    ),
+    case
+      when jsonb_typeof(product_data->'image_urls') = 'array'
+        then array(select jsonb_array_elements_text(product_data->'image_urls'))
+      when nullif(product_data->>'image_url', '') is not null
+        then array(product_data->>'image_url')
+      else '{}'
+    end,
     true
   )
   returning id into new_product_id;
@@ -1051,3 +1065,37 @@ create policy "Admins can manage inventory movements"
   on public.inventory_movements for all to authenticated
   using ((select public.is_admin()))
   with check ((select public.is_admin()));
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'product-images',
+  'product-images',
+  true,
+  5242880,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/avif']
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Public can view product images" on storage.objects;
+create policy "Public can view product images"
+  on storage.objects for select to public
+  using (bucket_id = 'product-images');
+
+drop policy if exists "Admins can upload product images" on storage.objects;
+create policy "Admins can upload product images"
+  on storage.objects for insert to authenticated
+  with check (bucket_id = 'product-images' and (select public.is_admin()));
+
+drop policy if exists "Admins can update product images" on storage.objects;
+create policy "Admins can update product images"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'product-images' and (select public.is_admin()))
+  with check (bucket_id = 'product-images' and (select public.is_admin()));
+
+drop policy if exists "Admins can delete product images" on storage.objects;
+create policy "Admins can delete product images"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'product-images' and (select public.is_admin()));
