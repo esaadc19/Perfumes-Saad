@@ -597,7 +597,7 @@ begin
       when jsonb_typeof(product_data->'image_urls') = 'array'
         then array(select jsonb_array_elements_text(product_data->'image_urls'))
       when nullif(product_data->>'image_url', '') is not null
-        then array(product_data->>'image_url')
+        then array[product_data->>'image_url']
       else '{}'
     end,
     true
@@ -932,65 +932,6 @@ begin
 end;
 $$;
 
-create or replace function public.admin_import_customers(customers_data jsonb)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  customer jsonb;
-  customer_name text;
-  customer_phone text;
-  customer_email text;
-  customer_city text;
-  inserted_count integer := 0;
-  skipped_count integer := 0;
-begin
-  if not public.is_admin() then
-    raise exception 'Administrator access required' using errcode = '42501';
-  end if;
-  if jsonb_typeof(customers_data) is distinct from 'array' then
-    raise exception 'Customers data must be an array';
-  end if;
-
-  for customer in select value from jsonb_array_elements(customers_data)
-  loop
-    customer_name := nullif(trim(customer->>'full_name'), '');
-    customer_phone := nullif(trim(customer->>'phone'), '');
-    customer_email := lower(nullif(trim(customer->>'email'), ''));
-    customer_city := nullif(trim(customer->>'city'), '');
-
-    if customer_name is null then
-      raise exception 'Every customer must have a name';
-    end if;
-    if customer_email is not null
-       and customer_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$' then
-      raise exception 'Enter a valid email address for every customer';
-    end if;
-    if customer_email is null and customer_phone is null then
-      raise exception 'Every customer must have an email or phone number';
-    end if;
-
-    if exists (
-      select 1
-      from public.customers existing_customer
-      where (customer_email is not null and lower(existing_customer.email) = customer_email)
-         or (customer_phone is not null and existing_customer.phone = customer_phone)
-    ) then
-      skipped_count := skipped_count + 1;
-      continue;
-    end if;
-
-    insert into public.customers (full_name, phone, email, city, source)
-    values (customer_name, customer_phone, customer_email, customer_city, 'admin_import');
-    inserted_count := inserted_count + 1;
-  end loop;
-
-  return jsonb_build_object('imported', inserted_count, 'skipped', skipped_count);
-end;
-$$;
-
 create or replace function public.admin_set_profile_role(
   target_profile_id uuid,
   new_role text
@@ -1028,7 +969,6 @@ $$;
 
 revoke all on function public.admin_dashboard_metrics() from public, anon;
 revoke all on function public.admin_update_customer(uuid, jsonb) from public, anon;
-revoke all on function public.admin_import_customers(jsonb) from public, anon;
 revoke all on function public.admin_set_profile_role(uuid, text) from public, anon;
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
 revoke all on function public.admin_get_products() from public, anon;
@@ -1038,7 +978,6 @@ revoke all on function public.admin_delete_pending_order(uuid) from public, anon
 revoke all on function public.admin_update_variant_stock(uuid, integer) from public, anon;
 grant execute on function public.admin_dashboard_metrics() to authenticated;
 grant execute on function public.admin_update_customer(uuid, jsonb) to authenticated;
-grant execute on function public.admin_import_customers(jsonb) to authenticated;
 grant execute on function public.admin_set_profile_role(uuid, text) to authenticated;
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
 grant execute on function public.admin_get_products() to authenticated;
