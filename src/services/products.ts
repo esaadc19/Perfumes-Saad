@@ -6,6 +6,8 @@ export interface ProductVariant {
   price: number;
   cost?: number | null;
   stock: number;
+  minStock?: number;
+  active?: boolean;
 }
 
 export interface Product {
@@ -44,7 +46,7 @@ const productSelect = `
   )
 `;
 
-function mapProducts(data: any[]): Product[] {
+function mapProducts(data: any[], includeInactiveVariants = false): Product[] {
   return data.map((product: any) => ({
     id: product.id,
     brand: product.brand,
@@ -58,7 +60,7 @@ function mapProducts(data: any[]): Product[] {
     featured: product.featured ?? false,
     active: product.active ?? true,
     variants: (product.product_variants ?? [])
-      .filter((variant: any) => variant.active ?? true)
+      .filter((variant: any) => includeInactiveVariants || (variant.active ?? true))
       .map((variant: any) => ({
         id: variant.id,
         size: Number(variant.size_ml),
@@ -69,6 +71,8 @@ function mapProducts(data: any[]): Product[] {
             ? null
             : Number(variant.cost),
         stock: Number(variant.stock),
+        minStock: Number(variant.min_stock ?? 2),
+        active: variant.active ?? true,
       })),
   }));
 }
@@ -107,7 +111,7 @@ export async function getAdminProducts(): Promise<Product[]> {
     throw error;
   }
 
-  return mapProducts((data ?? []) as any[]);
+  return mapProducts((data ?? []) as any[], true);
 }
 
 export async function createProduct(product: {
@@ -145,6 +149,23 @@ export async function setVariantCost(id: string, cost: number): Promise<void> {
   });
   if (error) {
     console.error("No se pudo actualizar el costo de la presentación:", error);
+    throw error;
+  }
+}
+
+export async function setVariantStock(id: string, stock: number): Promise<void> {
+  if (!supabase) {
+    throw new Error("Supabase no está configurado.");
+  }
+  if (!Number.isInteger(stock) || stock < 0) {
+    throw new Error("El stock debe ser un número entero igual o mayor que cero.");
+  }
+  const { error } = await supabase.rpc("admin_update_variant_stock", {
+    target_variant_id: id,
+    new_stock: stock,
+  });
+  if (error) {
+    console.error("No se pudo actualizar el stock de la presentación:", error);
     throw error;
   }
 }

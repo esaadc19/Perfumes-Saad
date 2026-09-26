@@ -7,6 +7,7 @@ import {
   getProducts,
   setProductActive,
   setVariantCost,
+  setVariantStock,
   type Product,
 } from "./services/products";
 import {
@@ -14,6 +15,8 @@ import {
   getAdminDashboardMetrics,
   getAdminOrders,
   getAdminProfiles,
+  deleteAdminPendingOrder,
+  saveAdminPendingOrder,
   updateAdminCustomer,
   updateAdminOrderStatus,
   updateAdminProfileRole,
@@ -178,6 +181,7 @@ function App() {
   const [savingProduct, setSavingProduct] = useState(false);
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
   const [savingCostVariantId, setSavingCostVariantId] = useState<string | null>(null);
+  const [savingStockVariantId, setSavingStockVariantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -353,6 +357,26 @@ function App() {
       throw costError;
     } finally {
       setSavingCostVariantId(null);
+    }
+  };
+
+  const handleVariantStockChange = async (variantId: string, stock: number) => {
+    setAdminError(null);
+    setSavingStockVariantId(variantId);
+    try {
+      await setVariantStock(variantId, stock);
+      setProducts((current) => current.map((product) => ({
+        ...product,
+        variants: product.variants.map((variant) =>
+          variant.id === variantId ? { ...variant, stock } : variant
+        ),
+      })));
+    } catch (stockError) {
+      console.error("No se pudo guardar el stock de la presentación:", stockError);
+      setAdminError(stockError instanceof Error ? stockError.message : "No se pudo guardar el stock.");
+      throw stockError;
+    } finally {
+      setSavingStockVariantId(null);
     }
   };
 
@@ -638,6 +662,8 @@ function App() {
           currentUserId={user?.id ?? ""}
           onVariantCostChange={handleVariantCostChange}
           savingCostVariantId={savingCostVariantId}
+          onVariantStockChange={handleVariantStockChange}
+          savingStockVariantId={savingStockVariantId}
           onBack={() => setView("store")}
           onAdd={() => {
             setAdminError(null);
@@ -745,6 +771,8 @@ function Admin({
   currentUserId,
   onVariantCostChange,
   savingCostVariantId,
+  onVariantStockChange,
+  savingStockVariantId,
   onBack,
   onAdd,
   onProductActiveChange,
@@ -756,6 +784,8 @@ function Admin({
   currentUserId: string;
   onVariantCostChange: (variantId: string, cost: number) => Promise<void>;
   savingCostVariantId: string | null;
+  onVariantStockChange: (variantId: string, stock: number) => Promise<void>;
+  savingStockVariantId: string | null;
   onBack: () => void;
   onAdd: () => void;
   onProductActiveChange: (product: Product) => void;
@@ -777,8 +807,13 @@ function Admin({
   const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
   const [savingProfileId, setSavingProfileId] = useState<string | null>(null);
   const [costDrafts, setCostDrafts] = useState<Record<string, string>>({});
+  const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
   const [productSearch, setProductSearch] = useState("");
   const [transactionFilter, setTransactionFilter] = useState<"all" | "paid" | "pending" | "refunded">("all");
+  const [dashboardDetail, setDashboardDetail] = useState<"sold-out" | "low-stock" | "pending" | null>(null);
+  const [orderEditor, setOrderEditor] = useState<{ order: AdminOrder | null } | null>(null);
+  const [orderSaving, setOrderSaving] = useState(false);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const visibleProducts = products.filter((product) =>
     `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase())
   );
@@ -786,14 +821,22 @@ function Admin({
     (sum, p) => sum + p.variants.reduce((s, v) => s + v.stock, 0),
     0
   );
-  const lowStock = products.filter((p) =>
-    p.variants.some((v) => v.stock > 0 && v.stock <= 2)
+  const stockTrackedProducts = products.filter((product) => product.active !== false);
+  const lowStock = stockTrackedProducts.flatMap((product) =>
+    product.variants.filter((variant) =>
+      variant.active !== false &&
+      variant.stock > 0 &&
+      variant.stock <= (variant.minStock ?? 2)
+    )
   ).length;
-  const soldOut = products.filter((p) => p.variants.every((v) => v.stock <= 0)).length;
+  const soldOut = stockTrackedProducts.filter((product) => {
+    const activeVariants = product.variants.filter((variant) => variant.active !== false);
+    return activeVariants.length > 0 && activeVariants.every((variant) => variant.stock <= 0);
+  }).length;
   const sections = [
     { id: "overview", title: "Dashboard", icon: <LayoutDashboard size={17} /> },
     { id: "products", title: "Productos", icon: <Package size={17} /> },
-    { id: "transactions", title: "Transacciones", icon: <ReceiptText size={17} /> },
+    { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
   ] as const;
@@ -810,11 +853,23 @@ function Admin({
       setSectionError(null);
       try {
         if (section === "overview") {
-          const result = await getAdminDashboardMetrics();
-          if (active) setMetrics(result);
+          const [metricsResult, ordersResult] = await Promise.all([
+            getAdminDashboardMetrics(),
+            getAdminOrders(),
+          ]);
+          if (active) {
+            setMetrics(metricsResult);
+            setOrders(ordersResult);
+          }
         } else if (section === "transactions") {
-          const result = await getAdminOrders();
-          if (active) setOrders(result);
+          const [ordersResult, customersResult] = await Promise.all([
+            getAdminOrders(),
+            getAdminCustomers(),
+          ]);
+          if (active) {
+            setOrders(ordersResult);
+            setCustomers(customersResult);
+          }
         } else if (section === "customers") {
           const result = await getAdminCustomers();
           if (active) setCustomers(result);
@@ -887,6 +942,40 @@ function Admin({
     }
   };
 
+  const savePendingOrder = async (
+    customerId: string,
+    items: { variant_id: string; quantity: number }[],
+    orderId: string | null
+  ) => {
+    setOrderSaving(true);
+    setSectionError(null);
+    try {
+      await saveAdminPendingOrder({ orderId, customerId, items });
+      setOrderEditor(null);
+      setSectionRevision((current) => current + 1);
+    } catch (saveError) {
+      console.error("No se pudo guardar el pedido administrativo:", saveError);
+      setSectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar el pedido.");
+    } finally {
+      setOrderSaving(false);
+    }
+  };
+
+  const removePendingOrder = async (order: AdminOrder) => {
+    if (!window.confirm(`¿Eliminar el pedido #${order.id.slice(0, 8).toUpperCase()}? Esta acción no se puede deshacer.`)) return;
+    setDeletingOrderId(order.id);
+    setSectionError(null);
+    try {
+      await deleteAdminPendingOrder(order.id);
+      setSectionRevision((current) => current + 1);
+    } catch (deleteError) {
+      console.error("No se pudo eliminar el pedido:", deleteError);
+      setSectionError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el pedido.");
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
+
   const saveProfileRole = async (profile: AdminProfile, role: AdminProfile["role"]) => {
     setSavingProfileId(profile.id);
     setSectionError(null);
@@ -910,7 +999,12 @@ function Admin({
   );
   const visibleOrders = orders.filter((order) =>
     `${order.customers?.full_name ?? ""} ${order.customers?.email ?? ""} ${order.id}`.toLowerCase().includes(query)
-      && (transactionFilter === "all" || order.payment_status === transactionFilter)
+      && (
+        transactionFilter === "all" ||
+        (transactionFilter === "pending"
+          ? order.payment_status === "pending" && order.status !== "cancelled"
+          : order.payment_status === transactionFilter)
+      )
   );
   const completedOrders = orders.filter((order) => order.payment_status === "paid");
   const transactionRevenue = completedOrders.reduce((sum, order) => sum + Number(order.total), 0);
@@ -965,6 +1059,7 @@ function Admin({
           </div>
           <div className="admin-actions">
             {section === "products" && <button className="primary" onClick={onAdd}><Plus size={17}/> Nuevo producto</button>}
+            {section === "transactions" && <button className="primary" onClick={() => setOrderEditor({ order: null })}><Plus size={17}/> Nuevo pedido</button>}
             <button className="secondary" onClick={onSignOut}>Cerrar sesión</button>
             {section !== "products" && (
               <button className="secondary" onClick={() => setSectionRevision((current) => current + 1)} disabled={sectionLoading} aria-label="Actualizar datos">
@@ -995,13 +1090,13 @@ function Admin({
               <Metric title="Ventas completas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
               <Metric title="Total vendido" value={money(Number(metrics.sales_revenue))} icon={<BarChart3 />} />
               <Metric title="Clientes registrados" value={String(metrics.customer_count)} icon={<Users />} />
-              <Metric title="Presentaciones con stock bajo" value={String(metrics.low_stock_variants)} icon={<AlertTriangle />} warning />
+              <Metric title="Presentaciones con stock bajo" value={String(lowStock)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("low-stock")} />
             </div>
             <div className="metrics">
               <Metric title="Productos" value={products.length.toString()} icon={<Package />} />
               <Metric title="Unidades en stock" value={totalStock.toString()} icon={<ShoppingBag />} />
-              <Metric title="Pedidos pendientes" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning />
-              <Metric title="Agotados" value={soldOut.toString()} icon={<X />} />
+              <Metric title="Pedidos pendientes" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
+              <Metric title="Agotados" value={soldOut.toString()} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
             </div>
             <div className="metrics">
               <Metric title="Costo de ventas registrado" value={money(Number(metrics.sales_cost))} icon={<ReceiptText />} />
@@ -1032,10 +1127,21 @@ function Admin({
                   : "Cuando registres pedidos, aquí aparecerá el producto más solicitado para ayudarte a planificar el inventario."}</p>
               </div>
               <div className="admin-card">
-                <div className="card-title"><div><h2>Alerta</h2><span>Inventario</span></div><AlertTriangle size={18}/></div>
-                <p className="insight">{metrics.low_stock_variants > 0
-                  ? `${metrics.low_stock_variants} presentación(es) están en su mínimo de stock o por debajo.`
-                  : "No hay presentaciones por debajo de su stock mínimo."}</p>
+                <div className="card-title"><div><h2>Alertas</h2><span>Inventario y pedidos por atender</span></div><AlertTriangle size={18}/></div>
+                <div className="alert-list">
+                  <button className="alert-link" onClick={() => setDashboardDetail("sold-out")}>
+                    <span>Productos agotados</span><strong>{soldOut}</strong>
+                  </button>
+                  <button className="alert-link" onClick={() => setDashboardDetail("low-stock")}>
+                    <span>Presentaciones con stock bajo</span><strong>{lowStock}</strong>
+                  </button>
+                  <button className="alert-link" onClick={() => setDashboardDetail("pending")}>
+                    <span>Pedidos pendientes</span><strong>{metrics.pending_orders}</strong>
+                  </button>
+                  {soldOut === 0 && lowStock === 0 && metrics.pending_orders === 0 && (
+                    <p className="insight">No hay productos agotados, stock bajo ni pedidos pendientes.</p>
+                  )}
+                </div>
               </div>
             </section>
           </>
@@ -1045,7 +1151,7 @@ function Admin({
           <div className="card-title">
             <div>
               <h2>Productos</h2>
-              <span>Gestiona disponibilidad y variantes.</span>
+              <span>Gestiona disponibilidad, costos y existencias de cada presentación.</span>
             </div>
             <label className="admin-search">
               <Search size={16} />
@@ -1105,6 +1211,49 @@ function Admin({
                         {savingCostVariantId === variant.id && <small>Guardando…</small>}
                       </label>
                     ))}
+                    {product.variants.map((variant) => (
+                      <label className="stock-control" key={`stock-${variant.id}`}>
+                        <span>Stock disponible · {variant.size} ml</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          inputMode="numeric"
+                          aria-label={`Stock de ${product.name} ${variant.size} ml`}
+                          value={stockDrafts[variant.id] ?? String(variant.stock)}
+                          disabled={savingStockVariantId === variant.id}
+                          onChange={(event) => setStockDrafts((current) => ({ ...current, [variant.id]: event.target.value }))}
+                          onBlur={(event) => {
+                            const rawStock = event.target.value.trim();
+                            if (!rawStock) {
+                              setStockDrafts((current) => {
+                                const next = { ...current };
+                                delete next[variant.id];
+                                return next;
+                              });
+                              return;
+                            }
+                            const stock = Number(rawStock);
+                            if (stock === variant.stock) {
+                              setStockDrafts((current) => {
+                                const next = { ...current };
+                                delete next[variant.id];
+                                return next;
+                              });
+                              return;
+                            }
+                            void onVariantStockChange(variant.id, stock)
+                              .then(() => setStockDrafts((current) => {
+                                const next = { ...current };
+                                delete next[variant.id];
+                                return next;
+                              }))
+                              .catch(() => {});
+                          }}
+                        />
+                        {savingStockVariantId === variant.id && <small>Guardando…</small>}
+                      </label>
+                    ))}
                   </div>
                   <span>{stock}</span>
                   <button
@@ -1129,7 +1278,7 @@ function Admin({
           <section className="admin-card">
             <div className="card-title">
               <div>
-                <h2>{section === "customers" ? "Clientes y pedidos" : section === "profiles" ? "Cuentas y permisos" : "Historial de transacciones"}</h2>
+                <h2>{section === "customers" ? "Clientes y pedidos" : section === "profiles" ? "Cuentas y permisos" : "Pedidos y transacciones"}</h2>
                 <span>{section === "customers"
                   ? "Consulta compras y actualiza los datos de contacto."
                   : section === "profiles"
@@ -1205,7 +1354,7 @@ function Admin({
                   </p>
                 )}
                 <div className="admin-table">
-                <div className="table-row transaction-row header"><span>Pedido / Cliente</span><span>Fecha de venta</span><span>Vendido</span><span>Costo</span><span>Utilidad</span><span>Estado del pedido</span><span>Pago</span></div>
+                <div className="table-row transaction-row header"><span>Pedido / Cliente</span><span>Fecha de venta</span><span>Vendido</span><span>Costo</span><span>Utilidad</span><span>Estado del pedido</span><span>Pago</span><span>Acciones</span></div>
                 {visibleOrders.map((order) => (
                   <div className="table-row transaction-row" key={order.id}>
                     <div className="profile-cell"><strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong><span>{order.order_items?.map((item) => `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`).join(" · ") || order.customers?.phone || "Sin detalle"}</span></div>
@@ -1229,6 +1378,16 @@ function Admin({
                         {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
                       </select>
                     </label>
+                    <div className="order-actions">
+                      {order.payment_status === "pending" && order.status !== "cancelled" ? (
+                        <>
+                          <button className="secondary" type="button" onClick={() => setOrderEditor({ order })}><Pencil size={15}/> Editar</button>
+                          <button className="secondary" type="button" disabled={deletingOrderId === order.id} onClick={() => void removePendingOrder(order)}>
+                            <Trash2 size={15}/>{deletingOrderId === order.id ? "Eliminando…" : "Eliminar"}
+                          </button>
+                        </>
+                      ) : <span>Disponible antes del pago</span>}
+                    </div>
                   </div>
                 ))}
                 {!sectionLoading && visibleOrders.length === 0 && <p className="insight">No hay pedidos que coincidan con la búsqueda.</p>}
@@ -1238,6 +1397,74 @@ function Admin({
           </section>
         )}
       </main>
+      {dashboardDetail && (
+        <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setDashboardDetail(null); }}>
+          <section className="admin-card dashboard-detail-modal" role="dialog" aria-modal="true" aria-labelledby="dashboard-detail-title">
+            <button className="close" type="button" onClick={() => setDashboardDetail(null)} aria-label="Cerrar"><X /></button>
+            <p className="eyebrow">DETALLE DEL DASHBOARD</p>
+            <h2 id="dashboard-detail-title">
+              {dashboardDetail === "sold-out" ? "Productos agotados" : dashboardDetail === "low-stock" ? "Presentaciones con stock bajo" : "Pedidos pendientes"}
+            </h2>
+            <div className="dashboard-detail-list">
+              {dashboardDetail === "sold-out" && stockTrackedProducts.flatMap((product) =>
+                product.variants.filter((variant) => variant.active !== false && variant.stock <= 0).map((variant) => (
+                  <div className="dashboard-detail-row" key={variant.id}>
+                    <strong>{product.brand} · {product.name}</strong><span>{variant.size} ml · agotado</span>
+                  </div>
+                ))
+              )}
+              {dashboardDetail === "low-stock" && stockTrackedProducts.flatMap((product) =>
+                product.variants.filter((variant) =>
+                  variant.active !== false &&
+                  variant.stock > 0 &&
+                  variant.stock <= (variant.minStock ?? 2)
+                ).map((variant) => (
+                  <div className="dashboard-detail-row" key={variant.id}>
+                    <strong>{product.brand} · {product.name}</strong><span>{variant.size} ml · quedan {variant.stock} (mínimo {variant.minStock ?? 2})</span>
+                  </div>
+                ))
+              )}
+              {dashboardDetail === "pending" && orders.filter((order) =>
+                order.payment_status === "pending" && order.status !== "cancelled"
+              ).map((order) => (
+                <div className="dashboard-detail-row" key={order.id}>
+                  <strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name ?? "Cliente"}</strong>
+                  <span>{money(Number(order.total))} · {new Date(order.created_at).toLocaleDateString("es-CO")}</span>
+                </div>
+              ))}
+              {((dashboardDetail === "sold-out" && soldOut === 0) ||
+                (dashboardDetail === "low-stock" && lowStock === 0) ||
+                (dashboardDetail === "pending" && orders.every((order) =>
+                  order.payment_status !== "pending" || order.status === "cancelled"
+                ))) && (
+                <p className="insight">No hay elementos para mostrar.</p>
+              )}
+            </div>
+            <button className="primary full" type="button" onClick={() => {
+              if (dashboardDetail === "pending") {
+                setSection("transactions");
+                setTransactionFilter("pending");
+              } else {
+                setSection("products");
+              }
+              setDashboardDetail(null);
+            }}>
+              {dashboardDetail === "pending" ? "Ir a pedidos" : "Ir a productos"}
+            </button>
+          </section>
+        </div>
+      )}
+      {orderEditor && (
+        <OrderEditorModal
+          order={orderEditor.order}
+          customers={customers}
+          products={products}
+          saving={orderSaving}
+          error={sectionError}
+          onClose={() => { if (!orderSaving) setOrderEditor(null); }}
+          onSave={(customerId, items) => void savePendingOrder(customerId, items, orderEditor.order?.id ?? null)}
+        />
+      )}
       {editingCustomer && (
         <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !customerSaving) setEditingCustomer(null); }}>
           <form className="add-modal admin-customer-modal" onSubmit={(event) => void saveCustomer(event)}>
@@ -1257,23 +1484,179 @@ function Admin({
   );
 }
 
+function OrderEditorModal({
+  order,
+  customers,
+  products,
+  saving,
+  error,
+  onClose,
+  onSave,
+}: {
+  order: AdminOrder | null;
+  customers: AdminCustomer[];
+  products: Product[];
+  saving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSave: (customerId: string, items: { variant_id: string; quantity: number }[]) => void;
+}) {
+  const [customerId, setCustomerId] = useState(order?.customer_id ?? "");
+  const [items, setItems] = useState(
+    order?.order_items.map((item) => ({ variantId: item.variant_id, quantity: String(item.quantity) })) ?? []
+  );
+  const selectableVariants = products
+    .filter((product) => product.active !== false)
+    .flatMap((product) => product.variants.filter((variant) => variant.active !== false).map((variant) => ({
+      ...variant,
+      productName: `${product.brand} ${product.name}`,
+    })));
+  const total = items.reduce((sum, item) => {
+    const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
+    const quantity = Number(item.quantity);
+    return sum + (variant && Number.isInteger(quantity) && quantity > 0 ? variant.price * quantity : 0);
+  }, 0);
+  const validItems = items.length > 0 && items.every((item, index) => {
+    const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
+    const quantity = Number(item.quantity);
+    return Boolean(
+      variant &&
+      Number.isInteger(quantity) &&
+      quantity > 0 &&
+      quantity <= variant.stock &&
+      items.findIndex((other) => other.variantId === item.variantId) === index
+    );
+  });
+  const canAddItem = selectableVariants.some((variant) =>
+    variant.stock > 0 && !items.some((item) => item.variantId === variant.id)
+  );
+  const addItem = () => {
+    const variant = selectableVariants.find((candidate) =>
+      candidate.stock > 0 && !items.some((item) => item.variantId === candidate.id)
+    );
+    if (!variant) return;
+    setItems((current) => [...current, { variantId: variant.id, quantity: "1" }]);
+  };
+
+  return (
+    <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+      <form
+        className="add-modal order-editor-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="order-editor-title"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!customerId || !validItems) return;
+          onSave(customerId, items.map((item) => ({
+            variant_id: item.variantId,
+            quantity: Number(item.quantity),
+          })));
+        }}
+      >
+        <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
+        <p className="eyebrow">GESTIÓN DE PEDIDOS</p>
+        <h2 id="order-editor-title">{order ? "Editar pedido pendiente" : "Crear pedido"}</h2>
+        <label className="auth-label">
+          Cliente
+          <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} required>
+            <option value="">Selecciona un cliente</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.full_name}{customer.phone ? ` · ${customer.phone}` : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+        {customers.length === 0 && <p className="form-error">No hay clientes registrados. Crea primero un pedido desde la tienda para registrar un cliente.</p>}
+        <div className="order-editor-lines">
+          <div className="order-editor-heading"><strong>Productos del pedido</strong><button type="button" className="text-button" onClick={addItem} disabled={!canAddItem}>+ Añadir producto</button></div>
+          {items.map((item, index) => (
+            <div className="order-editor-line" key={`${index}-${item.variantId}`}>
+              <label>
+                Producto y presentación
+                <select
+                  value={item.variantId}
+                  onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
+                    lineIndex === index ? { ...line, variantId: event.target.value } : line
+                  ))}
+                  required
+                >
+                  <option value="">Selecciona una presentación</option>
+                  {selectableVariants.map((variant) => (
+                    <option
+                      key={variant.id}
+                      value={variant.id}
+                      disabled={
+                        (variant.stock <= 0 && variant.id !== item.variantId) ||
+                        items.some((other, otherIndex) => otherIndex !== index && other.variantId === variant.id)
+                      }
+                    >
+                      {variant.productName} · {variant.size} ml · {money(variant.price)} · stock {variant.stock}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Cantidad
+                <input
+                  type="number"
+                  min="1"
+                  max={selectableVariants.find((variant) => variant.id === item.variantId)?.stock}
+                  step="1"
+                  inputMode="numeric"
+                  value={item.quantity}
+                  onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
+                    lineIndex === index ? { ...line, quantity: event.target.value } : line
+                  ))}
+                  required
+                />
+              </label>
+              <button type="button" className="icon-button" aria-label="Quitar producto" onClick={() => setItems((current) => current.filter((_, lineIndex) => lineIndex !== index))}>
+                <Trash2 size={17} />
+              </button>
+            </div>
+          ))}
+          {items.length === 0 && <p className="insight">{canAddItem ? "Añade al menos un producto con stock disponible." : "No hay presentaciones disponibles con stock para añadir."}</p>}
+        </div>
+        <p className="order-editor-note">El total se recalcula con los precios actuales. El stock se descuenta cuando marques el pedido como pagado.</p>
+        <div className="order-editor-total"><span>Total del pedido</span><strong>{money(total)}</strong></div>
+        {items.length > 0 && !validItems && <p className="form-error">Revisa productos, cantidades disponibles y evita repetir presentaciones.</p>}
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="primary full" type="submit" disabled={saving || !customerId || !validItems}>
+          {saving ? "Guardando…" : order ? "Guardar cambios" : "Crear pedido"}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function Metric({
   title,
   value,
   icon,
   warning,
+  onClick,
 }: {
   title: string;
   value: string;
   icon: React.ReactNode;
   warning?: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="metric">
+  const content = (
+    <>
       <div className={warning ? "metric-icon warning" : "metric-icon"}>{icon}</div>
       <span>{title}</span>
       <strong>{value}</strong>
-    </div>
+      {onClick && <span className="metric-hint">Ver detalle</span>}
+    </>
+  );
+  if (onClick) {
+    return <button type="button" className="metric metric-action" onClick={onClick}>{content}</button>;
+  }
+  return (
+    <div className="metric">{content}</div>
   );
 }
 

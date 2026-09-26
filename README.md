@@ -48,7 +48,7 @@ Abrir la URL mostrada por Vite.
    VITE_WHATSAPP_NUMBER=573102318786
    ```
 
-5. En **SQL Editor → New query**, abre `supabase/schema.sql`, copia su contenido, pégalo y selecciona **Run**. Este paso crea las tablas, políticas y funciones que usa la aplicación.
+5. En **SQL Editor → New query**, abre `supabase/schema.sql`, copia su contenido, pégalo y selecciona **Run**. Este paso crea las tablas, políticas y funciones que usa la aplicación. Vuelve a ejecutar el esquema actualizado cuando incorpores funciones administrativas nuevas.
 6. Reinicia el servidor local (`Ctrl+C` y `npm run dev`) para que Vite cargue las variables nuevas.
 7. Prueba un pedido pequeño desde la tienda. Si aparece un error de clave, vuelve a copiar la URL y la clave pública del mismo proyecto. Si indica que falta `create_whatsapp_order`, vuelve a ejecutar el esquema.
 
@@ -64,6 +64,8 @@ En Supabase abre **Authentication → URL Configuration**:
 2. En **Redirect URLs**, agrega `https://perfumes-saad.vercel.app/**`. Agrega URLs localhost solo si todavía necesitas probar callbacks locales; el sitio publicado no las utiliza.
 3. Deja activada la confirmación de correo en **Authentication → Providers → Email** para que el registro envíe el mensaje de confirmación. El correo predeterminado de Supabase tiene límites de envío; configura SMTP propio en **Authentication → SMTP Settings** si necesitas mayor cuota o entrega de producción.
 4. El formulario de acceso permite solicitar un enlace en **¿Olvidaste tu contraseña?**. El enlace vuelve a la tienda, donde se puede definir y confirmar una contraseña nueva. Si personalizas la plantilla de restablecimiento en **Authentication → Email Templates**, conserva el enlace seguro de Supabase (`{{ .ConfirmationURL }}`).
+
+Al registrarse, el cliente debe aceptar el tratamiento de datos personales y las promociones por WhatsApp. La aceptación y su fecha se guardan en el perfil de Supabase.
 
 ### Crear la primera cuenta de administrador
 
@@ -88,7 +90,9 @@ No registres contraseñas en SQL ni en perfiles. Las credenciales se administran
 
 En el panel, registra el costo unitario de cada presentación desde **Productos**. Los pedidos nuevos guardan una copia del costo de cada línea, para que los cambios futuros de costo no alteren la rentabilidad histórica.
 
-En **Transacciones**, cambia el pago a **Pagado · completar venta** cuando hayas recibido el dinero. La función protegida de Supabase confirma la venta, guarda su fecha, descuenta el inventario una sola vez y registra el movimiento. El total vendido incluye solo pedidos pagados; los reembolsos salen de ese total y restauran el stock.
+En **Productos**, ajusta el stock de cada presentación; cada ajuste se registra como movimiento de inventario. En el dashboard, pulsa **Agotados**, **Pedidos pendientes** o **Presentaciones con stock bajo** para abrir el detalle y navegar a la sección correspondiente.
+
+En **Pedidos**, puedes crear pedidos con un cliente existente y seleccionar las presentaciones, o editar/eliminar pedidos todavía no pagados. Al guardar, el total se calcula con los precios actuales y se comprueba el stock. El stock se descuenta al marcar el pedido como **Pagado · completar venta**; entonces la función protegida confirma la venta, registra el movimiento y su fecha. Los pedidos pagados no se pueden editar ni eliminar; usa el flujo de reembolso, que restaura el inventario.
 
 Los pedidos antiguos pueden no tener costo histórico. El panel los señala y deja su utilidad incompleta en lugar de inventar costos. Los importes son utilidad bruta y no incluyen domicilio, comisiones ni otros gastos.
 

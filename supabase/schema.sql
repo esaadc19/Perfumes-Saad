@@ -7,12 +7,18 @@ create table if not exists public.profiles (
   full_name text,
   phone text,
   email text,
+  data_processing_consent boolean not null default false,
+  whatsapp_promotions_consent boolean not null default false,
+  consented_at timestamptz,
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists full_name text;
 alter table public.profiles add column if not exists phone text;
 alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists data_processing_consent boolean not null default false;
+alter table public.profiles add column if not exists whatsapp_promotions_consent boolean not null default false;
+alter table public.profiles add column if not exists consented_at timestamptz;
 
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
@@ -124,18 +130,32 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles as stored_profile (id, role, full_name, phone, email)
+  insert into public.profiles as stored_profile (
+    id, role, full_name, phone, email,
+    data_processing_consent, whatsapp_promotions_consent, consented_at
+  )
   values (
     new.id,
     'customer',
     nullif(trim(new.raw_user_meta_data->>'full_name'), ''),
     nullif(trim(new.raw_user_meta_data->>'phone'), ''),
-    new.email
+    new.email,
+    coalesce((new.raw_user_meta_data->>'data_processing_consent')::boolean, false),
+    coalesce((new.raw_user_meta_data->>'whatsapp_promotions_consent')::boolean, false),
+    case
+      when coalesce((new.raw_user_meta_data->>'data_processing_consent')::boolean, false)
+       and coalesce((new.raw_user_meta_data->>'whatsapp_promotions_consent')::boolean, false)
+      then now()
+      else null
+    end
   )
   on conflict (id) do update
   set email = excluded.email,
       full_name = coalesce(stored_profile.full_name, excluded.full_name),
-      phone = coalesce(stored_profile.phone, excluded.phone);
+      phone = coalesce(stored_profile.phone, excluded.phone),
+      data_processing_consent = stored_profile.data_processing_consent or excluded.data_processing_consent,
+      whatsapp_promotions_consent = stored_profile.whatsapp_promotions_consent or excluded.whatsapp_promotions_consent,
+      consented_at = coalesce(stored_profile.consented_at, excluded.consented_at);
   return new;
 end;
 $$;
@@ -161,6 +181,53 @@ begin
   if not found then
     raise exception 'Product presentation not found';
   end if;
+end;
+$$;
+
+create or replace function public.admin_update_variant_stock(
+  target_variant_id uuid,
+  new_stock integer
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  previous_stock integer;
+  stock_delta integer;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  if new_stock is null or new_stock < 0 then
+    raise exception 'Stock must be zero or greater';
+  end if;
+
+  select stock into previous_stock
+  from public.product_variants
+  where id = target_variant_id
+  for update;
+  if not found then
+    raise exception 'Product presentation not found';
+  end if;
+
+  stock_delta := new_stock - previous_stock;
+  if stock_delta = 0 then
+    return;
+  end if;
+
+  update public.product_variants
+  set stock = new_stock
+  where id = target_variant_id;
+
+  insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+  values (
+    target_variant_id,
+    case when stock_delta > 0 then 'adjustment_in' else 'adjustment_out' end,
+    stock_delta,
+    'Manual stock adjustment'
+  );
 end;
 $$;
 
@@ -301,23 +368,187 @@ begin
 end;
 $$;
 
+create or replace function public.admin_save_pending_order(
+  target_order_id uuid,
+  target_customer_id uuid,
+  items_data jsonb
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  order_record public.orders%rowtype;
+  item jsonb;
+  item_quantity integer;
+  variant_record record;
+  calculated_subtotal numeric(12,2) := 0;
+  saved_order_id uuid;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  if target_customer_id is null or not exists (
+    select 1 from public.customers where id = target_customer_id
+  ) then
+    raise exception 'Select a valid customer';
+  end if;
+  if jsonb_typeof(items_data) is distinct from 'array' then
+    raise exception 'An order must contain at least one product';
+  end if;
+  if jsonb_array_length(items_data) = 0 then
+    raise exception 'An order must contain at least one product';
+  end if;
+  if exists (
+    select 1
+    from jsonb_array_elements(items_data) as item_row(value)
+    group by (value->>'variant_id')::uuid
+    having count(*) > 1
+  ) then
+    raise exception 'Each product presentation can only appear once in an order';
+  end if;
+
+  if target_order_id is null then
+    insert into public.orders (customer_id, status, payment_status)
+    values (target_customer_id, 'pending_confirmation', 'pending')
+    returning id into saved_order_id;
+  else
+    select * into order_record
+    from public.orders
+    where id = target_order_id
+    for update;
+    if not found then
+      raise exception 'Order not found';
+    end if;
+    if order_record.payment_status <> 'pending'
+       or order_record.status = 'cancelled' then
+      raise exception 'Only active unpaid orders can be edited';
+    end if;
+    saved_order_id := target_order_id;
+    delete from public.order_items where order_id = saved_order_id;
+  end if;
+
+  for item in
+    select value
+    from jsonb_array_elements(items_data)
+    order by (value->>'variant_id')::uuid
+  loop
+    if nullif(item->>'variant_id', '') is null
+       or coalesce(item->>'quantity', '') !~ '^[0-9]+$' then
+      raise exception 'Invalid order item';
+    end if;
+    item_quantity := (item->>'quantity')::integer;
+    if item_quantity < 1 then
+      raise exception 'Order quantities must be positive';
+    end if;
+
+    select pv.id, pv.size_ml, pv.price, pv.cost, pv.stock, p.brand, p.name
+    into variant_record
+    from public.product_variants pv
+    join public.products p on p.id = pv.product_id
+    where pv.id = (item->>'variant_id')::uuid
+      and pv.active = true
+      and p.active = true
+    for update of pv;
+    if not found then
+      raise exception 'A selected product presentation is not available';
+    end if;
+    if item_quantity > variant_record.stock then
+      raise exception 'Insufficient stock for % % ml', variant_record.name, variant_record.size_ml;
+    end if;
+
+    calculated_subtotal := calculated_subtotal + variant_record.price * item_quantity;
+    insert into public.order_items (
+      order_id, variant_id, product_name_snapshot, size_ml, unit_price,
+      unit_cost_snapshot, quantity, subtotal
+    )
+    values (
+      saved_order_id,
+      variant_record.id,
+      trim(variant_record.brand || ' ' || variant_record.name),
+      variant_record.size_ml,
+      variant_record.price,
+      variant_record.cost,
+      item_quantity,
+      variant_record.price * item_quantity
+    );
+  end loop;
+
+  update public.orders
+  set customer_id = target_customer_id,
+      subtotal = calculated_subtotal,
+      total = calculated_subtotal + shipping - discount,
+      status = case
+        when status = 'draft' then 'pending_confirmation'
+        else status
+      end
+  where id = saved_order_id;
+
+  return saved_order_id;
+end;
+$$;
+
+create or replace function public.admin_delete_pending_order(target_order_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  order_record public.orders%rowtype;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  select * into order_record
+  from public.orders
+  where id = target_order_id
+  for update;
+  if not found then
+    raise exception 'Order not found';
+  end if;
+  if order_record.payment_status <> 'pending'
+     or order_record.status = 'cancelled' then
+    raise exception 'Only active unpaid orders can be deleted';
+  end if;
+
+  delete from public.orders where id = target_order_id;
+end;
+$$;
+
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
-insert into public.profiles as stored_profile (id, role, full_name, phone, email)
+insert into public.profiles as stored_profile (
+  id, role, full_name, phone, email,
+  data_processing_consent, whatsapp_promotions_consent, consented_at
+)
 select
   id,
   'customer',
   nullif(trim(raw_user_meta_data->>'full_name'), ''),
   nullif(trim(raw_user_meta_data->>'phone'), ''),
-  email
+  email,
+  coalesce((raw_user_meta_data->>'data_processing_consent')::boolean, false),
+  coalesce((raw_user_meta_data->>'whatsapp_promotions_consent')::boolean, false),
+  case
+    when coalesce((raw_user_meta_data->>'data_processing_consent')::boolean, false)
+     and coalesce((raw_user_meta_data->>'whatsapp_promotions_consent')::boolean, false)
+    then created_at
+    else null
+  end
 from auth.users
 on conflict (id) do update
 set email = coalesce(stored_profile.email, excluded.email),
     full_name = coalesce(stored_profile.full_name, excluded.full_name),
-    phone = coalesce(stored_profile.phone, excluded.phone);
+    phone = coalesce(stored_profile.phone, excluded.phone),
+    data_processing_consent = stored_profile.data_processing_consent or excluded.data_processing_consent,
+    whatsapp_promotions_consent = stored_profile.whatsapp_promotions_consent or excluded.whatsapp_promotions_consent,
+    consented_at = coalesce(stored_profile.consented_at, excluded.consented_at);
 
 create or replace function public.admin_create_product(
   product_data jsonb,
@@ -419,7 +650,7 @@ begin
   if exists (
     select 1
     from jsonb_array_elements(items_data) as item_row(value)
-    group by value->>'variant_id'
+    group by (value->>'variant_id')::uuid
     having count(*) > 1
   ) then
     raise exception 'Each product presentation can only appear once in an order';
@@ -575,7 +806,8 @@ begin
   select jsonb_build_object(
     'total_orders', (select count(*) from public.orders),
     'pending_orders', (
-      select count(*) from public.orders where status = 'pending_confirmation'
+      select count(*) from public.orders
+      where payment_status = 'pending' and status <> 'cancelled'
     ),
     'completed_sales', (select count(*) from public.orders where payment_status = 'paid'),
     'sales_revenue', coalesce((
@@ -727,12 +959,18 @@ revoke all on function public.admin_set_profile_role(uuid, text) from public, an
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
 revoke all on function public.admin_get_products() from public, anon;
 revoke all on function public.admin_update_order_transaction(uuid, text, text) from public, anon;
+revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb) from public, anon;
+revoke all on function public.admin_delete_pending_order(uuid) from public, anon;
+revoke all on function public.admin_update_variant_stock(uuid, integer) from public, anon;
 grant execute on function public.admin_dashboard_metrics() to authenticated;
 grant execute on function public.admin_update_customer(uuid, jsonb) to authenticated;
 grant execute on function public.admin_set_profile_role(uuid, text) to authenticated;
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
 grant execute on function public.admin_get_products() to authenticated;
 grant execute on function public.admin_update_order_transaction(uuid, text, text) to authenticated;
+grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb) to authenticated;
+grant execute on function public.admin_delete_pending_order(uuid) to authenticated;
+grant execute on function public.admin_update_variant_stock(uuid, integer) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.products enable row level security;

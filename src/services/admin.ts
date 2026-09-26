@@ -41,6 +41,7 @@ export interface AdminProfile {
 
 export interface AdminOrder {
   id: string;
+  customer_id: string | null;
   status: string;
   payment_status: string;
   total: number;
@@ -48,9 +49,11 @@ export interface AdminOrder {
   created_at: string;
   customers: { full_name: string; phone: string | null; email: string | null } | null;
   order_items: {
+    variant_id: string;
     product_name_snapshot: string;
     size_ml: number;
     quantity: number;
+    unit_price: number;
     subtotal: number;
     unit_cost_snapshot: number | null;
   }[];
@@ -101,7 +104,7 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("orders")
-    .select("id, status, payment_status, total, paid_at, created_at, customers(full_name, phone, email), order_items(product_name_snapshot, size_ml, quantity, subtotal, unit_cost_snapshot)")
+    .select("id, customer_id, status, payment_status, total, paid_at, created_at, customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot)")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los pedidos:", error);
@@ -112,6 +115,36 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
     customers: Array.isArray(order.customers) ? order.customers[0] ?? null : order.customers,
     order_items: order.order_items ?? [],
   })) as AdminOrder[];
+}
+
+export async function saveAdminPendingOrder(input: {
+  orderId: string | null;
+  customerId: string;
+  items: { variant_id: string; quantity: number }[];
+}): Promise<string> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc("admin_save_pending_order", {
+    target_order_id: input.orderId,
+    target_customer_id: input.customerId,
+    items_data: input.items,
+  });
+  if (error) {
+    console.error("No se pudo guardar el pedido:", error);
+    throw error;
+  }
+  if (typeof data !== "string") throw new Error("Supabase no devolvió el pedido guardado.");
+  return data;
+}
+
+export async function deleteAdminPendingOrder(orderId: string): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.rpc("admin_delete_pending_order", {
+    target_order_id: orderId,
+  });
+  if (error) {
+    console.error("No se pudo eliminar el pedido:", error);
+    throw error;
+  }
 }
 
 export async function updateAdminOrderStatus(

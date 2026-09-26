@@ -22,6 +22,8 @@ export default function AuthDialog({
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [dataProcessingConsent, setDataProcessingConsent] = useState(false);
+  const [whatsappPromotionsConsent, setWhatsappPromotionsConsent] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirmation, setPasswordConfirmation] = useState("");
@@ -102,7 +104,12 @@ export default function AuthDialog({
         email: email.trim(),
         password,
         options: {
-          data: { full_name: name.trim(), phone: phone.trim() },
+          data: {
+            full_name: name.trim(),
+            phone: phone.trim(),
+            data_processing_consent: dataProcessingConsent,
+            whatsapp_promotions_consent: whatsappPromotionsConsent,
+          },
           emailRedirectTo: AUTH_REDIRECT_URL,
         },
       });
@@ -199,6 +206,28 @@ export default function AuthDialog({
             />
           </label>
         )}
+        {mode === "register" && (
+          <div className="consent-fields">
+            <label className="consent-option">
+              <input
+                type="checkbox"
+                checked={dataProcessingConsent}
+                onChange={(event) => setDataProcessingConsent(event.target.checked)}
+                required
+              />
+              <span>Acepto el tratamiento de mis datos personales para gestionar mi cuenta y mis pedidos.</span>
+            </label>
+            <label className="consent-option">
+              <input
+                type="checkbox"
+                checked={whatsappPromotionsConsent}
+                onChange={(event) => setWhatsappPromotionsConsent(event.target.checked)}
+                required
+              />
+              <span>Acepto recibir promociones de Perfumes SAAD por WhatsApp.</span>
+            </label>
+          </div>
+        )}
         {mode === "reset" && (
           <label className="auth-label">
             Confirmar nueva contraseña
@@ -222,7 +251,12 @@ export default function AuthDialog({
             (mode !== "reset" && !email) ||
             ((mode === "login" || mode === "register") && password.length < 6) ||
             (mode === "reset" && (password.length < 8 || passwordConfirmation.length < 8)) ||
-            (mode === "register" && (!name.trim() || !phone.trim()))
+            (mode === "register" && (
+              !name.trim() ||
+              !phone.trim() ||
+              !dataProcessingConsent ||
+              !whatsappPromotionsConsent
+            ))
           }
           onClick={() => void submit()}
         >
