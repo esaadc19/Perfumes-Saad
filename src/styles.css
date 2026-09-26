@@ -259,7 +259,7 @@ footer a { color: #111; }
 .metric-icon { grid-row: span 2; width: 34px; height: 34px; background: #f1efeb; display: grid; place-items: center; }
 .metric-icon.warning { background: #f7e9e1; color: #a05b3e; }
 .metric span { font-size: 12px; color: var(--muted); }
-.metric strong { font-size: 25px; }
+.metric strong { font-size: clamp(16px, 2vw, 25px); overflow-wrap: anywhere; }
 .admin-card { background: white; border: 1px solid var(--border); padding: 24px; margin-bottom: 20px; }
 .card-title { display: flex; justify-content: space-between; align-items: start; margin-bottom: 22px; }
 .card-title span { color: var(--muted); font-size: 12px; }
@@ -278,14 +278,24 @@ footer a { color: #111; }
 .icon-button { border: 0; background: transparent; }
 .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .insight { color: #666; line-height: 1.7; margin: 0; }
-.top-product-row { min-width: 560px; grid-template-columns: 2fr .8fr .8fr 1.2fr; }
+.top-product-row { min-width: 850px; grid-template-columns: 2fr .8fr .7fr 1fr 1fr 1fr; }
 .customer-row { min-width: 780px; grid-template-columns: 1.2fr 1fr 1.5fr .8fr .5fr .35fr; }
 .profile-row { min-width: 740px; grid-template-columns: 1.5fr 1fr .8fr 1fr; }
 .profile-cell { min-width: 0; display: grid; gap: 4px; }
 .profile-cell span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; }
 .order-row { min-width: 980px; grid-template-columns: 2.2fr .7fr .8fr 1fr 1fr; }
+.transaction-row { min-width: 1480px; grid-template-columns: 2.1fr .8fr .9fr .9fr .9fr 1fr 1.2fr; }
 .admin-table select { width: 100%; min-width: 110px; padding: 8px; border: 1px solid var(--border); background: white; color: var(--ink); font-size: 12px; }
 .profile-notice { display: flex; align-items: center; gap: 9px; margin-bottom: 18px; padding: 12px 14px; background: #f4f0ea; color: #65564c; font-size: 12px; line-height: 1.5; }
+.variant-cost-list { display: grid; gap: 9px; }
+.variant-cost-list > label { display: grid; gap: 4px; color: var(--muted); }
+.cost-input-wrap { display: flex; align-items: center; gap: 6px; color: var(--ink); }
+.cost-input-wrap input { width: 105px; padding: 7px 8px; border: 1px solid var(--border); background: #fff; color: var(--ink); font: inherit; }
+.variant-cost-list small { color: var(--muted); font-size: 10px; }
+.transaction-filters { display: flex; gap: 8px; margin: -2px 0 20px; overflow-x: auto; }
+.transaction-filters button { flex: 0 0 auto; padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; background: white; color: var(--ink); font-size: 12px; }
+.transaction-filters button.selected { border-color: #111; background: #111; color: white; }
+.transaction-metrics { margin-top: 8px; }
 .admin-customer-modal { width: min(100%, 520px); }
 .admin-customer-modal .auth-label { display: grid; gap: 7px; margin-bottom: 12px; }
 .admin-customer-modal .auth-label input { width: 100%; }

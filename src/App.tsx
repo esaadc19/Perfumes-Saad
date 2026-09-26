@@ -6,6 +6,7 @@ import {
   getAdminProducts,
   getProducts,
   setProductActive,
+  setVariantCost,
   type Product,
 } from "./services/products";
 import {
@@ -28,7 +29,6 @@ import {
   ArrowLeft,
   BarChart3,
   Check,
-  ContactRound,
   LayoutDashboard,
   Menu,
   Package,
@@ -36,10 +36,12 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ReceiptText,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
   Trash2,
+  TrendingUp,
   User,
   Users,
   X,
@@ -127,6 +129,7 @@ function App() {
   const [adminAccessPending, setAdminAccessPending] = useState(false);
   const [loginFeedback, setLoginFeedback] = useState<string | null>(null);
   const [showAccount, setShowAccount] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +177,7 @@ function App() {
   const [adminError, setAdminError] = useState<string | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
+  const [savingCostVariantId, setSavingCostVariantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -184,6 +188,11 @@ function App() {
     const client = supabase;
     let active = true;
     let lookup = 0;
+    const initialAuthParams = new URLSearchParams(window.location.hash.slice(1));
+    if (initialAuthParams.get("type") === "recovery") {
+      setPasswordRecovery(true);
+      setShowLogin(true);
+    }
     const syncSession = async (session: Session | null) => {
       const currentLookup = ++lookup;
       if (!active) return;
@@ -212,7 +221,11 @@ function App() {
       setAuthLoading(false);
     };
 
-    const { data: authListener } = client.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = client.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setPasswordRecovery(true);
+        setShowLogin(true);
+      }
       window.setTimeout(() => void syncSession(session), 0);
     });
     void client.auth.getSession().then(({ data, error: sessionError }) => {
@@ -292,7 +305,7 @@ function App() {
     family: string;
     climate: string[];
     image_url: string;
-  }, variants: { size: number; price: number; stock: number }[]) => {
+  }, variants: { size: number; price: number; cost: number; stock: number }[]) => {
     setSavingProduct(true);
     setAdminError(null);
     try {
@@ -321,6 +334,25 @@ function App() {
       setAdminError("No se pudo actualizar la disponibilidad del producto.");
     } finally {
       setUpdatingProductId(null);
+    }
+  };
+
+  const handleVariantCostChange = async (variantId: string, cost: number) => {
+    setSavingCostVariantId(variantId);
+    try {
+      await setVariantCost(variantId, cost);
+      setProducts((current) => current.map((product) => ({
+        ...product,
+        variants: product.variants.map((variant) =>
+          variant.id === variantId ? { ...variant, cost } : variant
+        ),
+      })));
+    } catch (costError) {
+      console.error("No se pudo guardar el costo de la presentación:", costError);
+      setAdminError("No se pudo guardar el costo. Revisa tus permisos e inténtalo de nuevo.");
+      throw costError;
+    } finally {
+      setSavingCostVariantId(null);
     }
   };
 
@@ -604,6 +636,8 @@ function App() {
         <Admin
           products={products}
           currentUserId={user?.id ?? ""}
+          onVariantCostChange={handleVariantCostChange}
+          savingCostVariantId={savingCostVariantId}
           onBack={() => setView("store")}
           onAdd={() => {
             setAdminError(null);
@@ -651,11 +685,13 @@ function App() {
       {showLogin && (
         <AuthDialog
           notice={loginFeedback}
+          initialMode={passwordRecovery ? "reset" : "login"}
           onClose={() => {
             setShowLogin(false);
             setAdminAccessPending(false);
             setLoginFeedback(null);
           }}
+          onPasswordReset={() => setPasswordRecovery(false)}
           onAuthenticated={handleAuthenticated}
         />
       )}
@@ -707,6 +743,8 @@ function App() {
 function Admin({
   products,
   currentUserId,
+  onVariantCostChange,
+  savingCostVariantId,
   onBack,
   onAdd,
   onProductActiveChange,
@@ -716,6 +754,8 @@ function Admin({
 }: {
   products: Product[];
   currentUserId: string;
+  onVariantCostChange: (variantId: string, cost: number) => Promise<void>;
+  savingCostVariantId: string | null;
   onBack: () => void;
   onAdd: () => void;
   onProductActiveChange: (product: Product) => void;
@@ -723,7 +763,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "orders" | "customers" | "profiles">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "transactions" | "customers" | "profiles">("overview");
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
@@ -736,7 +776,9 @@ function Admin({
   const [customerSaving, setCustomerSaving] = useState(false);
   const [savingOrderId, setSavingOrderId] = useState<string | null>(null);
   const [savingProfileId, setSavingProfileId] = useState<string | null>(null);
+  const [costDrafts, setCostDrafts] = useState<Record<string, string>>({});
   const [productSearch, setProductSearch] = useState("");
+  const [transactionFilter, setTransactionFilter] = useState<"all" | "paid" | "pending" | "refunded">("all");
   const visibleProducts = products.filter((product) =>
     `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase())
   );
@@ -751,7 +793,7 @@ function Admin({
   const sections = [
     { id: "overview", title: "Dashboard", icon: <LayoutDashboard size={17} /> },
     { id: "products", title: "Productos", icon: <Package size={17} /> },
-    { id: "orders", title: "Pedidos", icon: <ShoppingBag size={17} /> },
+    { id: "transactions", title: "Transacciones", icon: <ReceiptText size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
   ] as const;
@@ -770,7 +812,7 @@ function Admin({
         if (section === "overview") {
           const result = await getAdminDashboardMetrics();
           if (active) setMetrics(result);
-        } else if (section === "orders") {
+        } else if (section === "transactions") {
           const result = await getAdminOrders();
           if (active) setOrders(result);
         } else if (section === "customers") {
@@ -826,10 +868,17 @@ function Admin({
     setSectionError(null);
     try {
       await updateAdminOrderStatus(order.id, status, paymentStatus);
+      const finalStatus = paymentStatus === "paid" ? "confirmed" : status;
       setOrders((current) => current.map((item) => item.id === order.id
-        ? { ...item, status, payment_status: paymentStatus }
+        ? {
+            ...item,
+            status: finalStatus,
+            payment_status: paymentStatus,
+            paid_at: paymentStatus === "paid" ? item.paid_at ?? new Date().toISOString() : item.paid_at,
+          }
         : item
       ));
+      setSectionRevision((current) => current + 1);
     } catch (updateError) {
       console.error("No se pudo actualizar el estado del pedido:", updateError);
       setSectionError("No se pudo actualizar el pedido. Revisa tus permisos.");
@@ -861,7 +910,29 @@ function Admin({
   );
   const visibleOrders = orders.filter((order) =>
     `${order.customers?.full_name ?? ""} ${order.customers?.email ?? ""} ${order.id}`.toLowerCase().includes(query)
+      && (transactionFilter === "all" || order.payment_status === transactionFilter)
   );
+  const completedOrders = orders.filter((order) => order.payment_status === "paid");
+  const transactionRevenue = completedOrders.reduce((sum, order) => sum + Number(order.total), 0);
+  const transactionMissingCostItems = completedOrders.reduce(
+    (sum, order) => sum + order.order_items.reduce(
+      (itemSum, item) => itemSum + (item.unit_cost_snapshot === null ? item.quantity : 0),
+      0
+    ),
+    0
+  );
+  const transactionCost = completedOrders.reduce(
+    (sum, order) => sum + order.order_items.reduce(
+      (itemSum, item) => itemSum + (item.unit_cost_snapshot === null
+        ? 0
+        : Number(item.unit_cost_snapshot) * item.quantity),
+      0
+    ),
+    0
+  );
+  const transactionProfit = transactionMissingCostItems > 0
+    ? null
+    : transactionRevenue - transactionCost;
   const normalizeOrderStatus = (status: string): "pending_confirmation" | "confirmed" | "cancelled" =>
     status === "confirmed" || status === "cancelled" ? status : "pending_confirmation";
   const normalizePaymentStatus = (status: string): "pending" | "paid" | "refunded" =>
@@ -921,9 +992,9 @@ function Admin({
         {section === "overview" && metrics && (
           <>
             <div className="metrics">
-              <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
-              <Metric title="Valor de pedidos" value={money(Number(metrics.order_value))} icon={<BarChart3 />} />
-              <Metric title="Clientes con pedidos" value={String(metrics.customer_count)} icon={<Users />} />
+              <Metric title="Ventas completas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
+              <Metric title="Total vendido" value={money(Number(metrics.sales_revenue))} icon={<BarChart3 />} />
+              <Metric title="Clientes registrados" value={String(metrics.customer_count)} icon={<Users />} />
               <Metric title="Presentaciones con stock bajo" value={String(metrics.low_stock_variants)} icon={<AlertTriangle />} warning />
             </div>
             <div className="metrics">
@@ -932,16 +1003,22 @@ function Admin({
               <Metric title="Pedidos pendientes" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning />
               <Metric title="Agotados" value={soldOut.toString()} icon={<X />} />
             </div>
+            <div className="metrics">
+              <Metric title="Costo de ventas registrado" value={money(Number(metrics.sales_cost))} icon={<ReceiptText />} />
+              <Metric title="Utilidad bruta" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
+              <Metric title="Costos pendientes" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning={metrics.missing_cost_items > 0} />
+              <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
+            </div>
             <section className="admin-card">
               <div className="card-title">
                 <div><h2>Más solicitados</h2><span>Unidades incluidas en pedidos guardados, ordenadas por cantidad.</span></div>
               </div>
               {metrics.top_products.length ? (
                 <div className="admin-table">
-                  <div className="table-row top-product-row header"><span>Perfume</span><span>Presentación</span><span>Unidades</span><span>Valor en pedidos</span></div>
+                  <div className="table-row top-product-row header"><span>Perfume</span><span>Presentación</span><span>Unidades</span><span>Vendido</span><span>Costo</span><span>Utilidad</span></div>
                   {metrics.top_products.map((product) => (
                     <div className="table-row top-product-row" key={`${product.name}-${product.size_ml}`}>
-                      <strong>{product.name}</strong><span>{product.size_ml} ml</span><span>{product.units}</span><span>{money(Number(product.order_value))}</span>
+                      <strong>{product.name}</strong><span>{product.size_ml} ml</span><span>{product.units}</span><span>{money(Number(product.revenue))}</span><span>{product.cost === null ? "Falta costo" : money(Number(product.cost))}</span><span>{product.profit === null ? "Incompleta" : money(Number(product.profit))}</span>
                     </div>
                   ))}
                 </div>
@@ -983,7 +1060,7 @@ function Admin({
 
           <div className="admin-table">
             <div className="table-row header">
-              <span>Producto</span><span>Categoría</span><span>Presentaciones</span><span>Stock</span><span>Estado</span><span></span>
+              <span>Producto</span><span>Categoría</span><span>Presentación y costo unitario</span><span>Stock</span><span>Estado</span><span></span>
             </div>
             {visibleProducts.map((product) => {
               const stock = product.variants.reduce((s, v) => s + v.stock, 0);
@@ -995,7 +1072,40 @@ function Admin({
                     <div><b>{product.brand}</b><span>{product.name}</span></div>
                   </div>
                   <span>{product.category}</span>
-                  <span>{product.variants.map((v) => `${v.size} ml`).join(", ")}</span>
+                  <div className="variant-cost-list">
+                    {product.variants.map((variant) => (
+                      <label key={variant.id}>
+                        <span>{variant.size} ml · precio {money(variant.price)}</span>
+                        <span className="cost-input-wrap">
+                          <span>Costo</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            aria-label={`Costo unitario de ${product.name} ${variant.size} ml`}
+                            value={costDrafts[variant.id] ?? (variant.cost == null ? "" : String(variant.cost))}
+                            placeholder="Sin costo"
+                            disabled={savingCostVariantId === variant.id}
+                            onChange={(event) => setCostDrafts((current) => ({ ...current, [variant.id]: event.target.value }))}
+                            onBlur={(event) => {
+                              const rawCost = event.target.value.trim();
+                              if (!rawCost) return;
+                              const cost = Number(rawCost);
+                              if (!Number.isFinite(cost) || cost < 0) return;
+                              void onVariantCostChange(variant.id, cost)
+                                .then(() => setCostDrafts((current) => {
+                                  const next = { ...current };
+                                  delete next[variant.id];
+                                  return next;
+                                }))
+                                .catch(() => {});
+                            }}
+                          />
+                        </span>
+                        {savingCostVariantId === variant.id && <small>Guardando…</small>}
+                      </label>
+                    ))}
+                  </div>
                   <span>{stock}</span>
                   <button
                     className={available ? "status available" : "status sold"}
@@ -1015,16 +1125,16 @@ function Admin({
           </div>
         </section>}
 
-        {(section === "customers" || section === "profiles" || section === "orders") && (
+        {(section === "customers" || section === "profiles" || section === "transactions") && (
           <section className="admin-card">
             <div className="card-title">
               <div>
-                <h2>{section === "customers" ? "Clientes y pedidos" : section === "profiles" ? "Cuentas y permisos" : "Pedidos guardados"}</h2>
+                <h2>{section === "customers" ? "Clientes y pedidos" : section === "profiles" ? "Cuentas y permisos" : "Historial de transacciones"}</h2>
                 <span>{section === "customers"
                   ? "Consulta compras y actualiza los datos de contacto."
                   : section === "profiles"
                     ? "Asigna acceso administrativo únicamente a cuentas registradas."
-                    : "Confirma o cancela pedidos y actualiza su estado de pago."}</span>
+                    : "Al marcar un pedido como pagado, se completa la venta y se actualiza el inventario."}</span>
               </div>
               <label className="admin-search">
                 <Search size={16} />
@@ -1062,24 +1172,62 @@ function Admin({
                 </div>
               </>
             )}
-            {section === "orders" && (
-              <div className="admin-table">
-                <div className="table-row order-row header"><span>Pedido / Cliente</span><span>Fecha</span><span>Total</span><span>Estado</span><span>Pago</span></div>
+            {section === "transactions" && (
+              <>
+                <div className="metrics transaction-metrics">
+                  <Metric title="Total vendido" value={money(transactionRevenue)} icon={<TrendingUp />} />
+                  <Metric title="Costo de ventas" value={money(transactionCost)} icon={<ReceiptText />} />
+                  <Metric title="Utilidad bruta" value={transactionProfit === null ? "Incompleta" : money(transactionProfit)} icon={<BarChart3 />} warning={transactionProfit !== null && transactionProfit < 0} />
+                  <Metric title="Ventas completas" value={String(completedOrders.length)} icon={<Check />} />
+                </div>
+                <div className="transaction-filters" aria-label="Filtrar transacciones">
+                  {([
+                    ["all", "Todos"],
+                    ["paid", "Ventas completas"],
+                    ["pending", "Pendientes"],
+                    ["refunded", "Reembolsados"],
+                  ] as const).map(([filter, label]) => (
+                    <button
+                      key={filter}
+                      className={transactionFilter === filter ? "selected" : ""}
+                      onClick={() => setTransactionFilter(filter)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {transactionMissingCostItems > 0 && (
+                  <p className="profile-notice" role="status">
+                    <AlertTriangle size={17} />
+                    Faltan costos para {transactionMissingCostItems} unidad(es) vendida(s). Completa el costo unitario desde Productos para obtener la utilidad real.
+                  </p>
+                )}
+                <div className="admin-table">
+                <div className="table-row transaction-row header"><span>Pedido / Cliente</span><span>Fecha de venta</span><span>Vendido</span><span>Costo</span><span>Utilidad</span><span>Estado del pedido</span><span>Pago</span></div>
                 {visibleOrders.map((order) => (
-                  <div className="table-row order-row" key={order.id}>
+                  <div className="table-row transaction-row" key={order.id}>
                     <div className="profile-cell"><strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong><span>{order.order_items?.map((item) => `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`).join(" · ") || order.customers?.phone || "Sin detalle"}</span></div>
-                    <span>{new Date(order.created_at).toLocaleDateString("es-CO")}</span>
-                    <strong>{money(Number(order.total))}</strong>
-                    <select aria-label={`Estado del pedido ${order.id.slice(0, 8)}`} value={normalizeOrderStatus(order.status)} disabled={savingOrderId === order.id} onChange={(event) => void saveOrderStatus(order, event.target.value as "pending_confirmation" | "confirmed" | "cancelled", normalizePaymentStatus(order.payment_status))}>
+                    <span>{order.paid_at ? new Date(order.paid_at).toLocaleDateString("es-CO") : "—"}</span>
+                    <strong>{order.payment_status === "paid" ? money(Number(order.total)) : "—"}</strong>
+                    <span>{order.payment_status !== "paid" ? "—" : order.order_items.some((item) => item.unit_cost_snapshot === null)
+                      ? "Falta costo"
+                      : money(order.order_items.reduce((sum, item) => sum + Number(item.unit_cost_snapshot) * item.quantity, 0))}</span>
+                    <span>{order.payment_status !== "paid" ? "—" : order.order_items.some((item) => item.unit_cost_snapshot === null)
+                      ? "Incompleta"
+                      : money(Number(order.total) - order.order_items.reduce((sum, item) => sum + Number(item.unit_cost_snapshot) * item.quantity, 0))}</span>
+                    <select aria-label={`Estado del pedido ${order.id.slice(0, 8)}`} value={normalizeOrderStatus(order.status)} disabled={savingOrderId === order.id || order.payment_status === "paid"} onChange={(event) => void saveOrderStatus(order, event.target.value as "pending_confirmation" | "confirmed" | "cancelled", normalizePaymentStatus(order.payment_status))}>
                       <option value="pending_confirmation">Por confirmar</option><option value="confirmed">Confirmado</option><option value="cancelled">Cancelado</option>
                     </select>
                     <select aria-label={`Pago del pedido ${order.id.slice(0, 8)}`} value={normalizePaymentStatus(order.payment_status)} disabled={savingOrderId === order.id} onChange={(event) => void saveOrderStatus(order, normalizeOrderStatus(order.status), event.target.value as "pending" | "paid" | "refunded")}>
-                      <option value="pending">Pendiente</option><option value="paid">Pagado</option><option value="refunded">Reembolsado</option>
+                      {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
+                      {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
+                      {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
                     </select>
                   </div>
                 ))}
                 {!sectionLoading && visibleOrders.length === 0 && <p className="insight">No hay pedidos que coincidan con la búsqueda.</p>}
               </div>
+              </>
             )}
           </section>
         )}
@@ -1139,7 +1287,7 @@ function AddProductModal({
     family: string;
     climate: string[];
     image_url: string;
-  }, variants: { size: number; price: number; stock: number }[]) => Promise<void>;
+  }, variants: { size: number; price: number; cost: number; stock: number }[]) => Promise<void>;
   saving: boolean;
   error: string | null;
 }) {
@@ -1150,25 +1298,31 @@ function AddProductModal({
   const [image, setImage] = useState("");
   const [description, setDescription] = useState("");
   const [family, setFamily] = useState("");
-  const [variants, setVariants] = useState([{ size: "100", price: "100000", stock: "1" }]);
+  const [variants, setVariants] = useState([{ size: "100", price: "100000", cost: "", stock: "1" }]);
   const [error, setError] = useState<string | null>(null);
 
   const save = async () => {
     const parsedVariants = variants.map((variant) => ({
       size: Number(variant.size),
       price: Number(variant.price),
+      cost: Number(variant.cost),
       stock: Number(variant.stock),
     }));
     if (!brand.trim() || !name.trim()) {
       setError("La marca y el nombre son obligatorios.");
       return;
     }
+    if (variants.some((variant) => !variant.cost.trim())) {
+      setError("Ingresa el costo unitario de cada presentación para calcular la utilidad.");
+      return;
+    }
     if (parsedVariants.some((variant) =>
       !Number.isInteger(variant.size) || variant.size <= 0 ||
       !Number.isFinite(variant.price) || variant.price < 0 ||
+      !Number.isFinite(variant.cost) || variant.cost < 0 ||
       !Number.isInteger(variant.stock) || variant.stock < 0
     )) {
-      setError("Revisa los tamaños, precios y cantidades de stock.");
+      setError("Revisa los tamaños, precios, costos y cantidades de stock.");
       return;
     }
     if (new Set(parsedVariants.map((variant) => variant.size)).size !== parsedVariants.length) {
@@ -1206,7 +1360,7 @@ function AddProductModal({
         <div className="variant-editor">
           <div className="variant-editor-head">
             <strong>Presentaciones y stock</strong>
-            <button className="text-button" type="button" onClick={() => setVariants((current) => [...current, { size: "", price: "", stock: "0" }])}>
+            <button className="text-button" type="button" onClick={() => setVariants((current) => [...current, { size: "", price: "", cost: "", stock: "0" }])}>
               + Agregar presentación
             </button>
           </div>
@@ -1214,6 +1368,7 @@ function AddProductModal({
             <div className="variant-form-row" key={index}>
               <label>ML<input type="number" min="1" value={variant.size} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, size: event.target.value } : item))} /></label>
               <label>Precio<input type="number" min="0" value={variant.price} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, price: event.target.value } : item))} /></label>
+              <label>Costo<input type="number" min="0" value={variant.cost} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, cost: event.target.value } : item))} required /></label>
               <label>Stock<input type="number" min="0" value={variant.stock} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, stock: event.target.value } : item))} /></label>
               <button className="icon-button" type="button" aria-label="Quitar presentación" disabled={variants.length === 1} onClick={() => setVariants((current) => current.filter((_, i) => i !== index))}>
                 <Trash2 size={16} />

@@ -72,6 +72,14 @@ create table if not exists public.orders (
   created_at timestamptz not null default now()
 );
 
+alter table public.orders add column if not exists paid_at timestamptz;
+update public.orders
+set paid_at = created_at
+where payment_status = 'paid' and paid_at is null;
+update public.orders
+set status = 'confirmed'
+where payment_status = 'paid' and status = 'pending_confirmation';
+
 create table if not exists public.order_items (
   id uuid primary key default gen_random_uuid(),
   order_id uuid not null references public.orders(id) on delete cascade,
@@ -82,6 +90,9 @@ create table if not exists public.order_items (
   quantity integer not null default 1,
   subtotal numeric(12,2) not null
 );
+
+alter table public.order_items
+  add column if not exists unit_cost_snapshot numeric(12,2);
 
 create table if not exists public.inventory_movements (
   id uuid primary key default gen_random_uuid(),
@@ -126,6 +137,167 @@ begin
       full_name = coalesce(stored_profile.full_name, excluded.full_name),
       phone = coalesce(stored_profile.phone, excluded.phone);
   return new;
+end;
+$$;
+
+create or replace function public.admin_update_variant_cost(
+  target_variant_id uuid,
+  new_cost numeric
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  if new_cost is null or new_cost < 0 then
+    raise exception 'Cost must be zero or greater';
+  end if;
+
+  update public.product_variants set cost = new_cost where id = target_variant_id;
+  if not found then
+    raise exception 'Product presentation not found';
+  end if;
+end;
+$$;
+
+create or replace function public.admin_get_products()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  result jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      to_jsonb(p) || jsonb_build_object(
+        'product_variants',
+        coalesce((
+          select jsonb_agg(to_jsonb(pv) order by pv.size_ml)
+          from public.product_variants pv
+          where pv.product_id = p.id
+        ), '[]'::jsonb)
+      )
+      order by p.created_at desc
+    ),
+    '[]'::jsonb
+  )
+  into result
+  from public.products p;
+
+  return result;
+end;
+$$;
+
+create or replace function public.admin_update_order_transaction(
+  target_order_id uuid,
+  new_status text,
+  new_payment_status text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  order_record public.orders%rowtype;
+  order_item record;
+  next_status text := new_status;
+  updated_rows integer;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  if new_status is null or new_payment_status is null
+     or new_status not in ('pending_confirmation', 'confirmed', 'cancelled')
+     or new_payment_status not in ('pending', 'paid', 'refunded') then
+    raise exception 'Invalid order status';
+  end if;
+
+  select * into order_record
+  from public.orders
+  where id = target_order_id
+  for update;
+  if not found then
+    raise exception 'Order not found';
+  end if;
+  if new_payment_status = 'paid' then
+    next_status := 'confirmed';
+  end if;
+
+  if order_record.payment_status = 'paid' and new_payment_status = 'pending' then
+    raise exception 'A completed sale cannot be changed back to pending; register a refund instead';
+  end if;
+  if order_record.payment_status = 'paid'
+     and new_payment_status = 'paid'
+     and new_status = 'cancelled' then
+    raise exception 'Refund the completed sale before cancelling it';
+  end if;
+  if new_payment_status = 'refunded' and order_record.payment_status <> 'paid' then
+    raise exception 'Only a completed sale can be refunded';
+  end if;
+
+  if new_payment_status = 'paid' and order_record.payment_status <> 'paid' then
+    if new_status = 'cancelled' then
+      raise exception 'A cancelled order cannot be completed as a sale';
+    end if;
+    for order_item in
+      select oi.variant_id, oi.quantity, oi.unit_cost_snapshot, pv.cost
+      from public.order_items oi
+      join public.product_variants pv on pv.id = oi.variant_id
+      where oi.order_id = target_order_id
+      order by oi.variant_id
+    loop
+      update public.order_items
+      set unit_cost_snapshot = coalesce(order_item.unit_cost_snapshot, order_item.cost)
+      where order_id = target_order_id and variant_id = order_item.variant_id;
+
+      update public.product_variants
+      set stock = stock - order_item.quantity
+      where id = order_item.variant_id and stock >= order_item.quantity;
+      get diagnostics updated_rows = row_count;
+      if updated_rows = 0 then
+        raise exception 'Insufficient stock to complete this sale';
+      end if;
+
+      insert into public.inventory_movements (variant_id, movement_type, quantity, reason, order_id)
+      values (order_item.variant_id, 'sale', -order_item.quantity, 'Completed paid order', target_order_id);
+    end loop;
+  elsif new_payment_status = 'refunded' and order_record.payment_status = 'paid' then
+    for order_item in
+      select variant_id, quantity
+      from public.order_items
+      where order_id = target_order_id
+      order by variant_id
+    loop
+      update public.product_variants
+      set stock = stock + order_item.quantity
+      where id = order_item.variant_id;
+
+      insert into public.inventory_movements (variant_id, movement_type, quantity, reason, order_id)
+      values (order_item.variant_id, 'refund', order_item.quantity, 'Refunded paid order', target_order_id);
+    end loop;
+  end if;
+
+  update public.orders
+  set status = next_status,
+      payment_status = new_payment_status,
+      paid_at = case
+        when new_payment_status = 'paid' and order_record.payment_status <> 'paid' then now()
+        when new_payment_status = 'paid' then coalesce(paid_at, now())
+        else paid_at
+      end
+  where id = target_order_id;
 end;
 $$;
 
@@ -189,11 +361,12 @@ begin
 
   for variant in select value from jsonb_array_elements(variants_data)
   loop
-    insert into public.product_variants (product_id, size_ml, price, stock)
+    insert into public.product_variants (product_id, size_ml, price, cost, stock)
     values (
       new_product_id,
       (variant->>'size')::integer,
       (variant->>'price')::numeric,
+      nullif(variant->>'cost', '')::numeric,
       (variant->>'stock')::integer
     );
   end loop;
@@ -307,7 +480,7 @@ begin
       raise exception 'Order quantities must be positive';
     end if;
 
-    select pv.id, pv.size_ml, pv.price, pv.stock, p.brand, p.name
+    select pv.id, pv.size_ml, pv.price, pv.cost, pv.stock, p.brand, p.name
     into variant_record
     from public.product_variants pv
     join public.products p on p.id = pv.product_id
@@ -333,7 +506,8 @@ begin
       'subtotal', item_subtotal
     ));
     insert into public.order_items (
-      order_id, variant_id, product_name_snapshot, size_ml, unit_price, quantity, subtotal
+      order_id, variant_id, product_name_snapshot, size_ml, unit_price,
+      unit_cost_snapshot, quantity, subtotal
     )
     values (
       order_id,
@@ -341,6 +515,7 @@ begin
       trim(variant_record.brand || ' ' || variant_record.name),
       variant_record.size_ml,
       variant_record.price,
+      variant_record.cost,
       item_quantity,
       item_subtotal
     );
@@ -402,8 +577,27 @@ begin
     'pending_orders', (
       select count(*) from public.orders where status = 'pending_confirmation'
     ),
-    'order_value', coalesce((
-      select sum(total) from public.orders where status <> 'cancelled'
+    'completed_sales', (select count(*) from public.orders where payment_status = 'paid'),
+    'sales_revenue', coalesce((
+      select sum(total) from public.orders where payment_status = 'paid'
+    ), 0),
+    'sales_cost', coalesce((
+      select sum(oi.unit_cost_snapshot * oi.quantity)
+      from public.orders o
+      join public.order_items oi on oi.order_id = o.id
+      where o.payment_status = 'paid' and oi.unit_cost_snapshot is not null
+    ), 0),
+    'sales_profit', coalesce((
+      select sum((oi.unit_price - oi.unit_cost_snapshot) * oi.quantity)
+      from public.orders o
+      join public.order_items oi on oi.order_id = o.id
+      where o.payment_status = 'paid' and oi.unit_cost_snapshot is not null
+    ), 0),
+    'missing_cost_items', coalesce((
+      select sum(oi.quantity)
+      from public.orders o
+      join public.order_items oi on oi.order_id = o.id
+      where o.payment_status = 'paid' and oi.unit_cost_snapshot is null
     ), 0),
     'customer_count', (select count(*) from public.customers),
     'low_stock_variants', (
@@ -419,10 +613,20 @@ begin
           'name', oi.product_name_snapshot,
           'size_ml', oi.size_ml,
           'units', sum(oi.quantity),
-          'order_value', sum(oi.subtotal)
+          'revenue', sum(oi.subtotal),
+          'cost', case
+            when count(*) filter (where oi.unit_cost_snapshot is null) > 0 then null
+            else sum(oi.unit_cost_snapshot * oi.quantity)
+          end,
+          'profit', case
+            when count(*) filter (where oi.unit_cost_snapshot is null) > 0 then null
+            else sum((oi.unit_price - oi.unit_cost_snapshot) * oi.quantity)
+          end
         ) as product,
         sum(oi.quantity) as units
         from public.order_items oi
+        join public.orders o on o.id = oi.order_id
+        where o.payment_status = 'paid'
         group by oi.product_name_snapshot, oi.size_ml
         order by sum(oi.quantity) desc, oi.product_name_snapshot
         limit 5
@@ -520,9 +724,15 @@ $$;
 revoke all on function public.admin_dashboard_metrics() from public, anon;
 revoke all on function public.admin_update_customer(uuid, jsonb) from public, anon;
 revoke all on function public.admin_set_profile_role(uuid, text) from public, anon;
+revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
+revoke all on function public.admin_get_products() from public, anon;
+revoke all on function public.admin_update_order_transaction(uuid, text, text) from public, anon;
 grant execute on function public.admin_dashboard_metrics() to authenticated;
 grant execute on function public.admin_update_customer(uuid, jsonb) to authenticated;
 grant execute on function public.admin_set_profile_role(uuid, text) to authenticated;
+grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
+grant execute on function public.admin_get_products() to authenticated;
+grant execute on function public.admin_update_order_transaction(uuid, text, text) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.products enable row level security;
@@ -532,12 +742,14 @@ alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.inventory_movements enable row level security;
 
-grant select on public.products, public.product_variants to anon, authenticated;
+grant select on public.products to anon, authenticated;
+revoke select on public.product_variants from public, anon, authenticated;
+grant select (id, product_id, size_ml, price, stock, active, created_at)
+  on public.product_variants to anon, authenticated;
 grant select on public.profiles to authenticated;
 grant update (full_name, phone, email) on public.profiles to authenticated;
-grant select, insert, update, delete
-  on public.products, public.product_variants,
-     public.customers, public.orders, public.order_items, public.inventory_movements
+grant select, insert, update, delete on public.products to authenticated;
+grant select on public.customers, public.orders, public.order_items, public.inventory_movements
   to authenticated;
 
 drop policy if exists "Users can read own profile" on public.profiles;

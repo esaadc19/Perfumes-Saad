@@ -3,14 +3,20 @@ import { supabase } from "../lib/supabase";
 export interface AdminDashboardMetrics {
   total_orders: number;
   pending_orders: number;
-  order_value: number;
+  completed_sales: number;
+  sales_revenue: number;
+  sales_cost: number;
+  sales_profit: number;
+  missing_cost_items: number;
   customer_count: number;
   low_stock_variants: number;
   top_products: {
     name: string;
     size_ml: number;
     units: number;
-    order_value: number;
+    revenue: number;
+    cost: number | null;
+    profit: number | null;
   }[];
 }
 
@@ -38,6 +44,7 @@ export interface AdminOrder {
   status: string;
   payment_status: string;
   total: number;
+  paid_at: string | null;
   created_at: string;
   customers: { full_name: string; phone: string | null; email: string | null } | null;
   order_items: {
@@ -45,6 +52,7 @@ export interface AdminOrder {
     size_ml: number;
     quantity: number;
     subtotal: number;
+    unit_cost_snapshot: number | null;
   }[];
 }
 
@@ -93,7 +101,7 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("orders")
-    .select("id, status, payment_status, total, created_at, customers(full_name, phone, email), order_items(product_name_snapshot, size_ml, quantity, subtotal)")
+    .select("id, status, payment_status, total, paid_at, created_at, customers(full_name, phone, email), order_items(product_name_snapshot, size_ml, quantity, subtotal, unit_cost_snapshot)")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los pedidos:", error);
@@ -112,10 +120,11 @@ export async function updateAdminOrderStatus(
   paymentStatus: "pending" | "paid" | "refunded"
 ): Promise<void> {
   const client = requireSupabase();
-  const { error } = await client
-    .from("orders")
-    .update({ status, payment_status: paymentStatus })
-    .eq("id", orderId);
+  const { error } = await client.rpc("admin_update_order_transaction", {
+    target_order_id: orderId,
+    new_status: status,
+    new_payment_status: paymentStatus,
+  });
   if (error) {
     console.error("No se pudo actualizar el pedido:", error);
     throw error;

@@ -4,6 +4,7 @@ export interface ProductVariant {
   id: string;
   size: number;
   price: number;
+  cost?: number | null;
   stock: number;
 }
 
@@ -62,6 +63,11 @@ function mapProducts(data: any[]): Product[] {
         id: variant.id,
         size: Number(variant.size_ml),
         price: Number(variant.price),
+        cost: variant.cost === undefined
+          ? undefined
+          : variant.cost === null
+            ? null
+            : Number(variant.cost),
         stock: Number(variant.stock),
       })),
   }));
@@ -94,17 +100,14 @@ export async function getAdminProducts(): Promise<Product[]> {
     throw new Error("Supabase no está configurado.");
   }
 
-  const { data, error } = await supabase
-    .from("products")
-    .select(productSelect)
-    .order("created_at", { ascending: false });
+  const { data, error } = await supabase.rpc("admin_get_products");
 
   if (error) {
     console.error("Error cargando productos del panel:", error);
     throw error;
   }
 
-  return mapProducts(data ?? []);
+  return mapProducts((data ?? []) as any[]);
 }
 
 export async function createProduct(product: {
@@ -116,7 +119,7 @@ export async function createProduct(product: {
   family: string;
   climate: string[];
   image_url: string;
-}, variants: { size: number; price: number; stock: number }[]): Promise<void> {
+}, variants: { size: number; price: number; cost: number; stock: number }[]): Promise<void> {
   if (!supabase) {
     throw new Error("Supabase no está configurado.");
   }
@@ -128,6 +131,20 @@ export async function createProduct(product: {
 
   if (error) {
     console.error("Error creando producto:", error);
+    throw error;
+  }
+}
+
+export async function setVariantCost(id: string, cost: number): Promise<void> {
+  if (!supabase) {
+    throw new Error("Supabase no está configurado.");
+  }
+  const { error } = await supabase.rpc("admin_update_variant_cost", {
+    target_variant_id: id,
+    new_cost: cost,
+  });
+  if (error) {
+    console.error("No se pudo actualizar el costo de la presentación:", error);
     throw error;
   }
 }

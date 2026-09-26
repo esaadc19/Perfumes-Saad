@@ -54,6 +54,17 @@ Abrir la URL mostrada por Vite.
 
 El archivo `.env` está excluido de Git. No publiques ni envíes claves privadas; las variables `VITE_*` se incorporan al frontend, por lo que solo deben contener la URL y una clave pública protegida con las políticas RLS del esquema.
 
+### Enlaces de correo de autenticación
+
+El dominio oficial de la tienda es `https://perfumes-saad.vercel.app/`. Los correos de confirmación de registro vuelven siempre a este dominio, incluso si la cuenta se solicita mientras se ejecuta la aplicación en localhost.
+
+En Supabase abre **Authentication → URL Configuration**:
+
+1. Configura **Site URL** como `https://perfumes-saad.vercel.app/`.
+2. En **Redirect URLs**, agrega `https://perfumes-saad.vercel.app/**`. Agrega URLs localhost solo si todavía necesitas probar callbacks locales; el sitio publicado no las utiliza.
+3. Deja activada la confirmación de correo en **Authentication → Providers → Email** para que el registro envíe el mensaje de confirmación. El correo predeterminado de Supabase tiene límites de envío; configura SMTP propio en **Authentication → SMTP Settings** si necesitas mayor cuota o entrega de producción.
+4. El formulario de acceso permite solicitar un enlace en **¿Olvidaste tu contraseña?**. El enlace vuelve a la tienda, donde se puede definir y confirmar una contraseña nueva. Si personalizas la plantilla de restablecimiento en **Authentication → Email Templates**, conserva el enlace seguro de Supabase (`{{ .ConfirmationURL }}`).
+
 ### Crear la primera cuenta de administrador
 
 1. En la tienda, abre **Cuenta → Crear una cuenta de cliente** y regístrate con un correo al que tengas acceso. Elige tu propia contraseña; la tienda no asigna contraseñas ni comparte credenciales.
@@ -72,6 +83,14 @@ El archivo `.env` está excluido de Git. No publiques ni envíes claves privadas
 5. Después de iniciar sesión como administrador, asigna los roles de otras cuentas registradas desde **Perfiles**. No cambies tu propio rol ni elimines el último administrador.
 
 No registres contraseñas en SQL ni en perfiles. Las credenciales se administran exclusivamente desde Supabase Auth. Vuelve a ejecutar el `supabase/schema.sql` actualizado en el SQL Editor para habilitar las métricas y funciones administrativas.
+
+### Transacciones, costos y utilidad
+
+En el panel, registra el costo unitario de cada presentación desde **Productos**. Los pedidos nuevos guardan una copia del costo de cada línea, para que los cambios futuros de costo no alteren la rentabilidad histórica.
+
+En **Transacciones**, cambia el pago a **Pagado · completar venta** cuando hayas recibido el dinero. La función protegida de Supabase confirma la venta, guarda su fecha, descuenta el inventario una sola vez y registra el movimiento. El total vendido incluye solo pedidos pagados; los reembolsos salen de ese total y restauran el stock.
+
+Los pedidos antiguos pueden no tener costo histórico. El panel los señala y deja su utilidad incompleta en lugar de inventar costos. Los importes son utilidad bruta y no incluyen domicilio, comisiones ni otros gastos.
 
 El número de WhatsApp se configura en `VITE_WHATSAPP_NUMBER`, en formato internacional, sin `+` ni espacios.
 
