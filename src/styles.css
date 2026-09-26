@@ -15,7 +15,7 @@
 body { margin: 0; background: #fff; }
 button, input, select { font: inherit; }
 input, select, textarea { animation: field-fade-in .5s both; }
-button { cursor: pointer; }
+button { cursor: pointer; color: inherit; }
 button:disabled { cursor: not-allowed; opacity: .5; }
 
 .app { min-height: 100vh; }
@@ -58,7 +58,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .section-head h2, .card-title h2 { margin: 0; font: 500 32px "Playfair Display", serif; }
 .section-head > span { color: var(--muted); font-size: 13px; }
 .category-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
-.pill { background: white; border: 1px solid var(--border); padding: 9px 15px; border-radius: 99px; }
+.pill { background: white; border: 1px solid var(--border); padding: 9px 15px; border-radius: 99px; color: #222; }
 .pill.active { background: #111; color: #fff; border-color: #111; }
 
 .product-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px 20px; }
@@ -73,7 +73,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .product-info > span, .product-info > p { color: var(--muted); font-size: 12px; margin: 0 0 5px; }
 .product-info h3 { margin: 0 0 5px; font-size: 17px; font-weight: 500; }
 .product-info strong { display: block; margin: 11px 0; font-size: 14px; }
-.text-button { border: 0; padding: 0; background: transparent; text-decoration: underline; font-size: 12px; }
+.text-button { border: 0; padding: 0; background: transparent; color: var(--black); text-decoration: underline; font-size: 12px; }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: grid; place-items: center; padding: 20px; }
 .product-modal { width: min(1120px, 100%); max-height: 92vh; overflow: auto; background: #fff; display: grid; grid-template-columns: 1fr 1fr; position: relative; }
@@ -312,9 +312,9 @@ footer a { color: #111; }
   .product-detail-image { min-height: 360px; max-height: 48vh; }
   .product-detail-copy { padding: 34px 25px 40px; }
   .product-detail-copy h2 { font-size: 36px; }
-  .admin-layout { grid-template-columns: 1fr; }
+  .admin-layout { min-width: 0; grid-template-columns: minmax(0, 1fr); }
   .sidebar { display: none; }
-  .admin-main { padding: 25px 16px; }
+  .admin-main { min-width: 0; padding: 25px 16px; }
   .admin-top { align-items: start; gap: 16px; flex-direction: column; }
   .admin-actions { width: 100%; }
   .admin-actions button { flex: 1; }
@@ -375,14 +375,15 @@ footer a { color: #111; }
   .variant-form-row { align-items: end; gap: 7px; }
   .variant-form-row label { min-width: 0; }
   .variant-form-row input { padding: 0 8px; }
-  .admin-main { padding: 22px 12px 32px; }
-  .admin-top { gap: 12px; margin-bottom: 18px; }
+  .admin-main { width: 100%; padding: 22px 12px 32px; }
+  .admin-top { min-width: 0; gap: 12px; margin-bottom: 18px; }
+  .admin-top > div { min-width: 0; max-width: 100%; }
   .admin-top h1 { font-size: 34px; }
-  .admin-actions { flex-wrap: wrap; }
-  .admin-actions button { min-width: 0; padding: 0 10px; font-size: 12px; }
+  .admin-actions { min-width: 0; flex-wrap: wrap; }
+  .admin-actions button { min-width: 0; min-height: 44px; padding: 0 10px; font-size: 12px; }
   .admin-section-tabs { margin-right: -12px; margin-left: -12px; padding-right: 12px; padding-left: 12px; }
   .admin-section-tabs button { padding: 9px 10px; }
-  .admin-card { padding: 16px 12px; margin-bottom: 14px; }
+  .admin-card { min-width: 0; padding: 16px 12px; margin-bottom: 14px; }
   .card-title { flex-direction: column; gap: 14px; margin-bottom: 18px; }
   .card-title > div { min-width: 0; }
   .card-title span { display: block; margin-top: 5px; line-height: 1.5; }
@@ -421,6 +422,7 @@ footer a { color: #111; }
   .variant-cost-list::before { position: absolute; top: 0; left: 0; content: "Presentación y costo unitario"; }
   .table-row:not(.header) > :last-child:empty { display: none; }
   .table-row:not(.header) > .status { grid-column: 1 / -1; width: 100%; justify-content: center; min-height: 40px; }
+  .customer-row > button::before { content: "Editar"; }
   .transaction-row > :first-child { grid-column: 1 / -1; }
   .product-row > :nth-child(2)::before { content: "Categoría"; }
   .product-row > :nth-child(4)::before { content: "Stock total"; }
