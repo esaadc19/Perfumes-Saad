@@ -194,6 +194,129 @@ export async function createProduct(
   }
 }
 
+async function uploadProductImages(files: File[]): Promise<{ paths: string[]; urls: string[] }> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const uploadedPaths: string[] = [];
+  const uploadedUrls: string[] = [];
+  const extensionByType: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/avif": "avif",
+  };
+  try {
+    for (const file of files) {
+      const extension = extensionByType[file.type];
+      if (!extension) throw new Error("Las imágenes deben ser JPG, PNG, WebP o AVIF.");
+      if (file.size > 5 * 1024 * 1024) throw new Error("Cada imagen debe pesar máximo 5 MB.");
+      const path = `${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage
+        .from("product-images")
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw error;
+      uploadedPaths.push(path);
+      uploadedUrls.push(supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl);
+    }
+  } catch (error) {
+    if (uploadedPaths.length) {
+      const { error: cleanupError } = await supabase.storage
+        .from("product-images")
+        .remove(uploadedPaths);
+      if (cleanupError) console.error("No se pudieron limpiar las imágenes subidas:", cleanupError);
+    }
+    throw error;
+  }
+  return { paths: uploadedPaths, urls: uploadedUrls };
+}
+
+async function removeStoredProductImages(imageUrls: string[]): Promise<void> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const bucketMarker = "/product-images/";
+  const paths = imageUrls.flatMap((imageUrl) => {
+    try {
+      const path = new URL(imageUrl).pathname.split(bucketMarker)[1];
+      return path ? [decodeURIComponent(path)] : [];
+    } catch {
+      return [];
+    }
+  });
+  if (paths.length === 0) return;
+  const { error } = await supabase.storage.from("product-images").remove(paths);
+  if (error) {
+    console.error("No se pudieron borrar algunas imágenes antiguas del almacenamiento:", error);
+  }
+}
+
+export async function updateAdminProduct(input: {
+  product: Product;
+  imageFiles: File[];
+}): Promise<void> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const existingImages = input.product.images ?? (input.product.image ? [input.product.image] : []);
+  if (existingImages.length + input.imageFiles.length > 3) {
+    throw new Error("Cada perfume admite un máximo de tres imágenes.");
+  }
+
+  let uploadedPaths: string[] = [];
+  let uploadedUrls: string[] = [];
+  try {
+    const uploaded = await uploadProductImages(input.imageFiles);
+    uploadedPaths = uploaded.paths;
+    uploadedUrls = uploaded.urls;
+    const imageUrls = [...existingImages, ...uploadedUrls];
+    const { error } = await supabase.rpc("admin_update_product", {
+      target_product_id: input.product.id,
+      product_data: {
+        brand: input.product.brand,
+        name: input.product.name,
+        gender: input.product.gender,
+        category: input.product.category,
+        description: input.product.description,
+        family: input.product.family,
+        climate: input.product.climate,
+        image_url: imageUrls[0] ?? "",
+        image_urls: imageUrls,
+      },
+      variants_data: input.product.variants.map((variant) => ({
+        id: variant.id,
+        price: variant.price,
+        cost: variant.cost,
+        stock: variant.stock,
+      })),
+    });
+    if (error) throw error;
+    const removedImages = existingImages.filter((imageUrl) => !imageUrls.includes(imageUrl));
+    await removeStoredProductImages(removedImages);
+  } catch (error) {
+    if (uploadedPaths.length) {
+      const { error: cleanupError } = await supabase.storage
+        .from("product-images")
+        .remove(uploadedPaths);
+      if (cleanupError) console.error("No se pudieron limpiar las imágenes subidas:", cleanupError);
+    }
+    console.error("No se pudo actualizar el producto:", error);
+    throw error;
+  }
+}
+
+export async function deleteAdminProduct(product: Product): Promise<"deleted" | "archived"> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.rpc("admin_delete_product", {
+    target_product_id: product.id,
+  });
+  if (error) {
+    console.error("No se pudo eliminar el producto:", error);
+    throw error;
+  }
+  if (data !== "deleted" && data !== "archived") {
+    throw new Error("Supabase no devolvió un resultado válido al eliminar el producto.");
+  }
+  if (data === "deleted") {
+    await removeStoredProductImages(product.images ?? (product.image ? [product.image] : []));
+  }
+  return data;
+}
+
 export async function setVariantCost(id: string, cost: number): Promise<void> {
   if (!supabase) {
     throw new Error("Supabase no está configurado.");

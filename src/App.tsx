@@ -5,9 +5,11 @@ import {
   createProduct,
   getAdminProducts,
   getProducts,
+  deleteAdminProduct,
   setProductActive,
   setVariantCost,
   setVariantStock,
+  updateAdminProduct,
   type NewProductInput,
   type Product,
 } from "./services/products";
@@ -184,6 +186,8 @@ function App() {
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
+  const [savingProductEdit, setSavingProductEdit] = useState(false);
+  const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
   const [savingCostVariantId, setSavingCostVariantId] = useState<string | null>(null);
   const [savingStockVariantId, setSavingStockVariantId] = useState<string | null>(null);
@@ -362,6 +366,48 @@ function App() {
       setAdminError("No se pudo actualizar la disponibilidad del producto.");
     } finally {
       setUpdatingProductId(null);
+    }
+  };
+
+  const handleProductEdit = async (product: Product, imageFiles: File[]) => {
+    setSavingProductEdit(true);
+    setAdminError(null);
+    try {
+      await updateAdminProduct({ product, imageFiles });
+      try {
+        setProducts(await getAdminProducts());
+      } catch (refreshError) {
+        console.error("El producto se guardó, pero no se pudo recargar el inventario:", refreshError);
+        setAdminError("Los cambios se guardaron, pero no se pudo actualizar la lista. Actualiza el panel para ver las imágenes nuevas.");
+      }
+    } catch (updateError) {
+      console.error("No se pudo guardar el producto:", updateError);
+      setAdminError(updateError instanceof Error
+        ? updateError.message
+        : "No se pudo guardar el producto. Verifica los datos y tus permisos.");
+      throw updateError;
+    } finally {
+      setSavingProductEdit(false);
+    }
+  };
+
+  const handleProductDelete = async (product: Product): Promise<"deleted" | "archived"> => {
+    setDeletingProductId(product.id);
+    setAdminError(null);
+    try {
+      const result = await deleteAdminProduct(product);
+      setProducts((current) => result === "deleted"
+        ? current.filter((item) => item.id !== product.id)
+        : current.map((item) => item.id === product.id ? { ...item, active: false } : item));
+      return result;
+    } catch (deleteError) {
+      console.error("No se pudo eliminar el producto:", deleteError);
+      setAdminError(deleteError instanceof Error
+        ? deleteError.message
+        : "No se pudo eliminar el producto. Revisa tus permisos.");
+      throw deleteError;
+    } finally {
+      setDeletingProductId(null);
     }
   };
 
@@ -707,6 +753,10 @@ function App() {
           products={products}
           currentUserId={user?.id ?? ""}
           onImportProducts={handleProductImport}
+          onEditProduct={handleProductEdit}
+          onDeleteProduct={handleProductDelete}
+          savingProductEdit={savingProductEdit}
+          deletingProductId={deletingProductId}
           onVariantCostChange={handleVariantCostChange}
           savingCostVariantId={savingCostVariantId}
           onVariantStockChange={handleVariantStockChange}
@@ -817,6 +867,10 @@ function Admin({
   products,
   currentUserId,
   onImportProducts,
+  onEditProduct,
+  onDeleteProduct,
+  savingProductEdit,
+  deletingProductId,
   onVariantCostChange,
   savingCostVariantId,
   onVariantStockChange,
@@ -831,6 +885,10 @@ function Admin({
   products: Product[];
   currentUserId: string;
   onImportProducts: (items: ImportedProduct[]) => Promise<{ imported: number; failures: string[] }>;
+  onEditProduct: (product: Product, imageFiles: File[]) => Promise<void>;
+  onDeleteProduct: (product: Product) => Promise<"deleted" | "archived">;
+  savingProductEdit: boolean;
+  deletingProductId: string | null;
   onVariantCostChange: (variantId: string, cost: number) => Promise<void>;
   savingCostVariantId: string | null;
   onVariantStockChange: (variantId: string, stock: number) => Promise<void>;
@@ -871,6 +929,8 @@ function Admin({
   const [orderEditor, setOrderEditor] = useState<{ order: AdminOrder | null } | null>(null);
   const [orderSaving, setOrderSaving] = useState(false);
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [productActionFeedback, setProductActionFeedback] = useState<string | null>(null);
   const visibleProducts = products.filter((product) =>
     `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase())
   );
@@ -1341,7 +1401,7 @@ function Admin({
 
           <div className="admin-table">
             <div className="table-row header">
-              <span>Producto</span><span>Categoría</span><span>Presentación y costo unitario</span><span>Stock</span><span>Estado</span><span></span>
+              <span>Producto</span><span>Categoría</span><span>Presentación y costo unitario</span><span>Stock</span><span>Estado</span><span>Acciones</span>
             </div>
             {visibleProducts.map((product) => {
               const stock = product.variants.reduce((s, v) => s + v.stock, 0);
@@ -1442,11 +1502,39 @@ function Admin({
                         ? <>Oculto · mostrar</>
                         : available ? <><Check size={13}/> Disponible · ocultar</> : <>Agotado · ocultar</>}
                   </button>
-                  <span />
+                  <div className="product-actions">
+                    <button className="secondary" type="button" onClick={() => {
+                        setProductActionFeedback(null);
+                        setEditingProduct(product);
+                    }}>
+                        <Pencil size={14}/> Editar
+                    </button>
+                    <button
+                        className="secondary danger-button"
+                        type="button"
+                        disabled={deletingProductId === product.id}
+                        onClick={() => {
+                          const confirmed = window.confirm(
+                            `¿Eliminar ${product.brand} ${product.name}? Si tiene ventas o movimientos de inventario, se archivará para conservar el historial.`
+                          );
+                          if (!confirmed) return;
+                          void onDeleteProduct(product)
+                            .then((result) => setProductActionFeedback(
+                              result === "archived"
+                                ? `${product.brand} ${product.name} se archivó porque tiene historial asociado.`
+                                : `${product.brand} ${product.name} se eliminó.`
+                            ))
+                            .catch(() => {});
+                        }}
+                    >
+                        <Trash2 size={14}/>{deletingProductId === product.id ? "Eliminando..." : "Eliminar"}
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </div>
+          {productActionFeedback && <p className="import-feedback" role="status">{productActionFeedback}</p>}
         </section>}
 
         {(section === "customers" || section === "profiles" || section === "transactions") && (
@@ -1645,6 +1733,19 @@ function Admin({
           onSave={(customerId, items) => void savePendingOrder(customerId, items, orderEditor.order?.id ?? null)}
         />
       )}
+      {editingProduct && (
+        <EditProductModal
+          product={editingProduct}
+          saving={savingProductEdit}
+          error={error}
+          onClose={() => { if (!savingProductEdit) setEditingProduct(null); }}
+          onSave={async (product, imageFiles) => {
+            await onEditProduct(product, imageFiles);
+            setEditingProduct(null);
+            setProductActionFeedback(`${product.brand} ${product.name} se actualizó correctamente.`);
+          }}
+        />
+      )}
       {editingCustomer && (
         <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !customerSaving) setEditingCustomer(null); }}>
           <form className="add-modal admin-customer-modal" onSubmit={(event) => void saveCustomer(event)}>
@@ -1837,6 +1938,154 @@ function Metric({
   }
   return (
     <div className="metric">{content}</div>
+  );
+}
+
+function EditProductModal({
+  product,
+  saving,
+  error: saveError,
+  onClose,
+  onSave,
+}: {
+  product: Product;
+  saving: boolean;
+  error: string | null;
+  onClose: () => void;
+  onSave: (product: Product, imageFiles: File[]) => Promise<void>;
+}) {
+  const [images, setImages] = useState(product.images ?? (product.image ? [product.image] : []));
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [variants, setVariants] = useState(product.variants.map((variant) => ({
+    ...variant,
+    priceDraft: String(variant.price),
+    costDraft: variant.cost == null ? "" : String(variant.cost),
+    stockDraft: String(variant.stock),
+  })));
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const parsedVariants = variants.map((variant) => ({
+      ...variant,
+      price: Number(variant.priceDraft),
+      cost: variant.costDraft.trim() ? Number(variant.costDraft) : null,
+      stock: Number(variant.stockDraft),
+    }));
+    if (images.length + imageFiles.length > 3) {
+      setError("Cada perfume admite un máximo de tres imágenes.");
+      return;
+    }
+    if (parsedVariants.some((variant) =>
+      !Number.isFinite(variant.price) || variant.price < 0 ||
+      (variant.cost !== null && (!Number.isFinite(variant.cost) || variant.cost < 0)) ||
+      !Number.isInteger(variant.stock) || variant.stock < 0
+    )) {
+      setError("Revisa los precios, costos y cantidades de stock.");
+      return;
+    }
+    const updatedProduct: Product = {
+      ...product,
+      image: images[0] ?? "",
+      images,
+      variants: parsedVariants.map(({ priceDraft: _price, costDraft: _cost, stockDraft: _stock, ...variant }) => variant),
+    };
+    setError(null);
+    try {
+      await onSave(updatedProduct, imageFiles);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "No se pudo guardar el producto.");
+    }
+  };
+
+  return (
+    <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+      <form
+        className="add-modal edit-product-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-product-title"
+        onSubmit={(event) => void save(event)}
+      >
+        <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
+        <p className="eyebrow">ADMINISTRACIÓN</p>
+        <h2 id="edit-product-title">Editar {product.brand} {product.name}</h2>
+        <section className="edit-product-images">
+          <div>
+            <strong>Imágenes</strong>
+            <span>Hasta 3 imágenes; JPG, PNG, WebP o AVIF, máximo 5 MB cada una.</span>
+          </div>
+          <div className="edit-image-list">
+            {images.map((image, index) => (
+              <div className="edit-image-item" key={`${image}-${index}`}>
+                <img src={image} alt={`Imagen ${index + 1} de ${product.name}`} />
+                <button type="button" className="secondary danger-button" onClick={() => setImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}>
+                  <Trash2 size={14}/> Quitar
+                </button>
+              </div>
+            ))}
+            {imageFiles.map((file, index) => (
+              <div className="edit-image-item" key={`${file.name}-${index}`}>
+                <span className="edit-image-filename">{file.name}</span>
+                <button type="button" className="secondary danger-button" onClick={() => setImageFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>
+                  <Trash2 size={14}/> Quitar
+                </button>
+              </div>
+            ))}
+          </div>
+          {images.length + imageFiles.length < 3 && (
+            <label className="image-file-button secondary">
+              <Upload size={15}/> Agregar imágenes
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                multiple
+                disabled={saving}
+                onChange={(event) => {
+                  const selected = Array.from(event.currentTarget.files ?? []);
+                  event.currentTarget.value = "";
+                  const allowed = selected.filter((file) =>
+                    ["image/jpeg", "image/png", "image/webp", "image/avif"].includes(file.type) &&
+                    file.size <= 5 * 1024 * 1024
+                  );
+                  const hasInvalid = allowed.length !== selected.length;
+                  const availableSlots = 3 - images.length - imageFiles.length;
+                  setImageFiles((current) => [...current, ...allowed.slice(0, availableSlots)]);
+                  setError(hasInvalid
+                    ? "Usa archivos JPG, PNG, WebP o AVIF de máximo 5 MB."
+                    : selected.length > availableSlots
+                      ? "Solo puedes guardar hasta tres imágenes por perfume."
+                      : null);
+                }}
+              />
+            </label>
+          )}
+        </section>
+        <section className="edit-variant-list">
+          <h3>Precios, costos y stock</h3>
+          {variants.map((variant, index) => (
+            <div className="edit-variant-row" key={variant.id}>
+              <strong>{variant.size} ml</strong>
+              <label>Precio
+                <input type="number" min="0" step="1" value={variant.priceDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, priceDraft: event.target.value } : item))} required />
+              </label>
+              <label>Costo
+                <input type="number" min="0" step="1" value={variant.costDraft} disabled={saving} placeholder="Sin costo" onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, costDraft: event.target.value } : item))} />
+              </label>
+              <label>Stock
+                <input type="number" min="0" step="1" value={variant.stockDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, stockDraft: event.target.value } : item))} required />
+              </label>
+            </div>
+          ))}
+        </section>
+        <p className="order-editor-note">Los cambios de stock se guardan como movimientos de inventario para conservar el historial.</p>
+        {(error || saveError) && <p className="form-error" role="alert">{error ?? saveError}</p>}
+        <div className="edit-product-actions">
+          <button className="secondary" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="primary" type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar cambios"}</button>
+        </div>
+      </form>
+    </div>
   );
 }
 

@@ -623,6 +623,146 @@ $$;
 revoke all on function public.admin_create_product(jsonb, jsonb) from public, anon;
 grant execute on function public.admin_create_product(jsonb, jsonb) to authenticated;
 
+create or replace function public.admin_update_product(
+  target_product_id uuid,
+  product_data jsonb,
+  variants_data jsonb
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  variant jsonb;
+  variant_id uuid;
+  previous_stock integer;
+  new_stock integer;
+  stock_delta integer;
+  expected_variants integer;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  if jsonb_typeof(variants_data) is distinct from 'array'
+     or jsonb_typeof(product_data->'image_urls') is distinct from 'array' then
+    raise exception 'Product data is invalid';
+  end if;
+  if jsonb_array_length(variants_data) = 0 then
+    raise exception 'At least one product presentation is required';
+  end if;
+  if jsonb_array_length(product_data->'image_urls') > 3 then
+    raise exception 'A product can have at most three images';
+  end if;
+
+  perform 1 from public.products where id = target_product_id for update;
+  if not found then
+    raise exception 'Product not found';
+  end if;
+
+  select count(*) into expected_variants
+  from public.product_variants
+  where product_id = target_product_id;
+  if jsonb_array_length(variants_data) <> expected_variants
+     or (
+       select count(distinct value->>'id')
+       from jsonb_array_elements(variants_data)
+     ) <> expected_variants then
+    raise exception 'All product presentations must be included exactly once';
+  end if;
+
+  update public.products
+  set brand = trim(product_data->>'brand'),
+      name = trim(product_data->>'name'),
+      gender = product_data->>'gender',
+      category = product_data->>'category',
+      description = nullif(product_data->>'description', ''),
+      family = nullif(product_data->>'family', ''),
+      climate = coalesce(array(select jsonb_array_elements_text(product_data->'climate')), '{}'),
+      image_url = nullif(product_data->'image_urls'->>0, ''),
+      image_urls = array(select jsonb_array_elements_text(product_data->'image_urls')),
+      updated_at = now()
+  where id = target_product_id;
+
+  for variant in select value from jsonb_array_elements(variants_data)
+  loop
+    variant_id := (variant->>'id')::uuid;
+    if nullif(variant->>'price', '') is null
+       or (variant->>'price')::numeric < 0
+       or (variant->>'cost') is not null and (variant->>'cost')::numeric < 0
+       or (variant->>'stock') !~ '^[0-9]+$' then
+      raise exception 'Presentation price, cost, or stock is invalid';
+    end if;
+
+    select stock into previous_stock
+    from public.product_variants
+    where id = variant_id and product_id = target_product_id
+    for update;
+    if not found then
+      raise exception 'Product presentation not found';
+    end if;
+
+    new_stock := (variant->>'stock')::integer;
+    stock_delta := new_stock - previous_stock;
+    update public.product_variants
+    set price = (variant->>'price')::numeric,
+        cost = nullif(variant->>'cost', '')::numeric,
+        stock = new_stock
+    where id = variant_id;
+
+    if stock_delta <> 0 then
+      insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+      values (
+        variant_id,
+        case when stock_delta > 0 then 'adjustment_in' else 'adjustment_out' end,
+        stock_delta,
+        'Product details edited'
+      );
+    end if;
+  end loop;
+end;
+$$;
+
+create or replace function public.admin_delete_product(target_product_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  perform 1 from public.products where id = target_product_id for update;
+  if not found then
+    raise exception 'Product not found';
+  end if;
+
+  if exists (
+    select 1
+    from public.product_variants pv
+    where pv.product_id = target_product_id
+      and (
+        exists (select 1 from public.order_items oi where oi.variant_id = pv.id)
+        or exists (select 1 from public.inventory_movements im where im.variant_id = pv.id)
+      )
+  ) then
+    update public.products set active = false, updated_at = now()
+    where id = target_product_id;
+    return 'archived';
+  end if;
+
+  delete from public.products where id = target_product_id;
+  return 'deleted';
+end;
+$$;
+
+revoke all on function public.admin_update_product(uuid, jsonb, jsonb) from public, anon;
+revoke all on function public.admin_delete_product(uuid) from public, anon;
+grant execute on function public.admin_update_product(uuid, jsonb, jsonb) to authenticated;
+grant execute on function public.admin_delete_product(uuid) to authenticated;
+
 create or replace function public.create_whatsapp_order(
   customer_data jsonb,
   items_data jsonb

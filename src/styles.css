@@ -284,6 +284,7 @@ footer a { color: #111; }
 .admin-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); padding: 8px 10px; }
 .admin-search input { min-width: 150px; border: 0; outline: 0; background: transparent; font-size: 12px; }
 .table-row { min-width: 850px; display: grid; grid-template-columns: 2fr 1fr 1.2fr .7fr 1fr .4fr; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid #eee; font-size: 12px; }
+.product-row { min-width: 1080px; grid-template-columns: 1.7fr .8fr 1.3fr .55fr .85fr 1.3fr; }
 .table-row.header { color: var(--muted); border-top: 0; padding-top: 0; }
 .product-cell { display: flex; gap: 12px; align-items: center; }
 .product-cell img { width: 44px; height: 50px; object-fit: cover; }
@@ -293,6 +294,26 @@ footer a { color: #111; }
 .status.available { background: #edf6ee; color: #3d7444; }
 .status.sold { background: #f4eeee; color: #8c4a4a; }
 .icon-button { border: 0; background: transparent; }
+.product-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.product-actions .secondary, .edit-image-item .secondary { min-height: 36px; padding: 0 9px; font-size: 11px; }
+.danger-button { color: #8c3c36; border-color: #ead6d3; }
+.danger-button:hover { background: #fbf1ef; }
+.edit-product-modal { width: min(820px, 100%); }
+.edit-product-images, .edit-variant-list { margin-top: 22px; }
+.edit-product-images > div:first-child { display: grid; gap: 5px; }
+.edit-product-images > div:first-child span { color: var(--muted); font-size: 11px; }
+.edit-image-list { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.edit-image-item { width: 112px; display: grid; gap: 6px; }
+.edit-image-item img { width: 112px; height: 112px; object-fit: cover; background: var(--soft); }
+.edit-image-filename { min-height: 112px; display: grid; place-items: center; overflow-wrap: anywhere; padding: 8px; background: var(--soft); color: var(--muted); font-size: 11px; text-align: center; }
+.image-file-button { position: relative; width: max-content; min-height: 40px; overflow: hidden; cursor: pointer; font-size: 12px; }
+.image-file-button input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.edit-variant-list h3 { margin: 0 0 10px; font-size: 15px; }
+.edit-variant-row { display: grid; grid-template-columns: 70px repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 12px 0; border-top: 1px solid var(--border); }
+.edit-variant-row > strong { padding-bottom: 13px; }
+.edit-variant-row label { display: grid; gap: 6px; font-size: 11px; font-weight: 600; }
+.edit-variant-row input { width: 100%; min-width: 0; height: 42px; padding: 0 10px; border: 1px solid var(--border); background: white; }
+.edit-product-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
 .insight-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .insight { color: #666; line-height: 1.7; margin: 0; }
 .top-product-row { min-width: 850px; grid-template-columns: 2fr .8fr .7fr 1fr 1fr 1fr; }
@@ -466,6 +487,9 @@ footer a { color: #111; }
   .table-row:not(.header) > .status { grid-column: 1 / -1; width: 100%; justify-content: center; min-height: 40px; }
   .customer-row > button::before { content: "Editar"; }
   .transaction-row > :first-child { grid-column: 1 / -1; }
+  .product-actions { grid-column: 1 / -1; position: relative; padding-top: 16px; }
+  .product-actions::before { position: absolute; top: 0; left: 0; content: "Acciones"; color: var(--muted); font-size: 10px; font-weight: 600; }
+  .product-actions button { flex: 1; }
   .product-row > :nth-child(2)::before { content: "Categoría"; }
   .product-row > :nth-child(4)::before { content: "Stock total"; }
   .product-row > :nth-child(5)::before { content: "Disponibilidad"; }
@@ -500,6 +524,9 @@ footer a { color: #111; }
   .order-actions::before { display: block; width: 100%; content: "Acciones"; margin-bottom: 0; color: var(--muted); font-size: 10px; font-weight: 600; }
   .order-actions button { flex: 1; }
   .order-editor-line { grid-template-columns: minmax(0, 1fr) 82px 32px; gap: 6px; }
+  .edit-variant-row { grid-template-columns: 52px repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .edit-variant-row input { padding: 0 6px; font-size: 12px; }
+  .edit-product-actions button { flex: 1; }
   .transaction-filters { margin-right: -12px; padding-bottom: 4px; }
   .profile-notice { align-items: flex-start; font-size: 11px; }
   .receipt-dialog { width: 100%; max-height: 96dvh; overflow-y: auto; padding: 24px 14px; }
