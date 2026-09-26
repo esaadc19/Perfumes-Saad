@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import type { Promotion } from "./promotions";
 
 export interface ProductVariant {
   id: string;
@@ -23,6 +24,8 @@ export interface Product {
   images?: string[];
   featured?: boolean;
   active?: boolean;
+  promotion_id?: string | null;
+  promotion?: Promotion | null;
   variants: ProductVariant[];
 }
 
@@ -37,8 +40,17 @@ const productSelect = `
   climate,
   image_url,
   image_urls,
+  promotion_id,
   featured,
   active,
+  promotion:promotions (
+    id,
+    name,
+    required_quantity,
+    bundle_price,
+    allow_mixed,
+    active
+  ),
   product_variants (
     id,
     size_ml,
@@ -66,6 +78,14 @@ function mapProducts(data: any[], includeInactiveVariants = false): Product[] {
         : [],
     featured: product.featured ?? false,
     active: product.active ?? true,
+    promotion_id: product.promotion_id ?? null,
+    promotion: product.promotion
+      ? {
+          ...product.promotion,
+          required_quantity: Number(product.promotion.required_quantity),
+          bundle_price: Number(product.promotion.bundle_price),
+        }
+      : null,
     variants: (product.product_variants ?? [])
       .filter((variant: any) => includeInactiveVariants || (variant.active ?? true))
       .map((variant: any) => ({
@@ -131,6 +151,7 @@ export interface NewProductInput {
   climate: string[];
   image_url: string;
   image_urls?: string[];
+  promotion_id?: string | null;
 }
 
 export async function createProduct(
@@ -276,6 +297,7 @@ export async function updateAdminProduct(input: {
         climate: input.product.climate,
         image_url: imageUrls[0] ?? "",
         image_urls: imageUrls,
+        promotion_id: input.product.promotion_id ?? null,
       },
       variants_data: input.product.variants.map((variant) => ({
         id: variant.id,

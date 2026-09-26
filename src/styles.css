@@ -69,10 +69,12 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .product-image img { width: 100%; height: 100%; object-fit: cover; transition: .35s; }
 .product-image:hover img { transform: scale(1.035); }
 .sold-out { position: absolute; top: 15px; left: 15px; background: #111; color: white; padding: 7px 10px; font-size: 10px; letter-spacing: .08em; }
+.promotion-badge { position: absolute; top: 15px; right: 15px; background: #f4e8dc; color: #71492c; padding: 7px 10px; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .product-info { padding-top: 15px; }
 .product-info > span, .product-info > p { color: var(--muted); font-size: 12px; margin: 0 0 5px; }
 .product-info h3 { margin: 0 0 5px; font-size: 17px; font-weight: 500; }
 .product-info strong { display: block; margin: 11px 0; font-size: 14px; }
+.product-info .promotion-card-copy { display: block; margin: -5px 0 11px; color: #71492c; font-size: 11px; line-height: 1.45; }
 .text-button { border: 0; padding: 0; background: transparent; color: var(--black); text-decoration: underline; font-size: 12px; }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: grid; place-items: center; padding: 20px; }
@@ -90,6 +92,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .product-detail-copy h2 { font: 500 46px/1.05 "Playfair Display", serif; margin: 8px 0; }
 .gender { color: var(--accent); font-weight: 600; }
 .price { font-size: 20px; margin: 22px 0; font-weight: 600; }
+.promotion-detail-copy { margin: -12px 0 18px; color: #71492c; font-size: 13px; line-height: 1.5; }
 .description { color: #666; line-height: 1.7; }
 .detail-block { margin-top: 30px; }
 .detail-block label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
@@ -113,6 +116,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .cart-item span { color: var(--muted); }
 .cart-item button { border: 0; background: transparent; }
 .cart-total { border-top: 1px solid var(--border); padding-top: 18px; display: flex; justify-content: space-between; }
+.cart-total > div { display: grid; gap: 6px; }
+.cart-discount { color: #3d7444; font-size: 12px; }
+.cart-discount b { margin-left: 5px; }
 .checkout-note { color: var(--muted); font-size: 12px; line-height: 1.6; }
 
 .auth-modal, .add-modal { background: white; width: min(520px, 100%); padding: 42px; position: relative; }
@@ -192,7 +198,11 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .receipt-line { display: grid; gap: 3px; }
 .receipt-line strong { font-weight: 700; }
 .receipt-line span { color: #444; font-size: 10px; }
+.receipt-line .receipt-promotion-saving { color: #3d7444; font-size: 10px; }
 .receipt-line b { text-align: right; }
+.receipt-promotion-totals { display: grid; grid-template-columns: 1fr auto; gap: 5px; margin: 0 0 10px; font-size: 11px; }
+.receipt-promotion-totals b { text-align: right; }
+.receipt-promotion-totals span:last-of-type, .receipt-promotion-totals b:last-child { color: #3d7444; }
 .receipt-total { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
 .receipt-total strong { font-size: 17px; }
 .receipt-payment-state { margin-top: 13px; text-align: center; font-weight: 700; font-size: 10px; }
@@ -233,6 +243,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 25px 0; }
 .form-grid label { font-size: 12px; font-weight: 600; }
 .form-grid .form-wide { grid-column: 1 / -1; }
+.promotion-editor-modal { width: min(620px, 100%); }
+.promotion-checkbox { display: grid; grid-template-columns: 18px 1fr; align-items: start; gap: 10px; margin: 15px 0; color: #555; font-size: 13px; line-height: 1.5; }
+.add-modal .promotion-checkbox input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--black); }
 .variant-editor { margin: 22px 0; }
 .variant-editor-head, .variant-form-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
 .variant-editor-head { margin-bottom: 10px; }
@@ -285,10 +298,13 @@ footer a { color: #111; }
 .admin-search input { min-width: 150px; border: 0; outline: 0; background: transparent; font-size: 12px; }
 .table-row { min-width: 850px; display: grid; grid-template-columns: 2fr 1fr 1.2fr .7fr 1fr .4fr; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid #eee; font-size: 12px; }
 .product-row { min-width: 1080px; grid-template-columns: 1.7fr .8fr 1.3fr .55fr .85fr 1.3fr; }
+.promotion-table .table-row { min-width: 870px; grid-template-columns: 1.2fr 1fr 1.6fr .7fr 1.3fr; }
 .table-row.header { color: var(--muted); border-top: 0; padding-top: 0; }
 .product-cell { display: flex; gap: 12px; align-items: center; }
 .product-cell img { width: 44px; height: 50px; object-fit: cover; }
 .product-cell div { display: grid; gap: 3px; }
+.product-category-cell { display: grid; gap: 4px; }
+.product-category-cell small { color: #71492c; font-size: 10px; }
 .product-cell span { color: var(--muted); }
 .status { border: 0; width: max-content; padding: 7px 10px; display: inline-flex; gap: 5px; align-items: center; font-size: 11px; }
 .status.available { background: #edf6ee; color: #3d7444; }
@@ -493,6 +509,10 @@ footer a { color: #111; }
   .product-row > :nth-child(2)::before { content: "Categoría"; }
   .product-row > :nth-child(4)::before { content: "Stock total"; }
   .product-row > :nth-child(5)::before { content: "Disponibilidad"; }
+  .promotion-table .table-row:not(.header) > :nth-child(1)::before { content: "Promoción"; }
+  .promotion-table .table-row:not(.header) > :nth-child(2)::before { content: "Paquete"; }
+  .promotion-table .table-row:not(.header) > :nth-child(3)::before { content: "Combinación"; }
+  .promotion-table .table-row:not(.header) > :nth-child(4)::before { content: "Estado"; }
   .top-product-row > :nth-child(1)::before { content: "Perfume"; }
   .top-product-row > :nth-child(2)::before { content: "Presentación"; }
   .top-product-row > :nth-child(3)::before { content: "Unidades"; }

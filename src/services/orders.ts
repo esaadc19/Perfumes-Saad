@@ -7,6 +7,7 @@ export interface ReceiptItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  discount_amount: number;
 }
 
 export interface CreatedOrderReceipt {
@@ -69,6 +70,7 @@ export async function createWhatsAppOrder(input: {
       quantity: Number(item.quantity),
       unit_price: Number(item.unit_price),
       subtotal: Number(item.subtotal),
+      discount_amount: Number(item.discount_amount ?? 0),
     })),
   };
 }

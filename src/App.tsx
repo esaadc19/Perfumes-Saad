@@ -15,6 +15,14 @@ import {
 } from "./services/products";
 import type { ImportedCustomer, ImportedProduct } from "./services/product-import";
 import {
+  calculatePromotionPrice,
+  deletePromotion,
+  getPromotions,
+  savePromotion,
+  type Promotion,
+  type PromotionInput,
+} from "./services/promotions";
+import {
   getAdminCustomers,
   getAdminDashboardMetrics,
   getAdminOrders,
@@ -48,6 +56,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   Sparkles,
+  Tag,
   Trash2,
   TrendingUp,
   Upload,
@@ -140,6 +149,7 @@ function App() {
   const [showAccount, setShowAccount] = useState(false);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
@@ -274,13 +284,14 @@ function App() {
     if (view !== "admin" || userRole !== "admin") return;
     let active = true;
     setAdminError(null);
-    void getAdminProducts()
-      .then((data) => {
+    void Promise.all([getAdminProducts(), getPromotions(true)])
+      .then(([data, loadedPromotions]) => {
         if (active) setProducts(data);
+        if (active) setPromotions(loadedPromotions);
       })
       .catch((loadError: unknown) => {
         console.error("No se pudo cargar el inventario administrativo:", loadError);
-        if (active) setAdminError("No se pudo cargar el inventario. Revisa la conexión.");
+        if (active) setAdminError("No se pudieron cargar el inventario y las promociones. Revisa la conexión.");
       });
     return () => {
       active = false;
@@ -455,10 +466,19 @@ function App() {
       if (p.active === false || p.variants.length === 0) return false;
       const matchesSearch =
         `${p.brand} ${p.name}`.toLowerCase().includes(search.toLowerCase());
-      const matchesCategory = category === "Todos" || p.category === category;
+      const matchesCategory = category === "Todos"
+        || (category === "Ofertas" ? Boolean(p.promotion?.active) : p.category === category);
       return matchesSearch && matchesCategory;
     });
   }, [products, search, category]);
+  const cartPrice = useMemo(() => calculatePromotionPrice(cart.map((item) => ({
+    productId: item.product.id,
+    promotionId: item.product.promotion_id ?? null,
+    promotion: item.product.promotion,
+    variantId: item.variant.id,
+    unitPrice: item.variant.price,
+    quantity: item.quantity,
+  }))), [cart]);
 
   const openProduct = (product: Product) => {
     setSelectedProduct(product);
@@ -494,10 +514,7 @@ function App() {
     setCartOpen(true);
   };
 
-  const total = cart.reduce(
-    (sum, item) => sum + item.variant.price * item.quantity,
-    0
-  );
+  const total = cartPrice.total;
 
   return (
     <div className="app">
@@ -565,7 +582,7 @@ function App() {
               </div>
 
               <div className="category-pills">
-                {["Todos", "Comercial", "Diseñador", "Árabes", "Nicho"].map((item) => (
+                {["Todos", "Comercial", "Diseñador", "Árabes", "Nicho", "Ofertas"].map((item) => (
                   <button
                     key={item}
                     className={category === item ? "pill active" : "pill"}
@@ -594,12 +611,19 @@ function App() {
                         {firstAvailable.stock <= 0 && (
                           <span className="sold-out">Agotado</span>
                         )}
+                        {product.promotion?.active && <span className="promotion-badge">Oferta</span>}
                       </button>
                       <div className="product-info">
                         <span>{product.brand}</span>
                         <h3>{product.name}</h3>
                         <p>{product.gender}</p>
                         <strong>{money(firstAvailable.price)}</strong>
+                        {product.promotion?.active && (
+                          <span className="promotion-card-copy">
+                            {product.promotion.required_quantity} por {money(product.promotion.bundle_price)}
+                            {product.promotion.allow_mixed ? " · combinables" : " · mismo perfume"}
+                          </span>
+                        )}
                         <button className="text-button" onClick={() => openProduct(product)}>
                           Ver producto →
                         </button>
@@ -644,6 +668,13 @@ function App() {
                   <h2>{selectedProduct.name}</h2>
                   <p className="gender">{selectedProduct.gender}</p>
                   <div className="price">{selectedVariant ? money(selectedVariant.price) : "—"}</div>
+                  {selectedProduct.promotion?.active && (
+                    <p className="promotion-detail-copy">
+                      Oferta: {selectedProduct.promotion.required_quantity} por{" "}
+                      {money(selectedProduct.promotion.bundle_price)}
+                      {selectedProduct.promotion.allow_mixed ? " · puedes combinar referencias" : " · mismo perfume"}
+                    </p>
+                  )}
                   <p className="description">{selectedProduct.description}</p>
 
                   <div className="detail-block">
@@ -722,7 +753,12 @@ function App() {
                     </div>
 
                     <div className="cart-total">
-                      <span>Total</span>
+                      <div>
+                        {cartPrice.discount > 0 && (
+                          <span className="cart-discount">Ahorro en promociones <b>-{money(cartPrice.discount)}</b></span>
+                        )}
+                        <span>Total</span>
+                      </div>
                       <strong>{money(total)}</strong>
                     </div>
                     <p className="checkout-note">
@@ -751,6 +787,8 @@ function App() {
       ) : userRole === "admin" ? (
         <Admin
           products={products}
+          promotions={promotions}
+          onPromotionsChange={setPromotions}
           currentUserId={user?.id ?? ""}
           onImportProducts={handleProductImport}
           onEditProduct={handleProductEdit}
@@ -761,7 +799,14 @@ function App() {
           savingCostVariantId={savingCostVariantId}
           onVariantStockChange={handleVariantStockChange}
           savingStockVariantId={savingStockVariantId}
-          onBack={() => setView("store")}
+          onBack={() => {
+            setView("store");
+            void getProducts().then(setProducts).catch((loadError: unknown) => {
+              console.error("No se pudo recargar el catálogo al volver a la tienda:", loadError);
+              setError("No se pudo actualizar el catálogo. Recarga la página e inténtalo de nuevo.");
+            });
+          }}
+          onProductsRefresh={async () => setProducts(await getAdminProducts())}
           onAdd={() => {
             setAdminError(null);
             setShowAddProduct(true);
@@ -778,6 +823,10 @@ function App() {
               return;
             }
             setView("store");
+            void getProducts().then(setProducts).catch((loadError: unknown) => {
+              console.error("No se pudo recargar el catálogo al cerrar sesión:", loadError);
+              setError("No se pudo actualizar el catálogo. Recarga la página e inténtalo de nuevo.");
+            });
           }}
         />
       ) : (
@@ -801,6 +850,7 @@ function App() {
         <AddProductModal
           onClose={() => setShowAddProduct(false)}
           onSave={handleProductSave}
+          promotions={promotions.filter((promotion) => promotion.active)}
           saving={savingProduct}
           error={adminError}
         />
@@ -865,6 +915,9 @@ function App() {
 
 function Admin({
   products,
+  promotions,
+  onPromotionsChange,
+  onProductsRefresh,
   currentUserId,
   onImportProducts,
   onEditProduct,
@@ -883,6 +936,9 @@ function Admin({
   onSignOut,
 }: {
   products: Product[];
+  promotions: Promotion[];
+  onPromotionsChange: (promotions: Promotion[]) => void;
+  onProductsRefresh: () => Promise<void>;
   currentUserId: string;
   onImportProducts: (items: ImportedProduct[]) => Promise<{ imported: number; failures: string[] }>;
   onEditProduct: (product: Product, imageFiles: File[]) => Promise<void>;
@@ -900,7 +956,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "transactions" | "customers" | "profiles">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "profiles">("overview");
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
@@ -930,6 +986,9 @@ function Admin({
   const [orderSaving, setOrderSaving] = useState(false);
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [promotionEditor, setPromotionEditor] = useState<Promotion | null | "new">(null);
+  const [promotionSaving, setPromotionSaving] = useState(false);
+  const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
   const [productActionFeedback, setProductActionFeedback] = useState<string | null>(null);
   const visibleProducts = products.filter((product) =>
     `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase())
@@ -953,6 +1012,7 @@ function Admin({
   const sections = [
     { id: "overview", title: "Dashboard", icon: <LayoutDashboard size={17} /> },
     { id: "products", title: "Productos", icon: <Package size={17} /> },
+    { id: "promotions", title: "Promociones", icon: <Tag size={17} /> },
     { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
@@ -1106,6 +1166,49 @@ function Admin({
       setSectionError(roleError instanceof Error ? roleError.message : "No se pudo cambiar el rol.");
     } finally {
       setSavingProfileId(null);
+    }
+  };
+
+  const submitPromotion = async (input: PromotionInput, promotionId?: string) => {
+    setPromotionSaving(true);
+    setSectionError(null);
+    setPromotionFeedback(null);
+    try {
+      await savePromotion(input, promotionId);
+      onPromotionsChange(await getPromotions(true));
+      setPromotionEditor(null);
+      setPromotionFeedback("La promoción se guardó correctamente.");
+    } catch (saveError) {
+      console.error("No se pudo guardar la promoción:", saveError);
+      setSectionError(saveError instanceof Error
+        ? saveError.message
+        : "No se pudo guardar la promoción. Verifica tus permisos.");
+    } finally {
+      setPromotionSaving(false);
+    }
+  };
+
+  const removePromotion = async (promotion: Promotion) => {
+    if (!window.confirm(`¿Eliminar la promoción «${promotion.name}»? Los productos asociados quedarán sin promoción.`)) return;
+    setSectionError(null);
+    setPromotionFeedback(null);
+    try {
+      await deletePromotion(promotion.id);
+      onPromotionsChange(await getPromotions(true));
+      let productsRefreshed = true;
+      try {
+        await onProductsRefresh();
+      } catch (refreshError) {
+        productsRefreshed = false;
+        console.error("La promoción se eliminó, pero no se pudieron recargar los productos:", refreshError);
+        setSectionError("La promoción se eliminó, pero no se pudo actualizar la lista de productos. Recarga el panel.");
+      }
+      if (productsRefreshed) setPromotionFeedback("La promoción se eliminó correctamente.");
+    } catch (deleteError) {
+      console.error("No se pudo eliminar la promoción:", deleteError);
+      setSectionError(deleteError instanceof Error
+        ? deleteError.message
+        : "No se pudo eliminar la promoción.");
     }
   };
 
@@ -1316,6 +1419,7 @@ function Admin({
         {error && section === "products" && <p className="form-error" role="alert">{error}</p>}
         {section === "products" && importFeedback && <p className="import-feedback" role="status">{importFeedback}</p>}
         {section === "products" && importError && <p className="form-error" role="alert">{importError}</p>}
+        {section === "promotions" && promotionFeedback && <p className="import-feedback" role="status">{promotionFeedback}</p>}
         {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
         {sectionLoading && <p className="catalog-message" role="status">Cargando {pageTitle.toLowerCase()}...</p>}
 
@@ -1412,7 +1516,12 @@ function Admin({
                     <img src={product.image} alt="" />
                     <div><b>{product.brand}</b><span>{product.name}</span></div>
                   </div>
-                  <span>{product.category}</span>
+                  <div className="product-category-cell">
+                    <span>{product.category}</span>
+                    {product.promotion_id && (
+                      <small>{promotions.find((promotion) => promotion.id === product.promotion_id)?.name ?? "Promoción no disponible"}</small>
+                    )}
+                  </div>
                   <div className="variant-cost-list">
                     {product.variants.map((variant) => (
                       <label key={variant.id}>
@@ -1536,6 +1645,36 @@ function Admin({
           </div>
           {productActionFeedback && <p className="import-feedback" role="status">{productActionFeedback}</p>}
         </section>}
+        {section === "promotions" && (
+          <section className="admin-card">
+            <div className="card-title">
+              <div>
+                <h2>Promociones y ofertas</h2>
+                <span>Asocia los productos desde su formulario. La oferta se repite por cada paquete completo.</span>
+              </div>
+              <button className="primary" onClick={() => setPromotionEditor("new")}><Plus size={17}/> Nueva promoción</button>
+            </div>
+            {promotions.length === 0 ? (
+              <p className="insight">Todavía no hay promociones. Crea una para comenzar a ofrecer paquetes.</p>
+            ) : (
+              <div className="admin-table promotion-table">
+                <div className="table-row header"><span>Promoción</span><span>Paquete</span><span>Combinación</span><span>Estado</span><span>Acciones</span></div>
+                {promotions.map((promotion) => (
+                  <div className="table-row" key={promotion.id}>
+                    <strong>{promotion.name}</strong>
+                    <span>{promotion.required_quantity} por {money(promotion.bundle_price)}</span>
+                    <span>{promotion.allow_mixed ? "Productos asociados combinables" : "Mismo perfume"}</span>
+                    <span className={promotion.active ? "status-pill status-paid" : "status-pill"}>{promotion.active ? "Activa" : "Inactiva"}</span>
+                    <div className="product-actions">
+                      <button className="secondary" onClick={() => setPromotionEditor(promotion)}><Pencil size={15}/> Editar</button>
+                      <button className="secondary danger-button" onClick={() => void removePromotion(promotion)}><Trash2 size={15}/> Eliminar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {(section === "customers" || section === "profiles" || section === "transactions") && (
           <section className="admin-card">
@@ -1727,6 +1866,7 @@ function Admin({
           order={orderEditor.order}
           customers={customers}
           products={products}
+          promotions={promotions}
           saving={orderSaving}
           error={sectionError}
           onClose={() => { if (!orderSaving) setOrderEditor(null); }}
@@ -1736,6 +1876,7 @@ function Admin({
       {editingProduct && (
         <EditProductModal
           product={editingProduct}
+          promotions={promotions}
           saving={savingProductEdit}
           error={error}
           onClose={() => { if (!savingProductEdit) setEditingProduct(null); }}
@@ -1744,6 +1885,14 @@ function Admin({
             setEditingProduct(null);
             setProductActionFeedback(`${product.brand} ${product.name} se actualizó correctamente.`);
           }}
+        />
+      )}
+      {promotionEditor && (
+        <PromotionEditorModal
+          promotion={promotionEditor === "new" ? null : promotionEditor}
+          saving={promotionSaving}
+          onClose={() => { if (!promotionSaving) setPromotionEditor(null); }}
+          onSave={(input) => void submitPromotion(input, promotionEditor === "new" ? undefined : promotionEditor.id)}
         />
       )}
       {editingCustomer && (
@@ -1765,10 +1914,81 @@ function Admin({
   );
 }
 
+function PromotionEditorModal({
+  promotion,
+  saving,
+  onClose,
+  onSave,
+}: {
+  promotion: Promotion | null;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (input: PromotionInput) => void;
+}) {
+  const [name, setName] = useState(promotion?.name ?? "");
+  const [requiredQuantity, setRequiredQuantity] = useState(String(promotion?.required_quantity ?? 2));
+  const [bundlePrice, setBundlePrice] = useState(String(promotion?.bundle_price ?? ""));
+  const [allowMixed, setAllowMixed] = useState(promotion?.allow_mixed ?? true);
+  const [active, setActive] = useState(promotion?.active ?? true);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const quantity = Number(requiredQuantity);
+    const price = Number(bundlePrice);
+    if (!name.trim()) {
+      setError("Escribe un nombre para la promoción.");
+      return;
+    }
+    if (!Number.isInteger(quantity) || quantity < 2 || !Number.isFinite(price) || price < 0) {
+      setError("La cantidad mínima es 2 y el precio debe ser un número igual o mayor a cero.");
+      return;
+    }
+    setError(null);
+    onSave({
+      name: name.trim(),
+      required_quantity: quantity,
+      bundle_price: price,
+      allow_mixed: allowMixed,
+      active,
+    });
+  };
+
+  return (
+    <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
+      <form className="add-modal promotion-editor-modal" role="dialog" aria-modal="true" aria-labelledby="promotion-editor-title" onSubmit={submit}>
+        <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
+        <p className="eyebrow">ADMINISTRACIÓN</p>
+        <h2 id="promotion-editor-title">{promotion ? "Editar promoción" : "Nueva promoción"}</h2>
+        <label className="auth-label">Nombre<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. Oferta de dos perfumes" maxLength={100} required /></label>
+        <div className="form-grid">
+          <label>Cantidad del paquete<input type="number" min="2" step="1" value={requiredQuantity} onChange={(event) => setRequiredQuantity(event.target.value)} required /></label>
+          <label>Precio del paquete<input type="number" min="0" step="1" value={bundlePrice} onChange={(event) => setBundlePrice(event.target.value)} placeholder="300000" required /></label>
+        </div>
+        <label className="promotion-checkbox">
+          <input type="checkbox" checked={allowMixed} onChange={(event) => setAllowMixed(event.target.checked)} />
+          <span>Permitir combinar diferentes productos asociados a esta promoción</span>
+        </label>
+        <label className="promotion-checkbox">
+          <input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} />
+          <span>Promoción activa y visible en la tienda</span>
+        </label>
+        <p className="order-editor-note">Cada paquete completo obtiene el precio promocional. Las unidades que sobren se cobran a su precio normal.</p>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="edit-product-actions">
+          <button className="secondary" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="primary" type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar promoción"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function OrderEditorModal({
   order,
   customers,
   products,
+  promotions,
   saving,
   error,
   onClose,
@@ -1777,6 +1997,7 @@ function OrderEditorModal({
   order: AdminOrder | null;
   customers: AdminCustomer[];
   products: Product[];
+  promotions: Promotion[];
   saving: boolean;
   error: string | null;
   onClose: () => void;
@@ -1791,12 +2012,24 @@ function OrderEditorModal({
     .flatMap((product) => product.variants.filter((variant) => variant.active !== false).map((variant) => ({
       ...variant,
       productName: `${product.brand} ${product.name}`,
+      productId: product.id,
+      promotionId: product.promotion_id ?? null,
+      promotion: promotions.find((promotion) => promotion.id === product.promotion_id) ?? null,
     })));
-  const total = items.reduce((sum, item) => {
+  const orderPrice = calculatePromotionPrice(items.flatMap((item) => {
     const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
     const quantity = Number(item.quantity);
-    return sum + (variant && Number.isInteger(quantity) && quantity > 0 ? variant.price * quantity : 0);
-  }, 0);
+    return variant && Number.isInteger(quantity) && quantity > 0
+      ? [{
+          productId: variant.productId,
+          promotionId: variant.promotionId,
+          promotion: variant.promotion,
+          variantId: variant.id,
+          unitPrice: variant.price,
+          quantity,
+        }]
+      : [];
+  }));
   const validItems = items.length > 0 && items.every((item, index) => {
     const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
     const quantity = Number(item.quantity);
@@ -1900,8 +2133,9 @@ function OrderEditorModal({
           ))}
           {items.length === 0 && <p className="insight">{canAddItem ? "Añade al menos un producto con stock disponible." : "No hay presentaciones disponibles con stock para añadir."}</p>}
         </div>
-        <p className="order-editor-note">El total se recalcula con los precios actuales. El stock se descuenta cuando marques el pedido como pagado.</p>
-        <div className="order-editor-total"><span>Total del pedido</span><strong>{money(total)}</strong></div>
+        <p className="order-editor-note">El total se recalcula con los precios y promociones actuales. El stock se descuenta cuando marques el pedido como pagado.</p>
+        {orderPrice.discount > 0 && <p className="cart-discount">Ahorro en promociones: -{money(orderPrice.discount)}</p>}
+        <div className="order-editor-total"><span>Total del pedido</span><strong>{money(orderPrice.total)}</strong></div>
         {items.length > 0 && !validItems && <p className="form-error">Revisa productos, cantidades disponibles y evita repetir presentaciones.</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
         <button className="primary full" type="submit" disabled={saving || !customerId || !validItems}>
@@ -1943,18 +2177,21 @@ function Metric({
 
 function EditProductModal({
   product,
+  promotions,
   saving,
   error: saveError,
   onClose,
   onSave,
 }: {
   product: Product;
+  promotions: Promotion[];
   saving: boolean;
   error: string | null;
   onClose: () => void;
   onSave: (product: Product, imageFiles: File[]) => Promise<void>;
 }) {
   const [images, setImages] = useState(product.images ?? (product.image ? [product.image] : []));
+  const [promotionId, setPromotionId] = useState(product.promotion_id ?? "");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [variants, setVariants] = useState(product.variants.map((variant) => ({
     ...variant,
@@ -1986,6 +2223,7 @@ function EditProductModal({
     }
     const updatedProduct: Product = {
       ...product,
+      promotion_id: promotionId || null,
       image: images[0] ?? "",
       images,
       variants: parsedVariants.map(({ priceDraft: _price, costDraft: _cost, stockDraft: _stock, ...variant }) => variant),
@@ -2010,6 +2248,20 @@ function EditProductModal({
         <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
         <p className="eyebrow">ADMINISTRACIÓN</p>
         <h2 id="edit-product-title">Editar {product.brand} {product.name}</h2>
+        <label className="auth-label">
+          Promoción
+          <select value={promotionId} disabled={saving} onChange={(event) => setPromotionId(event.target.value)}>
+            <option value="">Sin promoción</option>
+            {promotionId && !promotions.some((promotion) => promotion.id === promotionId) && (
+              <option value={promotionId}>Promoción actual (inactiva)</option>
+            )}
+            {promotions.map((promotion) => (
+              <option key={promotion.id} value={promotion.id} disabled={!promotion.active}>
+                {promotion.name}{promotion.active ? "" : " (inactiva)"}
+              </option>
+            ))}
+          </select>
+        </label>
         <section className="edit-product-images">
           <div>
             <strong>Imágenes</strong>
@@ -2092,20 +2344,13 @@ function EditProductModal({
 function AddProductModal({
   onClose,
   onSave,
+  promotions,
   saving,
   error: saveError,
 }: {
   onClose: () => void;
-  onSave: (product: {
-    brand: string;
-    name: string;
-    gender: Product["gender"];
-    category: Product["category"];
-    description: string;
-    family: string;
-    climate: string[];
-    image_url: string;
-  }, variants: { size: number; price: number; cost: number; stock: number }[], images: File[]) => Promise<void>;
+  onSave: (product: NewProductInput, variants: { size: number; price: number; cost: number; stock: number }[], images: File[]) => Promise<void>;
+  promotions: Promotion[];
   saving: boolean;
   error: string | null;
 }) {
@@ -2113,6 +2358,7 @@ function AddProductModal({
   const [name, setName] = useState("");
   const [category, setCategory] = useState<Product["category"]>("Comercial");
   const [gender, setGender] = useState<Product["gender"]>("Unisex");
+  const [promotionId, setPromotionId] = useState("");
   const [images, setImages] = useState<File[]>([]);
   const [description, setDescription] = useState("");
   const [family, setFamily] = useState("");
@@ -2165,6 +2411,7 @@ function AddProductModal({
       family,
       climate: ["Todo el año"],
       image_url: "",
+      promotion_id: promotionId || null,
     }, parsedVariants, images);
   };
 
@@ -2179,6 +2426,16 @@ function AddProductModal({
           <label>Nombre<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Qaed Al Fursan" /></label>
           <label>Categoría<select value={category} onChange={(e) => setCategory(e.target.value as Product["category"])}><option>Comercial</option><option>Diseñador</option><option>Árabes</option><option>Nicho</option></select></label>
           <label>Género<select value={gender} onChange={(e) => setGender(e.target.value as Product["gender"])}><option>Hombres</option><option>Mujeres</option><option>Unisex</option></select></label>
+          <label>Promoción
+            <select value={promotionId} onChange={(event) => setPromotionId(event.target.value)}>
+              <option value="">Sin promoción</option>
+              {promotions.map((promotion) => (
+                <option key={promotion.id} value={promotion.id}>
+                  {promotion.name} · {promotion.required_quantity} por {money(promotion.bundle_price)}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>Familia olfativa<input value={family} onChange={(e) => setFamily(e.target.value)} placeholder="Ej. Amaderado" /></label>
           <label className="form-wide">Descripción<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción del perfume" /></label>
         </div>

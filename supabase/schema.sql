@@ -20,6 +20,17 @@ alter table public.profiles add column if not exists data_processing_consent boo
 alter table public.profiles add column if not exists whatsapp_promotions_consent boolean not null default false;
 alter table public.profiles add column if not exists consented_at timestamptz;
 
+create table if not exists public.promotions (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  required_quantity integer not null check (required_quantity >= 2),
+  bundle_price numeric(12,2) not null check (bundle_price >= 0),
+  allow_mixed boolean not null default true,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
   brand text not null,
@@ -31,6 +42,7 @@ create table if not exists public.products (
   climate text[] default '{}',
   image_url text,
   image_urls text[] not null default '{}',
+  promotion_id uuid references public.promotions(id) on delete set null,
   active boolean not null default true,
   featured boolean not null default false,
   created_at timestamptz not null default now(),
@@ -39,6 +51,8 @@ create table if not exists public.products (
 
 alter table public.products
   add column if not exists image_urls text[] not null default '{}';
+alter table public.products
+  add column if not exists promotion_id uuid references public.promotions(id) on delete set null;
 
 create table if not exists public.product_variants (
   id uuid primary key default gen_random_uuid(),
@@ -103,6 +117,8 @@ create table if not exists public.order_items (
 
 alter table public.order_items
   add column if not exists unit_cost_snapshot numeric(12,2);
+alter table public.order_items
+  add column if not exists discount numeric(12,2) not null default 0;
 
 create table if not exists public.inventory_movements (
   id uuid primary key default gen_random_uuid(),
@@ -372,6 +388,139 @@ begin
 end;
 $$;
 
+create or replace function public.calculate_promotion_discounts(items_data jsonb)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with requested as (
+    select
+      (item.value->>'variant_id')::uuid as variant_id,
+      (item.value->>'quantity')::integer as quantity
+    from jsonb_array_elements(items_data) as item(value)
+  ),
+  eligible as (
+    select
+      requested.variant_id,
+      requested.quantity,
+      pv.product_id,
+      pv.price,
+      p.promotion_id,
+      promotion.required_quantity,
+      promotion.bundle_price,
+      promotion.allow_mixed,
+      case when promotion.allow_mixed then null::uuid else pv.product_id end as group_product_id
+    from requested
+    join public.product_variants pv on pv.id = requested.variant_id
+    join public.products p on p.id = pv.product_id
+    join public.promotions promotion
+      on promotion.id = p.promotion_id and promotion.active = true
+  ),
+  totals as (
+    select
+      promotion_id,
+      group_product_id,
+      max(required_quantity) as required_quantity,
+      max(bundle_price) as bundle_price,
+      floor(sum(quantity)::numeric / max(required_quantity))::integer as bundle_count
+    from eligible
+    group by promotion_id, group_product_id
+  ),
+  ranked as (
+    select
+      eligible.*,
+      totals.bundle_count,
+      sum(eligible.quantity) over (
+        partition by eligible.promotion_id, eligible.group_product_id
+        order by eligible.price desc, eligible.product_id, eligible.variant_id
+        rows between unbounded preceding and current row
+      ) as cumulative_quantity
+    from eligible
+    join totals
+      on totals.promotion_id = eligible.promotion_id
+     and totals.group_product_id is not distinct from eligible.group_product_id
+  ),
+  selected as (
+    select
+      ranked.*,
+      greatest(
+        0,
+        least(
+          quantity,
+          bundle_count * required_quantity - (cumulative_quantity - quantity)
+        )
+      )::integer as discounted_quantity
+    from ranked
+    where bundle_count > 0
+  ),
+  selected_totals as (
+    select
+      promotion_id,
+      group_product_id,
+      greatest(
+        0,
+        sum(price * discounted_quantity)
+          - max(bundle_count * bundle_price)
+      ) as group_discount
+    from selected
+    group by promotion_id, group_product_id
+  ),
+  priced as (
+    select
+      selected.*,
+      selected_totals.group_discount,
+      sum(price * discounted_quantity) over (
+        partition by selected.promotion_id, selected.group_product_id
+      ) as selected_regular_total,
+      row_number() over (
+        partition by selected.promotion_id, selected.group_product_id
+        order by price desc, product_id, variant_id
+      ) as line_number,
+      count(*) over (
+        partition by selected.promotion_id, selected.group_product_id
+      ) as line_count
+    from selected
+    join selected_totals
+      on selected_totals.promotion_id = selected.promotion_id
+     and selected_totals.group_product_id is not distinct from selected.group_product_id
+    where selected.discounted_quantity > 0
+  ),
+  rounded as (
+    select
+      priced.*,
+      round(group_discount * price * discounted_quantity / nullif(selected_regular_total, 0), 2) as rounded_discount
+    from priced
+  ),
+  allocated as (
+    select
+      variant_id,
+      discounted_quantity,
+      case
+        when line_number = line_count then
+          group_discount - coalesce(sum(rounded_discount) over (
+            partition by promotion_id, group_product_id
+            order by line_number
+            rows between unbounded preceding and 1 preceding
+          ), 0)
+        else rounded_discount
+      end as line_discount
+    from rounded
+  )
+  select coalesce(
+    jsonb_agg(jsonb_build_object(
+      'variant_id', variant_id,
+      'discounted_quantity', discounted_quantity,
+      'discount', line_discount
+    )),
+    '[]'::jsonb
+  )
+  from allocated
+$$;
+
+revoke all on function public.calculate_promotion_discounts(jsonb) from public, anon, authenticated;
+
 create or replace function public.admin_save_pending_order(
   target_order_id uuid,
   target_customer_id uuid,
@@ -388,6 +537,9 @@ declare
   item_quantity integer;
   variant_record record;
   calculated_subtotal numeric(12,2) := 0;
+  calculated_discount numeric(12,2) := 0;
+  line_discount numeric(12,2) := 0;
+  promotion_discounts jsonb;
   saved_order_id uuid;
 begin
   if not public.is_admin() then
@@ -412,6 +564,7 @@ begin
   ) then
     raise exception 'Each product presentation can only appear once in an order';
   end if;
+  promotion_discounts := public.calculate_promotion_discounts(items_data);
 
   if target_order_id is null then
     insert into public.orders (customer_id, status, payment_status)
@@ -462,10 +615,16 @@ begin
       raise exception 'Insufficient stock for % % ml', variant_record.name, variant_record.size_ml;
     end if;
 
+    line_discount := coalesce((
+      select (entry.value->>'discount')::numeric
+      from jsonb_array_elements(promotion_discounts) as entry(value)
+      where entry.value->>'variant_id' = variant_record.id::text
+    ), 0);
     calculated_subtotal := calculated_subtotal + variant_record.price * item_quantity;
+    calculated_discount := calculated_discount + line_discount;
     insert into public.order_items (
       order_id, variant_id, product_name_snapshot, size_ml, unit_price,
-      unit_cost_snapshot, quantity, subtotal
+      unit_cost_snapshot, quantity, subtotal, discount
     )
     values (
       saved_order_id,
@@ -475,14 +634,16 @@ begin
       variant_record.price,
       variant_record.cost,
       item_quantity,
-      variant_record.price * item_quantity
+      variant_record.price * item_quantity - line_discount,
+      line_discount
     );
   end loop;
 
   update public.orders
   set customer_id = target_customer_id,
       subtotal = calculated_subtotal,
-      total = calculated_subtotal + shipping - discount,
+  discount = calculated_discount,
+  total = calculated_subtotal + shipping - calculated_discount,
       status = case
         when status = 'draft' then 'pending_confirmation'
         else status
@@ -579,7 +740,7 @@ begin
   end if;
 
   insert into public.products (
-    brand, name, gender, category, description, family, climate, image_url, image_urls, active
+    brand, name, gender, category, description, family, climate, image_url, image_urls, promotion_id, active
   )
   values (
     trim(product_data->>'brand'),
@@ -600,6 +761,7 @@ begin
         then array[product_data->>'image_url']
       else '{}'
     end,
+    nullif(product_data->>'promotion_id', '')::uuid,
     true
   )
   returning id into new_product_id;
@@ -681,6 +843,7 @@ begin
       climate = coalesce(array(select jsonb_array_elements_text(product_data->'climate')), '{}'),
       image_url = nullif(product_data->'image_urls'->>0, ''),
       image_urls = array(select jsonb_array_elements_text(product_data->'image_urls')),
+      promotion_id = nullif(product_data->>'promotion_id', '')::uuid,
       updated_at = now()
   where id = target_product_id;
 
@@ -790,7 +953,11 @@ declare
   item_quantity integer;
   variant_record record;
   item_subtotal numeric(12,2);
+  line_discount numeric(12,2);
+  calculated_subtotal numeric(12,2) := 0;
+  calculated_discount numeric(12,2) := 0;
   calculated_total numeric(12,2) := 0;
+  promotion_discounts jsonb;
   order_id uuid;
   message_lines text := '';
   line_items jsonb := '[]'::jsonb;
@@ -809,6 +976,7 @@ begin
   ) then
     raise exception 'Each product presentation can only appear once in an order';
   end if;
+  promotion_discounts := public.calculate_promotion_discounts(items_data);
 
   if current_account_id is not null then
     select p.id, p.full_name, p.phone, coalesce(p.email, u.email)
@@ -880,7 +1048,14 @@ begin
       raise exception 'Insufficient stock for % % ml', variant_record.name, variant_record.size_ml;
     end if;
 
-    item_subtotal := variant_record.price * item_quantity;
+    line_discount := coalesce((
+      select (entry.value->>'discount')::numeric
+      from jsonb_array_elements(promotion_discounts) as entry(value)
+      where entry.value->>'variant_id' = variant_record.id::text
+    ), 0);
+    item_subtotal := variant_record.price * item_quantity - line_discount;
+    calculated_subtotal := calculated_subtotal + variant_record.price * item_quantity;
+    calculated_discount := calculated_discount + line_discount;
     calculated_total := calculated_total + item_subtotal;
     line_items := line_items || jsonb_build_array(jsonb_build_object(
       'brand', variant_record.brand,
@@ -888,11 +1063,12 @@ begin
       'size', variant_record.size_ml,
       'quantity', item_quantity,
       'unit_price', variant_record.price,
-      'subtotal', item_subtotal
+      'subtotal', item_subtotal,
+      'discount_amount', line_discount
     ));
     insert into public.order_items (
       order_id, variant_id, product_name_snapshot, size_ml, unit_price,
-      unit_cost_snapshot, quantity, subtotal
+      unit_cost_snapshot, quantity, subtotal, discount
     )
     values (
       order_id,
@@ -902,29 +1078,34 @@ begin
       variant_record.price,
       variant_record.cost,
       item_quantity,
-      item_subtotal
+      item_subtotal,
+      line_discount
     );
     message_lines := message_lines || format(
-      E'\n• %s %s — %s ml x%s — $%s',
+      E'\n• %s %s — %s ml x%s — $%s%s',
       variant_record.brand,
       variant_record.name,
       variant_record.size_ml,
       item_quantity,
-      to_char(item_subtotal, 'FM999G999G999G990')
+      to_char(item_subtotal, 'FM999G999G999G990'),
+      case when line_discount > 0 then format(' (ahorro $%s)', to_char(line_discount, 'FM999G999G999G990')) else '' end
     );
   end loop;
 
   update public.orders
-  set subtotal = calculated_total, total = calculated_total
+  set subtotal = calculated_subtotal,
+      discount = calculated_discount,
+      total = calculated_total
   where id = order_id;
 
   order_message := format(
-    E'Hola Perfumes SAAD 👋\n\nQuiero confirmar este pedido:\nRecibo: %s\nCliente: %s\nWhatsApp: %s\nCorreo: %s\n%s\n\nTotal: $%s\n\nQuedo atento(a) para confirmar disponibilidad, domicilio y medio de pago.',
+    E'Hola Perfumes SAAD 👋\n\nQuiero confirmar este pedido:\nRecibo: %s\nCliente: %s\nWhatsApp: %s\nCorreo: %s\n%s\n\nAhorro por promociones: $%s\nTotal: $%s\n\nQuedo atento(a) para confirmar disponibilidad, domicilio y medio de pago.',
     upper(left(order_id::text, 8)),
     customer_name,
     customer_phone,
     customer_email,
     message_lines,
+    to_char(calculated_discount, 'FM999G999G999G990'),
     to_char(calculated_total, 'FM999G999G999G990')
   );
 
@@ -974,7 +1155,7 @@ begin
       where o.payment_status = 'paid' and oi.unit_cost_snapshot is not null
     ), 0),
     'sales_profit', coalesce((
-      select sum((oi.unit_price - oi.unit_cost_snapshot) * oi.quantity)
+      select sum(oi.subtotal - oi.unit_cost_snapshot * oi.quantity)
       from public.orders o
       join public.order_items oi on oi.order_id = o.id
       where o.payment_status = 'paid' and oi.unit_cost_snapshot is not null
@@ -1006,7 +1187,7 @@ begin
           end,
           'profit', case
             when count(*) filter (where oi.unit_cost_snapshot is null) > 0 then null
-            else sum((oi.unit_price - oi.unit_cost_snapshot) * oi.quantity)
+            else sum(oi.subtotal - oi.unit_cost_snapshot * oi.quantity)
           end
         ) as product,
         sum(oi.quantity) as units
@@ -1127,6 +1308,7 @@ grant execute on function public.admin_delete_pending_order(uuid) to authenticat
 grant execute on function public.admin_update_variant_stock(uuid, integer) to authenticated;
 
 alter table public.profiles enable row level security;
+alter table public.promotions enable row level security;
 alter table public.products enable row level security;
 alter table public.product_variants enable row level security;
 alter table public.customers enable row level security;
@@ -1135,6 +1317,8 @@ alter table public.order_items enable row level security;
 alter table public.inventory_movements enable row level security;
 
 grant select on public.products to anon, authenticated;
+grant select on public.promotions to anon, authenticated;
+grant insert, update, delete on public.promotions to authenticated;
 revoke select on public.product_variants from public, anon, authenticated;
 grant select (id, product_id, size_ml, price, stock, active, created_at)
   on public.product_variants to anon, authenticated;
@@ -1143,6 +1327,17 @@ grant update (full_name, phone, email) on public.profiles to authenticated;
 grant select, insert, update, delete on public.products to authenticated;
 grant select on public.customers, public.orders, public.order_items, public.inventory_movements
   to authenticated;
+
+drop policy if exists "Public can read active promotions" on public.promotions;
+create policy "Public can read active promotions"
+  on public.promotions for select to anon, authenticated
+  using (active = true);
+
+drop policy if exists "Admins can manage promotions" on public.promotions;
+create policy "Admins can manage promotions"
+  on public.promotions for all to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
 
 drop policy if exists "Users can read own profile" on public.profiles;
 create policy "Users can read own profile"

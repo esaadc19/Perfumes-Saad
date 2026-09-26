@@ -8,6 +8,7 @@ import {
   type ReceiptItem,
 } from "../services/orders";
 import { supabase } from "../lib/supabase";
+import { calculatePromotionPrice } from "../services/promotions";
 
 type ReceiptCartItem = {
   product: Product;
@@ -51,10 +52,18 @@ export default function ReceiptDialog({
   const [receipt, setReceipt] = useState<CreatedOrderReceipt | null>(null);
   const saving = printerPhase !== "idle";
 
-  const previewTotal = useMemo(
-    () => cart.reduce((sum, item) => sum + item.variant.price * item.quantity, 0),
+  const previewPrice = useMemo(
+    () => calculatePromotionPrice(cart.map((item) => ({
+      productId: item.product.id,
+      promotionId: item.product.promotion_id ?? null,
+      promotion: item.product.promotion,
+      variantId: item.variant.id,
+      unitPrice: item.variant.price,
+      quantity: item.quantity,
+    }))),
     [cart]
   );
+  const previewTotal = previewPrice.total;
 
   useEffect(() => {
     let active = true;
@@ -159,8 +168,15 @@ export default function ReceiptDialog({
     size: item.variant.size,
     quantity: item.quantity,
     unit_price: item.variant.price,
-    subtotal: item.variant.price * item.quantity,
+    subtotal: item.variant.price * item.quantity - (previewPrice.lineDiscounts[item.variant.id] ?? 0),
+    discount_amount: previewPrice.lineDiscounts[item.variant.id] ?? 0,
   }));
+  const displayedDiscount = receipt
+    ? receiptItems.reduce((sum, item) => sum + item.discount_amount, 0)
+    : previewPrice.discount;
+  const displayedSubtotal = receipt
+    ? receiptItems.reduce((sum, item) => sum + item.subtotal + item.discount_amount, 0)
+    : previewPrice.subtotal;
 
   const sendToWhatsApp = () => {
     if (!receipt) return;
@@ -239,7 +255,7 @@ export default function ReceiptDialog({
                   )}
                   {error && <p className="form-error" role="alert">{error}</p>}
                   <p className="receipt-note">
-                    El total final y la disponibilidad se validan al guardar el pedido.
+                    El total final, las promociones y la disponibilidad se validan al guardar el pedido.
                     No se realiza ningún cobro en línea.
                   </p>
                   <button className="primary full receipt-submit" type="submit" disabled={saving || cart.length === 0}>
@@ -281,11 +297,18 @@ export default function ReceiptDialog({
                   <div className="receipt-line" key={`${item.brand}-${item.name}-${item.size}-${index}`}>
                     <strong>{item.brand} {item.name}</strong>
                     <span>{item.size} ml × {item.quantity} · {money(item.unit_price)} c/u</span>
+                    {item.discount_amount > 0 && <small className="receipt-promotion-saving">Ahorro promocional: -{money(item.discount_amount)}</small>}
                     <b>{money(item.subtotal)}</b>
                   </div>
                 ))}
               </div>
               <div className="receipt-rule receipt-dashed" />
+              {displayedDiscount > 0 && (
+                <div className="receipt-promotion-totals">
+                  <span>Subtotal</span><b>{money(displayedSubtotal)}</b>
+                  <span>Ahorro en promociones</span><b>-{money(displayedDiscount)}</b>
+                </div>
+              )}
               <div className="receipt-total">
                 <span>TOTAL</span>
                 <strong>{money(receipt?.total ?? previewTotal)}</strong>
