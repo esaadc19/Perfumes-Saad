@@ -3,6 +3,13 @@ import type { NewProductInput } from "./products";
 
 type ImportVariant = { size: number; price: number; cost: number; stock: number };
 export type ImportedProduct = { product: NewProductInput; variants: ImportVariant[]; sourceRows: number[] };
+export type ImportedCustomer = {
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  sourceRows: number[];
+};
 
 const aliases: Record<string, string[]> = {
   brand: ["brand", "marca"],
@@ -17,6 +24,13 @@ const aliases: Record<string, string[]> = {
   price: ["price", "precio"],
   cost: ["cost", "costo"],
   stock: ["stock", "existencias"],
+};
+
+const customerAliases: Record<string, string[]> = {
+  full_name: ["full_name", "nombre", "nombre_completo", "cliente"],
+  phone: ["phone", "telefono", "celular", "whatsapp"],
+  email: ["email", "correo", "correo_electronico"],
+  city: ["city", "ciudad"],
 };
 
 function normalizeHeader(value: unknown): string {
@@ -199,6 +213,62 @@ function parseRows(rows: unknown[][]): ImportedProduct[] {
   return [...products.values()];
 }
 
+function parseCustomerRows(rows: unknown[][]): ImportedCustomer[] {
+  const [rawHeaders, ...dataRows] = rows;
+  if (!rawHeaders?.length) throw new Error("El archivo está vacío.");
+  const headers = rawHeaders.map(normalizeHeader);
+  const columns = new Map<string, number>();
+  for (const [field, fieldAliases] of Object.entries(customerAliases)) {
+    const index = headers.findIndex((header) => fieldAliases.includes(header));
+    if (index >= 0) columns.set(field, index);
+  }
+  if (!columns.has("full_name")) {
+    throw new Error("Falta la columna obligatoria: full_name (nombre).");
+  }
+
+  const get = (row: unknown[], field: string) => cellText(row[columns.get(field) ?? -1]);
+  const customers = new Map<string, ImportedCustomer>();
+  dataRows.forEach((row, rowIndex) => {
+    if (!row.some((value) => cellText(value))) return;
+    const rowNumber = rowIndex + 2;
+    const fullName = get(row, "full_name");
+    const phone = get(row, "phone") || null;
+    const emailValue = get(row, "email");
+    const email = emailValue ? emailValue.toLowerCase() : null;
+    const city = get(row, "city") || null;
+    if (!fullName) throw new Error(`Fila ${rowNumber}: el nombre del cliente es obligatorio.`);
+    if (email && !/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(email)) {
+      throw new Error(`Fila ${rowNumber}: el correo no tiene un formato válido.`);
+    }
+    if (!phone && !email) {
+      throw new Error(`Fila ${rowNumber}: cada cliente debe tener correo o teléfono para evitar duplicados.`);
+    }
+
+    const key = email ? `email:${email}` : `phone:${phone}`;
+    const existing = customers.get(key);
+    if (existing) {
+      if (
+        existing.email !== email ||
+        existing.phone !== phone ||
+        existing.full_name.toLowerCase() !== fullName.toLowerCase()
+      ) {
+        throw new Error(`Fila ${rowNumber}: correo o teléfono duplicado con datos diferentes.`);
+      }
+      existing.sourceRows.push(rowNumber);
+      return;
+    }
+    customers.set(key, {
+      full_name: fullName,
+      phone,
+      email,
+      city,
+      sourceRows: [rowNumber],
+    });
+  });
+  if (!customers.size) throw new Error("El archivo no contiene clientes para importar.");
+  return [...customers.values()];
+}
+
 export async function parseProductImportFile(file: File): Promise<ImportedProduct[]> {
   if (file.size > 10 * 1024 * 1024) throw new Error("El archivo debe pesar máximo 10 MB.");
   const extension = file.name.toLowerCase().split(".").pop();
@@ -208,6 +278,19 @@ export async function parseProductImportFile(file: File): Promise<ImportedProduc
   if (extension === "xlsx") {
     const sheets = await readXlsxFile(file);
     return parseRows(sheets[0]?.data ?? []);
+  }
+  throw new Error("Formato no compatible. Selecciona un archivo CSV o Excel .xlsx.");
+}
+
+export async function parseCustomerImportFile(file: File): Promise<ImportedCustomer[]> {
+  if (file.size > 10 * 1024 * 1024) throw new Error("El archivo debe pesar máximo 10 MB.");
+  const extension = file.name.toLowerCase().split(".").pop();
+  if (extension === "csv") {
+    return parseCustomerRows(parseCsv((await file.text()).replace(/^\uFEFF/, "")));
+  }
+  if (extension === "xlsx") {
+    const sheets = await readXlsxFile(file);
+    return parseCustomerRows(sheets[0]?.data ?? []);
   }
   throw new Error("Formato no compatible. Selecciona un archivo CSV o Excel .xlsx.");
 }

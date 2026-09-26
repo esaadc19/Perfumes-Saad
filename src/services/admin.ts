@@ -87,6 +87,23 @@ export async function getAdminCustomers(): Promise<AdminCustomer[]> {
   return (data ?? []) as AdminCustomer[];
 }
 
+export async function importAdminCustomers(
+  customers: { full_name: string; phone: string | null; email: string | null; city: string | null }[]
+): Promise<{ imported: number; skipped: number }> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc("admin_import_customers", {
+    customers_data: customers,
+  });
+  if (error) {
+    console.error("No se pudieron importar los clientes:", error);
+    throw error;
+  }
+  if (!data || typeof data.imported !== "number" || typeof data.skipped !== "number") {
+    throw new Error("Supabase no devolvió el resultado de importación esperado.");
+  }
+  return { imported: data.imported, skipped: data.skipped };
+}
+
 export async function getAdminProfiles(): Promise<AdminProfile[]> {
   const client = requireSupabase();
   const { data, error } = await client

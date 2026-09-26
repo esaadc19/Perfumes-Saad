@@ -247,6 +247,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .selected-image-list li span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .import-feedback { margin: 0 0 14px; color: #3d7444; font-size: 13px; }
+.customer-import-hint { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.customer-import-hint code { padding: 2px 4px; background: var(--soft); color: var(--black); }
 .admin-actions { display: flex; gap: 10px; }
 .access-required { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center; }
 .access-required h1 { margin: 0; font: 500 42px "Playfair Display", serif; }

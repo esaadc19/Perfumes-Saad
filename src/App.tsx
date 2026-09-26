@@ -11,12 +11,13 @@ import {
   type NewProductInput,
   type Product,
 } from "./services/products";
-import type { ImportedProduct } from "./services/product-import";
+import type { ImportedCustomer, ImportedProduct } from "./services/product-import";
 import {
   getAdminCustomers,
   getAdminDashboardMetrics,
   getAdminOrders,
   getAdminProfiles,
+  importAdminCustomers,
   deleteAdminPendingOrder,
   saveAdminPendingOrder,
   updateAdminCustomer,
@@ -861,6 +862,10 @@ function Admin({
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const productImportInput = useRef<HTMLInputElement>(null);
+  const [importingCustomers, setImportingCustomers] = useState(false);
+  const [customerImportFeedback, setCustomerImportFeedback] = useState<string | null>(null);
+  const [customerImportError, setCustomerImportError] = useState<string | null>(null);
+  const customerImportInput = useRef<HTMLInputElement>(null);
   const [transactionFilter, setTransactionFilter] = useState<"all" | "paid" | "pending" | "refunded">("all");
   const [dashboardDetail, setDashboardDetail] = useState<"sold-out" | "low-stock" | "pending" | null>(null);
   const [orderEditor, setOrderEditor] = useState<{ order: AdminOrder | null } | null>(null);
@@ -1075,6 +1080,45 @@ function Admin({
     }
   };
 
+  const importCustomersFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    setImportingCustomers(true);
+    setCustomerImportFeedback(null);
+    setCustomerImportError(null);
+    try {
+      const { parseCustomerImportFile } = await import("./services/product-import");
+      const importedCustomers: ImportedCustomer[] = await parseCustomerImportFile(file);
+      if (!window.confirm(`Se importarán ${importedCustomers.length} clientes. Los ya registrados por correo o teléfono se omitirán. ¿Continuar?`)) return;
+      const result = await importAdminCustomers(importedCustomers.map((customer) => ({
+        full_name: customer.full_name,
+        phone: customer.phone,
+        email: customer.email,
+        city: customer.city,
+      })));
+      setCustomerImportFeedback(
+        `Importación terminada: ${result.imported} clientes agregados${result.skipped ? ` y ${result.skipped} duplicados omitidos` : ""}.`
+      );
+      try {
+        setCustomers(await getAdminCustomers());
+      } catch (refreshError) {
+        console.error("No se pudo recargar la lista después de importar clientes:", refreshError);
+        setCustomerImportError("La importación se completó, pero no se pudo actualizar la lista. Pulsa «Actualizar» para recargar.");
+      }
+    } catch (customerImportError) {
+      console.error("No se pudo importar el archivo de clientes:", customerImportError);
+      setCustomerImportError(
+        customerImportError instanceof Error
+          ? customerImportError.message
+          : "No se pudo leer o guardar el archivo de clientes."
+      );
+    } finally {
+      setImportingCustomers(false);
+    }
+  };
+
   const query = search.trim().toLowerCase();
   const visibleCustomers = customers.filter((customer) =>
     `${customer.full_name} ${customer.email ?? ""} ${customer.phone ?? ""}`.toLowerCase().includes(query)
@@ -1164,6 +1208,28 @@ function Admin({
                   <Upload size={16} /> {importingProducts ? "Importando..." : "Importar archivo"}
                 </button>
                 <button className="primary" onClick={onAdd}><Plus size={17}/> Nuevo producto</button>
+              </>
+            )}
+            {section === "customers" && (
+              <>
+                <input
+                  ref={customerImportInput}
+                  className="visually-hidden"
+                  type="file"
+                  accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(event) => void importCustomersFromFile(event)}
+                  disabled={importingCustomers}
+                  aria-label="Importar clientes desde CSV o Excel"
+                  tabIndex={-1}
+                />
+                <button
+                  className="secondary"
+                  type="button"
+                  onClick={() => customerImportInput.current?.click()}
+                  disabled={importingCustomers}
+                >
+                  <Upload size={16} /> {importingCustomers ? "Importando..." : "Importar archivo"}
+                </button>
               </>
             )}
             {section === "transactions" && <button className="primary" onClick={() => setOrderEditor({ order: null })}><Plus size={17}/> Nuevo pedido</button>}
@@ -1400,6 +1466,10 @@ function Admin({
               </label>
             </div>
             {section === "customers" && (
+              <>
+              {customerImportFeedback && <p className="import-feedback" role="status">{customerImportFeedback}</p>}
+              {customerImportError && <p className="form-error" role="alert">{customerImportError}</p>}
+              <p className="customer-import-hint">Importa CSV o Excel (.xlsx) con las columnas <code>full_name</code> y, opcionalmente, <code>phone</code>, <code>email</code> y <code>city</code>. Se omiten coincidencias por correo o teléfono.</p>
               <div className="admin-table">
                 <div className="table-row customer-row header"><span>Cliente</span><span>WhatsApp</span><span>Correo</span><span>Ciudad</span><span>Pedidos</span><span></span></div>
                 {visibleCustomers.map((customer) => (
@@ -1410,6 +1480,7 @@ function Admin({
                 ))}
                 {!sectionLoading && visibleCustomers.length === 0 && <p className="insight">No hay clientes que coincidan con la búsqueda.</p>}
               </div>
+              </>
             )}
             {section === "profiles" && (
               <>
