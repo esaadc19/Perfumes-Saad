@@ -43,6 +43,7 @@ create table if not exists public.products (
   image_url text,
   image_urls text[] not null default '{}',
   promotion_id uuid references public.promotions(id) on delete set null,
+  archived boolean not null default false,
   active boolean not null default true,
   featured boolean not null default false,
   created_at timestamptz not null default now(),
@@ -53,6 +54,8 @@ alter table public.products
   add column if not exists image_urls text[] not null default '{}';
 alter table public.products
   add column if not exists promotion_id uuid references public.promotions(id) on delete set null;
+alter table public.products
+  add column if not exists archived boolean not null default false;
 
 create table if not exists public.product_variants (
   id uuid primary key default gen_random_uuid(),
@@ -917,7 +920,7 @@ begin
         or exists (select 1 from public.inventory_movements im where im.variant_id = pv.id)
       )
   ) then
-    update public.products set active = false, updated_at = now()
+    update public.products set active = false, archived = true, updated_at = now()
     where id = target_product_id;
     return 'archived';
   end if;

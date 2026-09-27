@@ -410,7 +410,9 @@ function App() {
       const result = await deleteAdminProduct(product);
       setProducts((current) => result === "deleted"
         ? current.filter((item) => item.id !== product.id)
-        : current.map((item) => item.id === product.id ? { ...item, active: false } : item));
+        : current.map((item) => item.id === product.id
+          ? { ...item, active: false, archived: true }
+          : item));
       return result;
     } catch (deleteError) {
       console.error("No se pudo eliminar el producto:", deleteError);
@@ -992,14 +994,17 @@ function Admin({
   const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
   const [productActionFeedback, setProductActionFeedback] = useState<string | null>(null);
   const [productActionError, setProductActionError] = useState<string | null>(null);
+  const [showArchivedProducts, setShowArchivedProducts] = useState(false);
+  const archivedProductsCount = products.filter((product) => product.archived).length;
   const visibleProducts = products.filter((product) =>
+    Boolean(product.archived) === showArchivedProducts &&
     `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase())
   );
   const totalStock = products.reduce(
-    (sum, p) => sum + p.variants.reduce((s, v) => s + v.stock, 0),
+    (sum, p) => sum + (p.archived ? 0 : p.variants.reduce((s, v) => s + v.stock, 0)),
     0
   );
-  const stockTrackedProducts = products.filter((product) => product.active !== false);
+  const stockTrackedProducts = products.filter((product) => !product.archived && product.active !== false);
   const lowStock = stockTrackedProducts.flatMap((product) =>
     product.variants.filter((variant) =>
       variant.active !== false &&
@@ -1448,7 +1453,7 @@ function Admin({
               <Metric title="Presentaciones con stock bajo" value={String(lowStock)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("low-stock")} />
             </div>
             <div className="metrics">
-              <Metric title="Productos" value={products.length.toString()} icon={<Package />} />
+              <Metric title="Productos" value={products.filter((product) => !product.archived).length.toString()} icon={<Package />} />
               <Metric title="Unidades en stock" value={totalStock.toString()} icon={<ShoppingBag />} />
               <Metric title="Pedidos pendientes" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
               <Metric title="Agotados" value={soldOut.toString()} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
@@ -1505,19 +1510,34 @@ function Admin({
         {section === "products" && <section className="admin-card">
           <div className="card-title">
             <div>
-              <h2>Productos</h2>
+              <h2>{showArchivedProducts ? "Productos archivados" : "Productos"}</h2>
               <span>Gestiona disponibilidad, costos y stock. Para importar, usa una fila por presentación y repite marca y nombre para agrupar variantes.</span>
             </div>
-            <label className="admin-search">
-              <Search size={16} />
-              <input
-                aria-label="Buscar productos"
-                placeholder="Buscar productos"
-                value={productSearch}
-                onChange={(event) => setProductSearch(event.target.value)}
-              />
-            </label>
+            <div className="product-list-tools">
+              <button
+                className="secondary archived-products-toggle"
+                type="button"
+                onClick={() => setShowArchivedProducts((current) => !current)}
+                disabled={archivedProductsCount === 0 && !showArchivedProducts}
+              >
+                {showArchivedProducts ? "Volver a productos" : `Archivados (${archivedProductsCount})`}
+              </button>
+              <label className="admin-search">
+                <Search size={16} />
+                <input
+                  aria-label={showArchivedProducts ? "Buscar productos archivados" : "Buscar productos"}
+                  placeholder="Buscar productos"
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                />
+              </label>
+            </div>
           </div>
+          {showArchivedProducts && (
+            <p className="customer-import-hint">
+              Estos productos se quitaron de la tienda, pero se conservan porque tienen pedidos o movimientos de inventario asociados.
+            </p>
+          )}
 
           <div className="admin-table">
             <div className="table-row header">
@@ -1525,7 +1545,7 @@ function Admin({
             </div>
             {visibleProducts.map((product) => {
               const stock = product.variants.reduce((s, v) => s + v.stock, 0);
-              const available = product.active !== false && stock > 0;
+              const available = !product.archived && product.active !== false && stock > 0;
               return (
                 <div className="table-row product-row" key={product.id}>
                   <div className="product-cell">
@@ -1616,55 +1636,70 @@ function Admin({
                     ))}
                   </div>
                   <span>{stock}</span>
-                  <button
-                    className={available ? "status available" : "status sold"}
-                    disabled={updatingProductId === product.id}
-                    onClick={() => onProductActiveChange(product)}
-                  >
-                    {updatingProductId === product.id
-                      ? "Guardando..."
-                      : product.active === false
-                        ? <>Oculto · mostrar</>
-                        : available ? <><Check size={13}/> Disponible · ocultar</> : <>Agotado · ocultar</>}
-                  </button>
-                  <div className="product-actions">
-                    <button className="secondary" type="button" onClick={() => {
-                        setProductActionFeedback(null);
-                        setProductActionError(null);
-                        setEditingProduct(product);
-                    }}>
-                        <Pencil size={14}/> Editar
-                    </button>
+                  {product.archived ? (
+                    <span className="status sold archived-status">Archivado</span>
+                  ) : (
                     <button
-                        className="secondary danger-button"
-                        type="button"
-                        disabled={deletingProductId === product.id}
-                        onClick={() => {
-                          const confirmed = window.confirm(
-                            `¿Eliminar ${product.brand} ${product.name}? Si tiene pedidos o movimientos de inventario, se ocultará de la tienda para conservar el historial y seguirá visible en administración.`
-                          );
-                          if (!confirmed) return;
+                      className={available ? "status available" : "status sold"}
+                      disabled={updatingProductId === product.id}
+                      onClick={() => onProductActiveChange(product)}
+                    >
+                      {updatingProductId === product.id
+                        ? "Guardando..."
+                        : product.active === false
+                          ? <>Oculto · mostrar</>
+                          : available ? <><Check size={13}/> Disponible · ocultar</> : <>Agotado · ocultar</>}
+                    </button>
+                  )}
+                  {product.archived ? (
+                    <span className="archived-history-note">Se conserva por su historial de ventas o inventario.</span>
+                  ) : (
+                    <div className="product-actions">
+                      <button className="secondary" type="button" onClick={() => {
                           setProductActionFeedback(null);
                           setProductActionError(null);
-                          void onDeleteProduct(product)
-                            .then((result) => setProductActionFeedback(
-                              result === "archived"
-                                ? `${product.brand} ${product.name} se archivó porque tiene historial asociado.`
-                                : `${product.brand} ${product.name} se eliminó.`
-                            ))
-                            .catch((deleteError: unknown) => {
-                              setProductActionError(deleteError instanceof Error
-                                ? deleteError.message
-                                : "No se pudo eliminar el producto. Revisa los permisos de administrador y la conexión con Supabase.");
-                            });
-                        }}
-                    >
-                        <Trash2 size={14}/>{deletingProductId === product.id ? "Eliminando..." : "Eliminar"}
-                    </button>
-                  </div>
+                          setEditingProduct(product);
+                      }}>
+                          <Pencil size={14}/> Editar
+                      </button>
+                      <button
+                          className="secondary danger-button"
+                          type="button"
+                          disabled={deletingProductId === product.id}
+                          onClick={() => {
+                            const confirmed = window.confirm(
+                              `¿Eliminar ${product.brand} ${product.name}? Si tiene pedidos o movimientos de inventario, se quitará de la tienda y se archivará para proteger ese historial.`
+                            );
+                            if (!confirmed) return;
+                            setProductActionFeedback(null);
+                            setProductActionError(null);
+                            void onDeleteProduct(product)
+                              .then((result) => setProductActionFeedback(
+                                result === "archived"
+                                  ? `${product.brand} ${product.name} se archivó y se quitó de los productos activos.`
+                                  : `${product.brand} ${product.name} se eliminó.`
+                              ))
+                              .catch((deleteError: unknown) => {
+                                setProductActionError(deleteError instanceof Error
+                                  ? deleteError.message
+                                  : "No se pudo eliminar el producto. Revisa los permisos de administrador y la conexión con Supabase.");
+                              });
+                          }}
+                      >
+                          <Trash2 size={14}/>{deletingProductId === product.id ? "Eliminando..." : "Eliminar"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}
+            {visibleProducts.length === 0 && (
+              <p className="insight">
+                {showArchivedProducts
+                  ? "No hay productos archivados que coincidan con la búsqueda."
+                  : "No hay productos activos que coincidan con la búsqueda."}
+              </p>
+            )}
           </div>
           {productActionFeedback && <p className="import-feedback" role="status">{productActionFeedback}</p>}
           {productActionError && <p className="form-error" role="alert">{productActionError}</p>}

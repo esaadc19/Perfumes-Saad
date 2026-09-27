@@ -31,6 +31,7 @@ export interface Product {
   active?: boolean;
   promotion_id?: string | null;
   promotion?: Promotion | null;
+  archived?: boolean;
   variants: ProductVariant[];
 }
 
@@ -83,6 +84,7 @@ function mapProducts(data: any[], includeInactiveVariants = false): Product[] {
         : [],
     featured: product.featured ?? false,
     active: product.active ?? true,
+    archived: product.archived ?? false,
     promotion_id: product.promotion_id ?? null,
     promotion: product.promotion
       ? {

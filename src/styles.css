@@ -312,6 +312,10 @@ footer a { color: #111; }
 .status.sold { background: #f4eeee; color: #8c4a4a; }
 .icon-button { border: 0; background: transparent; }
 .product-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.product-list-tools { display: flex; align-items: center; gap: 10px; }
+.archived-products-toggle { min-height: 40px; padding: 0 12px; white-space: nowrap; }
+.archived-status { justify-content: center; }
+.archived-history-note { color: var(--muted); font-size: 11px; }
 .product-actions .secondary, .edit-image-item .secondary { min-height: 36px; padding: 0 9px; font-size: 11px; }
 .danger-button { color: #8c3c36; border-color: #ead6d3; }
 .danger-button:hover { background: #fbf1ef; }
@@ -465,6 +469,8 @@ footer a { color: #111; }
   .admin-section-tabs button { padding: 9px 10px; }
   .admin-card { min-width: 0; padding: 16px 12px; margin-bottom: 14px; }
   .card-title { flex-direction: column; gap: 14px; margin-bottom: 18px; }
+  .product-list-tools { width: 100%; align-items: stretch; flex-direction: column; }
+  .product-list-tools .admin-search { width: 100%; }
   .card-title > div { min-width: 0; }
   .card-title span { display: block; margin-top: 5px; line-height: 1.5; }
   .admin-search { min-width: 0; }
