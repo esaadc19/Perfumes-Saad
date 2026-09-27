@@ -138,7 +138,7 @@ export default function AuthDialog({
     <div className="overlay" onMouseDown={(event) => {
       if (event.target === event.currentTarget) void closeDialog();
     }}>
-      <div className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+      <div className="auth-modal auth-scroll-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
         <button className="close" onClick={() => void closeDialog()} aria-label="Cerrar"><X /></button>
         <p className="eyebrow">
           {mode === "register" ? "NUEVA CUENTA" : mode === "reset" ? "RESTABLECER ACCESO" : "ACCESO"}

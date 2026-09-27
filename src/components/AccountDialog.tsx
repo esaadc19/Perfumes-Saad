@@ -77,7 +77,7 @@ export default function AccountDialog({
     <div className="overlay" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
-      <div className="auth-modal account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
+      <div className="auth-modal auth-scroll-modal account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title">
         <button className="close" onClick={onClose} aria-label="Cerrar"><X /></button>
         <p className="eyebrow">MI CUENTA</p>
         <h2 id="account-title">Hola</h2>

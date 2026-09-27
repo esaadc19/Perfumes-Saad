@@ -11,6 +11,9 @@ export default function AddressInput({
     <label className="auth-label">
       {label}
       <input
+        className="address-input"
+        name="delivery_address"
+        aria-label={label}
         type="text"
         autoComplete="street-address"
         value={value}

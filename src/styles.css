@@ -125,6 +125,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .checkout-note { color: var(--muted); font-size: 12px; line-height: 1.6; }
 
 .auth-modal, .add-modal { background: white; width: min(520px, 100%); padding: 42px; position: relative; }
+.auth-scroll-modal { max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; }
 .auth-modal h2, .add-modal h2 { font: 500 35px "Playfair Display", serif; margin: 0 0 10px; }
 .auth-modal p:not(.eyebrow) { color: var(--muted); line-height: 1.6; }
 .auth-modal input, .add-modal input, .add-modal select { width: 100%; height: 46px; border: 1px solid var(--border); padding: 0 12px; margin-top: 7px; outline: 0; background: white; }
@@ -133,6 +134,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .auth-modal .consent-option { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 9px; align-items: start; color: #555; font-size: 12px; line-height: 1.5; }
 .auth-modal .consent-option input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--black); }
 .auth-label { display: block; margin-top: 14px; font-size: 12px; font-weight: 600; }
+.auth-modal .address-input { display: block; min-height: 46px; visibility: visible; opacity: 1; color: var(--black); background: #fff; }
 .account-modal .secondary { margin-top: 10px; }
 .auth-label, .form-grid > label, .variant-form-row, .receipt-customer-heading, .receipt-note {
   animation: field-fade-in .55s both;
@@ -456,7 +458,7 @@ footer a { color: #111; }
   .product-detail-copy h2 { font-size: 30px; }
   .detail-meta div { grid-template-columns: 72px minmax(0, 1fr); }
   .cart-drawer { width: 100%; padding: 26px 18px; }
-  .auth-modal, .add-modal { max-height: 94dvh; overflow-y: auto; padding: 30px 22px; }
+  .auth-modal, .add-modal { max-height: calc(100dvh - 20px); overflow-y: auto; padding: 30px 22px; }
   .auth-modal h2, .add-modal h2 { font-size: 30px; }
   .form-grid { grid-template-columns: minmax(0, 1fr); }
   .form-grid .form-wide { grid-column: auto; }
