@@ -168,7 +168,7 @@ function parseRows(rows: unknown[][]): ImportedProduct[] {
     const name = get(row, "name");
     if (!brand || !name) throw new Error(`Fila ${rowNumber}: marca y nombre son obligatorios.`);
     const gender = productGender(get(row, "gender"), rowNumber);
-    const category = enumValue(get(row, "category"), ["Comercial", "Diseñador", "Árabes", "Nicho"] as const, "categoría", rowNumber);
+    const category = enumValue(get(row, "category"), ["Diseñador", "Árabes", "Nicho"] as const, "categoría", rowNumber);
     const size = numericCell(get(row, "size_ml"), "tamaño en ml", rowNumber);
     const price = numericCell(get(row, "price"), "precio", rowNumber);
     const cost = numericCell(get(row, "cost"), "costo", rowNumber);

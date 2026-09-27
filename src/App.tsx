@@ -85,7 +85,7 @@ const seedProducts: Product[] = [
     brand: "Ariana Grande",
     name: "Thank U, Next",
     gender: "Mujeres",
-    category: "Comercial",
+    category: "Diseñador",
     description:
       "Fragancia Floral Frutal Gourmand. Un aroma dulce, juvenil y femenino con una salida frutal y un fondo cálido.",
     family: "Floral Frutal Gourmand",
@@ -526,7 +526,6 @@ function App() {
           <header className="topbar">
             <button className="mobile-menu"><Menu size={19} /></button>
             <nav className="nav-left">
-              <button onClick={() => setCategory("Comercial")}>Comercial</button>
               <button onClick={() => setCategory("Diseñador")}>Diseñador</button>
               <button onClick={() => setCategory("Árabes")}>Árabes</button>
               <button onClick={() => setCategory("Nicho")}>Nicho</button>
@@ -585,7 +584,7 @@ function App() {
               </div>
 
               <div className="category-pills">
-                {["Todos", "Comercial", "Diseñador", "Árabes", "Nicho", "Ofertas"].map((item) => (
+                {["Todos", "Diseñador", "Árabes", "Nicho", "Ofertas"].map((item) => (
                   <button
                     key={item}
                     className={category === item ? "pill active" : "pill"}
@@ -2415,7 +2414,7 @@ function AddProductModal({
 }) {
   const [brand, setBrand] = useState("");
   const [name, setName] = useState("");
-  const [category, setCategory] = useState<Product["category"]>("Comercial");
+  const [category, setCategory] = useState<Product["category"]>("Diseñador");
   const [gender, setGender] = useState<Product["gender"]>("Unisex");
   const [promotionId, setPromotionId] = useState("");
   const [images, setImages] = useState<File[]>([]);
@@ -2483,7 +2482,7 @@ function AddProductModal({
         <div className="form-grid">
           <label>Marca<input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ej. Lattafa" /></label>
           <label>Nombre<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Qaed Al Fursan" /></label>
-          <label>Categoría<select value={category} onChange={(e) => setCategory(e.target.value as Product["category"])}><option>Comercial</option><option>Diseñador</option><option>Árabes</option><option>Nicho</option></select></label>
+          <label>Categoría<select value={category} onChange={(e) => setCategory(e.target.value as Product["category"])}><option value="Diseñador">Diseñador</option><option value="Árabes">Árabes</option><option value="Nicho">Nicho</option></select></label>
           <label>Género<select value={gender} onChange={(e) => setGender(e.target.value as Product["gender"])}><option>Hombres</option><option>Mujeres</option><option>Unisex</option></select></label>
           <label>Promoción
             <select value={promotionId} onChange={(event) => setPromotionId(event.target.value)}>

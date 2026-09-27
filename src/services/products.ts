@@ -21,7 +21,7 @@ export interface Product {
   brand: string;
   name: string;
   gender: "Mujeres" | "Hombres" | "Unisex";
-  category: "Comercial" | "Diseñador" | "Árabes" | "Nicho";
+  category: "Diseñador" | "Árabes" | "Nicho";
   description: string;
   family: string;
   climate: string[];
