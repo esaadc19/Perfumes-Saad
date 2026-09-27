@@ -41,6 +41,7 @@ import {
 import AuthDialog from "./components/AuthDialog";
 import AccountDialog from "./components/AccountDialog";
 import ReceiptDialog from "./components/ReceiptDialog";
+import PeekRating from "./components/PeekRating";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -692,6 +693,27 @@ function App() {
                     </p>
                   )}
                   <p className="description">{selectedProduct.description}</p>
+                  <PeekRating
+                    key={selectedProduct.id}
+                    defaultValue={3}
+                    count={5}
+                    shape="star"
+                    labels={["Poor", "Fair", "Good", "Great", "Superb"]}
+                    activeColor="#f5b400"
+                    idleColor="#52525b"
+                    tipColor="#27272a"
+                    tipTextColor="#f5f5f5"
+                    size={40}
+                    lift={8}
+                    magnify={1.15}
+                    riseDuration={320}
+                    popScale={1.3}
+                    showTip
+                    allowClear
+                    onChange={(value) => console.log("rated", selectedProduct.name, value)}
+                    showLabels
+                    readOnly={false}
+                  />
 
                   <div className="detail-block">
                     <label>Presentación</label>

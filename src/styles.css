@@ -97,6 +97,24 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .price { font-size: 20px; margin: 22px 0; font-weight: 600; }
 .promotion-detail-copy { margin: -12px 0 18px; color: #71492c; font-size: 13px; line-height: 1.5; }
 .description { color: #666; line-height: 1.7; }
+.peek-rating { display: grid; justify-items: start; gap: 2px; margin-top: 18px; }
+.peek-rating-stars { display: flex; align-items: center; gap: 2px; }
+.peek-rating-star {
+  position: relative; display: grid; place-items: center; width: var(--rating-size); height: var(--rating-size);
+  padding: 0; border: 0; background: transparent; color: var(--rating-idle); font-size: calc(var(--rating-size) * .72);
+  line-height: 1; transition: transform var(--rating-duration) cubic-bezier(.2,.8,.2,1), color .16s ease;
+}
+.peek-rating-star.is-active { color: var(--rating-active); }
+.peek-rating-star.is-peeked { z-index: 1; transform: translateY(calc(-1 * var(--rating-lift))) scale(var(--rating-magnify)); }
+.peek-rating-star:active:not(:disabled) { transform: translateY(calc(-1 * var(--rating-lift))) scale(var(--rating-pop)); }
+.peek-rating-star:focus-visible { outline: 2px solid var(--rating-active); outline-offset: -2px; border-radius: 6px; }
+.peek-rating-star:disabled { cursor: default; opacity: 1; }
+.peek-rating-tip {
+  position: absolute; left: 50%; bottom: calc(100% + 6px); z-index: 2; padding: 5px 8px; border-radius: 4px;
+  background: var(--rating-tip); color: var(--rating-tip-text); font: 500 11px/1.2 "DM Sans", Arial, sans-serif;
+  white-space: nowrap; pointer-events: none; transform: translateX(-50%);
+}
+.peek-rating-label { min-height: 16px; color: var(--muted); font-size: 11px; }
 .detail-block { margin-top: 30px; }
 .detail-block label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
 .variant-row { display: flex; gap: 9px; flex-wrap: wrap; }
