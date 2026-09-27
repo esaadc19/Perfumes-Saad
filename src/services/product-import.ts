@@ -93,12 +93,26 @@ function enumValue<T extends string>(
   label: string,
   rowNumber: number
 ): T {
-  const normalized = value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const normalized = value
+    .replace(/\uFFFD/g, "n")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
   const match = values.find((item) =>
     item.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === normalized
   );
   if (!match) throw new Error(`Fila ${rowNumber}: ${label} no válido (“${value}”).`);
   return match;
+}
+
+async function readCsv(file: File): Promise<string> {
+  const bytes = await file.arrayBuffer();
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/, "");
+  } catch {
+    return new TextDecoder("windows-1252").decode(bytes).replace(/^\uFEFF/, "");
+  }
 }
 
 function productGender(value: string, rowNumber: number): Product["gender"] {
@@ -293,7 +307,7 @@ export async function parseProductImportFile(file: File): Promise<ImportedProduc
   if (file.size > 10 * 1024 * 1024) throw new Error("El archivo debe pesar máximo 10 MB.");
   const extension = file.name.toLowerCase().split(".").pop();
   if (extension === "csv") {
-    return parseRows(parseCsv((await file.text()).replace(/^\uFEFF/, "")));
+    return parseRows(parseCsv(await readCsv(file)));
   }
   if (extension === "xlsx") {
     const sheets = await readXlsxFile(file);
@@ -306,7 +320,7 @@ export async function parseCustomerImportFile(file: File): Promise<ImportedCusto
   if (file.size > 10 * 1024 * 1024) throw new Error("El archivo debe pesar máximo 10 MB.");
   const extension = file.name.toLowerCase().split(".").pop();
   if (extension === "csv") {
-    return parseCustomerRows(parseCsv((await file.text()).replace(/^\uFEFF/, "")));
+    return parseCustomerRows(parseCsv(await readCsv(file)));
   }
   if (extension === "xlsx") {
     const sheets = await readXlsxFile(file);

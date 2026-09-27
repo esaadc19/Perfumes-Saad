@@ -126,9 +126,15 @@ create table if not exists public.inventory_movements (
   movement_type text not null,
   quantity integer not null,
   reason text,
-  order_id uuid references public.orders(id),
+  order_id uuid references public.orders(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+alter table public.inventory_movements
+  drop constraint if exists inventory_movements_order_id_fkey;
+alter table public.inventory_movements
+  add constraint inventory_movements_order_id_fkey
+  foreign key (order_id) references public.orders(id) on delete set null;
 
 create or replace function public.is_admin()
 returns boolean
