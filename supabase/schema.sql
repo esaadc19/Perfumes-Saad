@@ -761,7 +761,7 @@ begin
         then array[product_data->>'image_url']
       else '{}'
     end,
-    nullif(product_data->>'promotion_id', '')::uuid,
+    nullif(btrim(product_data->>'promotion_id'), '')::uuid,
     true
   )
   returning id into new_product_id;
@@ -843,7 +843,7 @@ begin
       climate = coalesce(array(select jsonb_array_elements_text(product_data->'climate')), '{}'),
       image_url = nullif(product_data->'image_urls'->>0, ''),
       image_urls = array(select jsonb_array_elements_text(product_data->'image_urls')),
-      promotion_id = nullif(product_data->>'promotion_id', '')::uuid,
+      promotion_id = nullif(btrim(product_data->>'promotion_id'), '')::uuid,
       updated_at = now()
   where id = target_product_id;
 

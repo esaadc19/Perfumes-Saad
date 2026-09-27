@@ -45,6 +45,7 @@ import {
   ArrowLeft,
   BarChart3,
   Check,
+  Download,
   LayoutDashboard,
   Menu,
   Package,
@@ -1371,6 +1372,14 @@ function Admin({
                 >
                   <Upload size={16} /> {importingProducts ? "Importando..." : "Importar archivo"}
                 </button>
+                <a
+                  className="secondary template-download"
+                  href="/plantilla-importacion-productos.csv"
+                  download="plantilla-importacion-productos.csv"
+                  title="Descargar plantilla CSV para importar productos"
+                >
+                  <Download size={16} /> Plantilla CSV
+                </a>
                 <button className="primary" onClick={onAdd}><Plus size={17}/> Nuevo producto</button>
               </>
             )}
@@ -1420,6 +1429,12 @@ function Admin({
         {error && section === "products" && <p className="form-error" role="alert">{error}</p>}
         {section === "products" && importFeedback && <p className="import-feedback" role="status">{importFeedback}</p>}
         {section === "products" && importError && <p className="form-error" role="alert">{importError}</p>}
+        {section === "products" && (
+          <p className="customer-import-hint">
+            Descarga la plantilla y luego importa ese archivo desde aquí. No importes este CSV directamente en la tabla
+            <code> products</code> de Supabase: la tienda también crea las presentaciones en <code>product_variants</code>.
+          </p>
+        )}
         {section === "promotions" && promotionFeedback && <p className="import-feedback" role="status">{promotionFeedback}</p>}
         {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
         {sectionLoading && <p className="catalog-message" role="status">Cargando {pageTitle.toLowerCase()}...</p>}

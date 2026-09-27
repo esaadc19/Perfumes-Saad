@@ -1,6 +1,11 @@
 import { supabase } from "../lib/supabase";
 import type { Promotion } from "./promotions";
 
+function getSupabaseErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  return typeof error.code === "string" ? error.code : null;
+}
+
 export interface ProductVariant {
   id: string;
   size: number;
@@ -199,6 +204,7 @@ export async function createProduct(
         ...product,
         image_url: imageUrls[0] ?? product.image_url,
         image_urls: imageUrls,
+        promotion_id: product.promotion_id?.trim() || null,
       },
       variants_data: variants,
     });
@@ -211,6 +217,22 @@ export async function createProduct(
       if (cleanupError) console.error("No se pudieron limpiar las imágenes subidas:", cleanupError);
     }
     console.error("Error creando producto:", error);
+    const errorCode = getSupabaseErrorCode(error);
+    if (errorCode === "22P02") {
+      throw new Error(
+        "Supabase recibió un UUID vacío al guardar el producto. Vuelve a ejecutar el supabase/schema.sql actualizado en el SQL Editor y reintenta la importación desde Administración → Productos."
+      );
+    }
+    if (errorCode === "PGRST202" || errorCode === "42883") {
+      throw new Error(
+        "Supabase no encuentra la función para crear productos. Ejecuta de nuevo supabase/schema.sql en el SQL Editor."
+      );
+    }
+    if (errorCode === "42501") {
+      throw new Error(
+        "No tienes permisos de administrador para importar productos. Cierra sesión y vuelve a entrar con una cuenta administradora."
+      );
+    }
     throw error;
   }
 }
@@ -333,6 +355,9 @@ export async function deleteAdminProduct(product: Product): Promise<"deleted" | 
     }
     if (error.code === "42501") {
       throw new Error("No tienes permisos de administrador para eliminar productos. Cierra sesión y vuelve a entrar con una cuenta administradora.");
+    }
+    if (error.code === "23503") {
+      throw new Error("El producto tiene registros relacionados y no se puede borrar físicamente. Ejecuta de nuevo supabase/schema.sql para archivarlo de forma segura desde este botón.");
     }
     throw error;
   }

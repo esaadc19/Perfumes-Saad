@@ -263,6 +263,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .customer-import-hint { margin: 0 0 14px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .customer-import-hint code { padding: 2px 4px; background: var(--soft); color: var(--black); }
 .admin-actions { display: flex; gap: 10px; }
+.template-download { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; white-space: nowrap; }
 .access-required { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 16px; padding: 24px; text-align: center; }
 .access-required h1 { margin: 0; font: 500 42px "Playfair Display", serif; }
 .access-required p { max-width: 480px; color: var(--muted); }
