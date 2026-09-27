@@ -51,6 +51,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 }
 .primary { background: var(--black); color: #fff; }
 .primary:hover { transform: translateY(-1px); }
+.hero-whatsapp { background: #128c4a; color: #fff; text-decoration: none; }
+.hero-whatsapp:hover { background: #0f793f; }
+.hero-whatsapp svg { width: 20px; height: 20px; fill: currentColor; }
 .secondary { background: #fff; border: 1px solid var(--border); color: #222; }
 
 .catalog-section { max-width: 1240px; margin: 0 auto; padding: 20px 5% 100px; }
@@ -130,6 +133,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .auth-modal .consent-option { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 9px; align-items: start; color: #555; font-size: 12px; line-height: 1.5; }
 .auth-modal .consent-option input { width: 16px; height: 16px; margin: 1px 0 0; accent-color: var(--black); }
 .auth-label { display: block; margin-top: 14px; font-size: 12px; font-weight: 600; }
+.account-modal .secondary { margin-top: 10px; }
 .auth-label, .form-grid > label, .variant-form-row, .receipt-customer-heading, .receipt-note {
   animation: field-fade-in .55s both;
 }

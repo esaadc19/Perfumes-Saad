@@ -6,6 +6,7 @@ create table if not exists public.profiles (
   role text not null default 'customer' check (role in ('customer', 'admin')),
   full_name text,
   phone text,
+  delivery_address text,
   email text,
   data_processing_consent boolean not null default false,
   whatsapp_promotions_consent boolean not null default false,
@@ -15,6 +16,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles add column if not exists full_name text;
 alter table public.profiles add column if not exists phone text;
+alter table public.profiles add column if not exists delivery_address text;
 alter table public.profiles add column if not exists email text;
 alter table public.profiles add column if not exists data_processing_consent boolean not null default false;
 alter table public.profiles add column if not exists whatsapp_promotions_consent boolean not null default false;
@@ -160,7 +162,7 @@ set search_path = ''
 as $$
 begin
   insert into public.profiles as stored_profile (
-    id, role, full_name, phone, email,
+    id, role, full_name, phone, delivery_address, email,
     data_processing_consent, whatsapp_promotions_consent, consented_at
   )
   values (
@@ -168,6 +170,7 @@ begin
     'customer',
     nullif(trim(new.raw_user_meta_data->>'full_name'), ''),
     nullif(trim(new.raw_user_meta_data->>'phone'), ''),
+    nullif(trim(new.raw_user_meta_data->>'delivery_address'), ''),
     new.email,
     coalesce((new.raw_user_meta_data->>'data_processing_consent')::boolean, false),
     coalesce((new.raw_user_meta_data->>'whatsapp_promotions_consent')::boolean, false),
@@ -182,6 +185,7 @@ begin
   set email = excluded.email,
       full_name = coalesce(stored_profile.full_name, excluded.full_name),
       phone = coalesce(stored_profile.phone, excluded.phone),
+      delivery_address = coalesce(stored_profile.delivery_address, excluded.delivery_address),
       data_processing_consent = stored_profile.data_processing_consent or excluded.data_processing_consent,
       whatsapp_promotions_consent = stored_profile.whatsapp_promotions_consent or excluded.whatsapp_promotions_consent,
       consented_at = coalesce(stored_profile.consented_at, excluded.consented_at);
@@ -698,7 +702,7 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 insert into public.profiles as stored_profile (
-  id, role, full_name, phone, email,
+  id, role, full_name, phone, delivery_address, email,
   data_processing_consent, whatsapp_promotions_consent, consented_at
 )
 select
@@ -706,6 +710,7 @@ select
   'customer',
   nullif(trim(raw_user_meta_data->>'full_name'), ''),
   nullif(trim(raw_user_meta_data->>'phone'), ''),
+  nullif(trim(raw_user_meta_data->>'delivery_address'), ''),
   email,
   coalesce((raw_user_meta_data->>'data_processing_consent')::boolean, false),
   coalesce((raw_user_meta_data->>'whatsapp_promotions_consent')::boolean, false),
@@ -720,6 +725,7 @@ on conflict (id) do update
 set email = coalesce(stored_profile.email, excluded.email),
     full_name = coalesce(stored_profile.full_name, excluded.full_name),
     phone = coalesce(stored_profile.phone, excluded.phone),
+    delivery_address = coalesce(stored_profile.delivery_address, excluded.delivery_address),
     data_processing_consent = stored_profile.data_processing_consent or excluded.data_processing_consent,
     whatsapp_promotions_consent = stored_profile.whatsapp_promotions_consent or excluded.whatsapp_promotions_consent,
     consented_at = coalesce(stored_profile.consented_at, excluded.consented_at);
@@ -1332,7 +1338,7 @@ revoke select on public.product_variants from public, anon, authenticated;
 grant select (id, product_id, size_ml, price, stock, active, created_at)
   on public.product_variants to anon, authenticated;
 grant select on public.profiles to authenticated;
-grant update (full_name, phone, email) on public.profiles to authenticated;
+grant update (full_name, phone, email, delivery_address) on public.profiles to authenticated;
 grant select, insert, update, delete on public.products to authenticated;
 grant select on public.customers, public.orders, public.order_items, public.inventory_movements
   to authenticated;
@@ -1358,6 +1364,12 @@ create policy "Users can update own customer details"
   on public.profiles for update to authenticated
   using (id = (select auth.uid()) and role = 'customer')
   with check (id = (select auth.uid()) and role = 'customer');
+
+drop policy if exists "Users can update own delivery address" on public.profiles;
+create policy "Users can update own delivery address"
+  on public.profiles for update to authenticated
+  using (id = (select auth.uid()))
+  with check (id = (select auth.uid()));
 
 drop policy if exists "Public can read active products" on public.products;
 create policy "Public can read active products"

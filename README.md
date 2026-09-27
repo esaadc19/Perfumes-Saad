@@ -46,6 +46,7 @@ Abrir la URL mostrada por Vite.
    VITE_SUPABASE_URL=https://TU_PROYECTO.supabase.co
    VITE_SUPABASE_ANON_KEY=TU_CLAVE_PUBLICA
    VITE_WHATSAPP_NUMBER=573102318786
+   VITE_GOOGLE_MAPS_API_KEY=TU_CLAVE_PUBLICA_RESTRINGIDA
    ```
 
 5. En **SQL Editor → New query**, abre `supabase/schema.sql`, copia su contenido, pégalo y selecciona **Run**. Este paso crea las tablas, políticas y funciones que usa la aplicación. Vuelve a ejecutar el esquema actualizado cuando incorpores funciones administrativas nuevas.
@@ -53,6 +54,8 @@ Abrir la URL mostrada por Vite.
 7. Prueba un pedido pequeño desde la tienda. Si aparece un error de clave, vuelve a copiar la URL y la clave pública del mismo proyecto. Si indica que falta `create_whatsapp_order`, vuelve a ejecutar el esquema.
 
 El esquema crea el bucket público `product-images` para mostrar las fotos del catálogo. Solo las cuentas con rol de administrador pueden cargar, cambiar o borrar imágenes; el límite es 5 MB por archivo.
+
+El registro y la sección **Mi cuenta** permiten escribir, guardar y editar una dirección de entrega en un campo de texto. Vuelve a ejecutar `supabase/schema.sql` para agregar el campo y sus permisos de perfil.
 
 El archivo `.env` está excluido de Git. No publiques ni envíes claves privadas; las variables `VITE_*` se incorporan al frontend, por lo que solo deben contener la URL y una clave pública protegida con las políticas RLS del esquema.
 

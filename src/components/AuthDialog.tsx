@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { X } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import AddressInput from "./AddressInput";
 
 const AUTH_REDIRECT_URL = "https://perfumes-saad.vercel.app/";
 type AuthMode = "login" | "register" | "forgot" | "reset";
@@ -22,6 +23,7 @@ export default function AuthDialog({
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [deliveryAddress, setDeliveryAddress] = useState("");
   const [dataProcessingConsent, setDataProcessingConsent] = useState(false);
   const [whatsappPromotionsConsent, setWhatsappPromotionsConsent] = useState(false);
   const [email, setEmail] = useState("");
@@ -107,6 +109,7 @@ export default function AuthDialog({
           data: {
             full_name: name.trim(),
             phone: phone.trim(),
+            delivery_address: deliveryAddress.trim(),
             data_processing_consent: dataProcessingConsent,
             whatsapp_promotions_consent: whatsappPromotionsConsent,
           },
@@ -168,6 +171,9 @@ export default function AuthDialog({
               required
             />
           </label>
+        )}
+        {mode === "register" && (
+          <AddressInput value={deliveryAddress} onChange={setDeliveryAddress} />
         )}
         {mode === "register" && (
           <label className="auth-label">
