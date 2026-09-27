@@ -990,6 +990,7 @@ function Admin({
   const [promotionSaving, setPromotionSaving] = useState(false);
   const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
   const [productActionFeedback, setProductActionFeedback] = useState<string | null>(null);
+  const [productActionError, setProductActionError] = useState<string | null>(null);
   const visibleProducts = products.filter((product) =>
     `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase())
   );
@@ -1614,6 +1615,7 @@ function Admin({
                   <div className="product-actions">
                     <button className="secondary" type="button" onClick={() => {
                         setProductActionFeedback(null);
+                        setProductActionError(null);
                         setEditingProduct(product);
                     }}>
                         <Pencil size={14}/> Editar
@@ -1624,16 +1626,22 @@ function Admin({
                         disabled={deletingProductId === product.id}
                         onClick={() => {
                           const confirmed = window.confirm(
-                            `¿Eliminar ${product.brand} ${product.name}? Si tiene ventas o movimientos de inventario, se archivará para conservar el historial.`
+                            `¿Eliminar ${product.brand} ${product.name}? Si tiene pedidos o movimientos de inventario, se ocultará de la tienda para conservar el historial y seguirá visible en administración.`
                           );
                           if (!confirmed) return;
+                          setProductActionFeedback(null);
+                          setProductActionError(null);
                           void onDeleteProduct(product)
                             .then((result) => setProductActionFeedback(
                               result === "archived"
                                 ? `${product.brand} ${product.name} se archivó porque tiene historial asociado.`
                                 : `${product.brand} ${product.name} se eliminó.`
                             ))
-                            .catch(() => {});
+                            .catch((deleteError: unknown) => {
+                              setProductActionError(deleteError instanceof Error
+                                ? deleteError.message
+                                : "No se pudo eliminar el producto. Revisa los permisos de administrador y la conexión con Supabase.");
+                            });
                         }}
                     >
                         <Trash2 size={14}/>{deletingProductId === product.id ? "Eliminando..." : "Eliminar"}
@@ -1644,6 +1652,7 @@ function Admin({
             })}
           </div>
           {productActionFeedback && <p className="import-feedback" role="status">{productActionFeedback}</p>}
+          {productActionError && <p className="form-error" role="alert">{productActionError}</p>}
         </section>}
         {section === "promotions" && (
           <section className="admin-card">

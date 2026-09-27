@@ -1,5 +1,5 @@
 import readXlsxFile from "read-excel-file/browser";
-import type { NewProductInput } from "./products";
+import type { NewProductInput, Product } from "./products";
 
 type ImportVariant = { size: number; price: number; cost: number; stock: number };
 export type ImportedProduct = { product: NewProductInput; variants: ImportVariant[]; sourceRows: number[] };
@@ -101,6 +101,26 @@ function enumValue<T extends string>(
   return match;
 }
 
+function productGender(value: string, rowNumber: number): Product["gender"] {
+  const normalized = value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const aliases: Record<string, Product["gender"]> = {
+    hombre: "Hombres",
+    hombres: "Hombres",
+    masculino: "Hombres",
+    masculinos: "Hombres",
+    mujer: "Mujeres",
+    mujeres: "Mujeres",
+    femenino: "Mujeres",
+    femeninos: "Mujeres",
+    unisex: "Unisex",
+  };
+  const gender = aliases[normalized];
+  if (!gender) {
+    throw new Error(`Fila ${rowNumber}: género no válido (“${value}”). Usa Hombre, Mujer o Unisex.`);
+  }
+  return gender;
+}
+
 function numericCell(value: string, label: string, rowNumber: number): number {
   const parsed = Number(value);
   if (!value || !Number.isFinite(parsed)) {
@@ -133,7 +153,7 @@ function parseRows(rows: unknown[][]): ImportedProduct[] {
     const brand = get(row, "brand");
     const name = get(row, "name");
     if (!brand || !name) throw new Error(`Fila ${rowNumber}: marca y nombre son obligatorios.`);
-    const gender = enumValue(get(row, "gender"), ["Mujeres", "Hombres", "Unisex"] as const, "género", rowNumber);
+    const gender = productGender(get(row, "gender"), rowNumber);
     const category = enumValue(get(row, "category"), ["Comercial", "Diseñador", "Árabes", "Nicho"] as const, "categoría", rowNumber);
     const size = numericCell(get(row, "size_ml"), "tamaño en ml", rowNumber);
     const price = numericCell(get(row, "price"), "precio", rowNumber);

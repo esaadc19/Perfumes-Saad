@@ -102,6 +102,8 @@ En **Productos**, puedes añadir hasta tres imágenes JPG, PNG, WebP o AVIF por 
 
 En **Promociones**, crea paquetes indicando un nombre, la cantidad de unidades y su precio total. Decide si el paquete permite combinar los productos asociados o si requiere unidades del mismo perfume; luego selecciona esa promoción al crear o editar cada producto. En la tienda, el filtro **Ofertas** muestra los productos con promociones activas. El carrito, el recibo y los pedidos manuales de administración repiten la oferta por cada paquete completo y cobran las unidades sobrantes al precio normal. Los descuentos se vuelven a calcular en Supabase al guardar y se reflejan en las métricas de utilidad.
 
+En el CSV o Excel de productos, `gender` acepta `Hombre`, `Hombres`, `Masculino`, `Mujer`, `Mujeres`, `Femenino` o `Unisex`; los valores singulares y masculino/femenino se normalizan automáticamente.
+
 En **Clientes**, también puedes importar contactos desde CSV o Excel `.xlsx`. Usa `full_name` como columna obligatoria y, opcionalmente, `phone`, `email` y `city` (se aceptan los encabezados equivalentes en español mostrados en el panel). Cada cliente debe tener correo o teléfono. Los registros existentes con el mismo correo o teléfono se omiten para evitar duplicados; la importación no crea cuentas ni cambia permisos.
 
 Los pedidos antiguos pueden no tener costo histórico. El panel los señala y deja su utilidad incompleta en lugar de inventar costos. Los importes son utilidad bruta y no incluyen domicilio, comisiones ni otros gastos.

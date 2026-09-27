@@ -328,6 +328,12 @@ export async function deleteAdminProduct(product: Product): Promise<"deleted" | 
   });
   if (error) {
     console.error("No se pudo eliminar el producto:", error);
+    if (error.code === "PGRST202" || error.code === "42883") {
+      throw new Error("Supabase no encuentra la función para eliminar productos. Ejecuta de nuevo supabase/schema.sql en el SQL Editor.");
+    }
+    if (error.code === "42501") {
+      throw new Error("No tienes permisos de administrador para eliminar productos. Cierra sesión y vuelve a entrar con una cuenta administradora.");
+    }
     throw error;
   }
   if (data !== "deleted" && data !== "archived") {
