@@ -325,6 +325,7 @@ export async function updateAdminProduct(input: {
       },
       variants_data: input.product.variants.map((variant) => ({
         id: variant.id,
+        size: variant.size,
         price: variant.price,
         cost: variant.cost,
         stock: variant.stock,

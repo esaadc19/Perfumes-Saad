@@ -12,6 +12,7 @@ import {
   updateAdminProduct,
   type NewProductInput,
   type Product,
+  type ProductVariant,
 } from "./services/products";
 import type { ImportedCustomer, ImportedProduct } from "./services/product-import";
 import {
@@ -47,6 +48,8 @@ import {
   ArrowLeft,
   BarChart3,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Download,
   LayoutDashboard,
   Menu,
@@ -199,6 +202,7 @@ function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState("Todas");
   const [category, setCategory] = useState("Todos");
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -209,6 +213,15 @@ function App() {
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
   const [savingCostVariantId, setSavingCostVariantId] = useState<string | null>(null);
   const [savingStockVariantId, setSavingStockVariantId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const imageCount = selectedProduct?.images?.length ?? 0;
+    if (imageCount < 2) return;
+    const carousel = window.setInterval(() => {
+      setSelectedImageIndex((current) => (current + 1) % imageCount);
+    }, 3500);
+    return () => window.clearInterval(carousel);
+  }, [selectedProduct?.id, selectedProduct?.images?.length]);
 
   useEffect(() => {
     if (!supabase) {
@@ -476,11 +489,17 @@ function App() {
       if (p.active === false || p.variants.length === 0) return false;
       const matchesSearch =
         `${p.brand} ${p.name}`.toLowerCase().includes(search.toLowerCase());
+      const matchesBrand = brandFilter === "Todas" || p.brand === brandFilter;
       const matchesCategory = category === "Todos"
         || (category === "Ofertas" ? Boolean(p.promotion?.active) : p.category === category);
-      return matchesSearch && matchesCategory;
+      return matchesSearch && matchesBrand && matchesCategory;
     });
-  }, [products, search, category]);
+  }, [products, search, brandFilter, category]);
+  const availableBrands = useMemo(
+    () => [...new Set(products.filter((product) => product.active !== false).map((product) => product.brand))]
+      .sort((a, b) => a.localeCompare(b, "es")),
+    [products]
+  );
   const cartPrice = useMemo(() => calculatePromotionPrice(cart.map((item) => ({
     productId: item.product.id,
     promotionId: item.product.promotion_id ?? null,
@@ -502,26 +521,27 @@ function App() {
     selectedProduct?.variants.find((v) => v.id === selectedVariantId) ??
     selectedProduct?.variants[0];
 
-  const addToCart = () => {
-    if (!selectedProduct || !selectedVariant || selectedVariant.stock <= 0) return;
-
+  const addVariantToCart = (product: Product, variant: ProductVariant) => {
+    if (variant.stock <= 0) return;
     setCart((current) => {
-      const existing = current.find(
-        (item) => item.variant.id === selectedVariant.id
-      );
+      const existing = current.find((item) => item.variant.id === variant.id);
 
       if (existing) {
         return current.map((item) =>
-          item.variant.id === selectedVariant.id
-            ? { ...item, quantity: Math.min(item.quantity + 1, selectedVariant.stock) }
+          item.variant.id === variant.id
+            ? { ...item, quantity: Math.min(item.quantity + 1, variant.stock) }
             : item
         );
       }
 
-      return [...current, { product: selectedProduct, variant: selectedVariant, quantity: 1 }];
+      return [...current, { product, variant, quantity: 1 }];
     });
-
     setCartOpen(true);
+  };
+
+  const addToCart = () => {
+    if (!selectedProduct || !selectedVariant) return;
+    addVariantToCart(selectedProduct, selectedVariant);
   };
 
   const total = cartPrice.total;
@@ -609,6 +629,13 @@ function App() {
                   </button>
                 ))}
               </div>
+              <label className="brand-filter">
+                <span>Filtrar por marca</span>
+                <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
+                  <option value="Todas">Todas las marcas</option>
+                  {availableBrands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+                </select>
+              </label>
 
               {catalogNotice && <p className="catalog-message">{catalogNotice}</p>}
               <div className="product-grid">
@@ -641,9 +668,19 @@ function App() {
                             {product.promotion.allow_mixed ? " · combinables" : " · mismo perfume"}
                           </span>
                         )}
-                        <button className="text-button" onClick={() => openProduct(product)}>
-                          Ver producto →
-                        </button>
+                        <div className="product-card-actions">
+                          <button className="text-button" onClick={() => openProduct(product)}>
+                            Ver producto →
+                          </button>
+                          <button
+                            type="button"
+                            className="quick-add-button"
+                            disabled={firstAvailable.stock <= 0}
+                            onClick={() => addVariantToCart(product, firstAvailable)}
+                          >
+                            <Plus size={15} /> Agregar
+                          </button>
+                        </div>
                       </div>
                     </article>
                   );
@@ -663,6 +700,30 @@ function App() {
                     src={selectedProduct.images?.[selectedImageIndex] ?? selectedProduct.image}
                     alt={`${selectedProduct.name}, imagen ${selectedImageIndex + 1}`}
                   />
+                  {(selectedProduct.images?.length ?? 0) > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        className="product-carousel-arrow previous"
+                        aria-label="Ver imagen anterior"
+                        onClick={() => setSelectedImageIndex((index) =>
+                          (index - 1 + (selectedProduct.images?.length ?? 1)) % (selectedProduct.images?.length ?? 1)
+                        )}
+                      >
+                        <ChevronLeft size={22} />
+                      </button>
+                      <button
+                        type="button"
+                        className="product-carousel-arrow next"
+                        aria-label="Ver imagen siguiente"
+                        onClick={() => setSelectedImageIndex((index) =>
+                          (index + 1) % (selectedProduct.images?.length ?? 1)
+                        )}
+                      >
+                        <ChevronRight size={22} />
+                      </button>
+                    </>
+                  )}
                   {(selectedProduct.images?.length ?? 0) > 1 && (
                     <div className="product-image-thumbnails" aria-label="Imágenes del producto">
                       {selectedProduct.images?.map((image, index) => (
@@ -698,7 +759,7 @@ function App() {
                     defaultValue={3}
                     count={5}
                     shape="star"
-                    labels={["Poor", "Fair", "Good", "Great", "Superb"]}
+                    labels={["Malo", "Regular", "Bueno", "Muy Bueno", "Excelente"]}
                     activeColor="#f5b400"
                     idleColor="#52525b"
                     tipColor="#27272a"
@@ -768,14 +829,43 @@ function App() {
                   </div>
                 ) : (
                   <>
+                    {cartPrice.discount > 0 && (
+                      <p className="cart-promotion-note" role="status">
+                        Descuento promocional aplicado al pedido: <strong>-{money(cartPrice.discount)}</strong>
+                      </p>
+                    )}
                     <div className="cart-items">
                       {cart.map((item) => (
                         <div className="cart-item" key={item.variant.id}>
                           <img src={item.product.image} alt="" />
                           <div>
                             <strong>{item.product.name}</strong>
-                            <span>{item.variant.size} ml · x{item.quantity}</span>
-                            <b>{money(item.variant.price * item.quantity)}</b>
+                            <span>{item.variant.size} ml</span>
+                            <label className="cart-quantity-control">
+                              <span>Unidades</span>
+                              <input
+                                type="number"
+                                min="1"
+                                max={item.variant.stock}
+                                value={item.quantity}
+                                aria-label={`Unidades de ${item.product.name}`}
+                                onChange={(event) => {
+                                  const quantity = Number(event.target.value);
+                                  if (!Number.isInteger(quantity) || quantity < 1) return;
+                                  setCart((current) => current.map((line) =>
+                                    line.variant.id === item.variant.id
+                                      ? { ...line, quantity: Math.min(quantity, line.variant.stock) }
+                                      : line
+                                  ));
+                                }}
+                              />
+                            </label>
+                            {cartPrice.lineDiscounts[item.variant.id] > 0 && (
+                              <small className="cart-line-discount">
+                                Descuento aplicado: -{money(cartPrice.lineDiscounts[item.variant.id])}
+                              </small>
+                            )}
+                            <b>{money(item.variant.price * item.quantity - (cartPrice.lineDiscounts[item.variant.id] ?? 0))}</b>
                           </div>
                           <button
                             onClick={() =>
@@ -1005,6 +1095,7 @@ function Admin({
   const [costDrafts, setCostDrafts] = useState<Record<string, string>>({});
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
   const [productSearch, setProductSearch] = useState("");
+  const [productStockFilter, setProductStockFilter] = useState<"all" | "available" | "sold-out">("all");
   const [importingProducts, setImportingProducts] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -1028,7 +1119,11 @@ function Admin({
   const archivedProductsCount = products.filter((product) => product.archived).length;
   const visibleProducts = products.filter((product) =>
     Boolean(product.archived) === showArchivedProducts &&
-    `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase())
+    `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase()) &&
+    (showArchivedProducts || productStockFilter === "all" ||
+      (productStockFilter === "available"
+        ? product.variants.some((variant) => variant.stock > 0)
+        : product.variants.length > 0 && product.variants.every((variant) => variant.stock <= 0)))
   );
   const totalStock = products.reduce(
     (sum, p) => sum + (p.archived ? 0 : p.variants.reduce((s, v) => s + v.stock, 0)),
@@ -1552,6 +1647,25 @@ function Admin({
               >
                 {showArchivedProducts ? "Volver a productos" : `Archivados (${archivedProductsCount})`}
               </button>
+              {!showArchivedProducts && (
+                <div className="product-stock-filters" aria-label="Filtrar productos por disponibilidad">
+                  {([
+                    ["all", "Todos"],
+                    ["available", "Disponibles"],
+                    ["sold-out", "Agotados"],
+                  ] as const).map(([filter, label]) => (
+                    <button
+                      key={filter}
+                      type="button"
+                      className={productStockFilter === filter ? "selected" : ""}
+                      aria-pressed={productStockFilter === filter}
+                      onClick={() => setProductStockFilter(filter)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
               <label className="admin-search">
                 <Search size={16} />
                 <input
@@ -2280,10 +2394,18 @@ function EditProductModal({
   onSave: (product: Product, imageFiles: File[]) => Promise<void>;
 }) {
   const [images, setImages] = useState(product.images ?? (product.image ? [product.image] : []));
+  const [brand, setBrand] = useState(product.brand);
+  const [name, setName] = useState(product.name);
+  const [gender, setGender] = useState<Product["gender"]>(product.gender);
+  const [category, setCategory] = useState<Product["category"]>(product.category);
+  const [description, setDescription] = useState(product.description);
+  const [family, setFamily] = useState(product.family);
+  const [climate, setClimate] = useState(product.climate.join(", "));
   const [promotionId, setPromotionId] = useState(product.promotion_id ?? "");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [variants, setVariants] = useState(product.variants.map((variant) => ({
     ...variant,
+    sizeDraft: String(variant.size),
     priceDraft: String(variant.price),
     costDraft: variant.cost == null ? "" : String(variant.cost),
     stockDraft: String(variant.stock),
@@ -2294,6 +2416,7 @@ function EditProductModal({
     event.preventDefault();
     const parsedVariants = variants.map((variant) => ({
       ...variant,
+      size: Number(variant.sizeDraft),
       price: Number(variant.priceDraft),
       cost: variant.costDraft.trim() ? Number(variant.costDraft) : null,
       stock: Number(variant.stockDraft),
@@ -2303,19 +2426,35 @@ function EditProductModal({
       return;
     }
     if (parsedVariants.some((variant) =>
+      !Number.isInteger(variant.size) || variant.size <= 0 ||
       !Number.isFinite(variant.price) || variant.price < 0 ||
       (variant.cost !== null && (!Number.isFinite(variant.cost) || variant.cost < 0)) ||
       !Number.isInteger(variant.stock) || variant.stock < 0
     )) {
-      setError("Revisa los precios, costos y cantidades de stock.");
+      setError("Revisa los tamaños, precios, costos y cantidades de stock.");
+      return;
+    }
+    if (new Set(parsedVariants.map((variant) => variant.size)).size !== parsedVariants.length) {
+      setError("No puedes repetir el tamaño de una presentación.");
+      return;
+    }
+    if (!brand.trim() || !name.trim()) {
+      setError("La marca y el nombre del producto son obligatorios.");
       return;
     }
     const updatedProduct: Product = {
       ...product,
+      brand: brand.trim(),
+      name: name.trim(),
+      gender,
+      category,
+      description: description.trim(),
+      family: family.trim(),
+      climate: climate.split(",").map((item) => item.trim()).filter(Boolean),
       promotion_id: promotionId || null,
       image: images[0] ?? "",
       images,
-      variants: parsedVariants.map(({ priceDraft: _price, costDraft: _cost, stockDraft: _stock, ...variant }) => variant),
+      variants: parsedVariants.map(({ sizeDraft: _size, priceDraft: _price, costDraft: _cost, stockDraft: _stock, ...variant }) => variant),
     };
     setError(null);
     try {
@@ -2336,7 +2475,26 @@ function EditProductModal({
       >
         <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
         <p className="eyebrow">ADMINISTRACIÓN</p>
-        <h2 id="edit-product-title">Editar {product.brand} {product.name}</h2>
+        <h2 id="edit-product-title">Editar producto</h2>
+        <div className="form-grid edit-product-fields">
+          <label>Marca<input value={brand} disabled={saving} onChange={(event) => setBrand(event.target.value)} required /></label>
+          <label>Nombre<input value={name} disabled={saving} onChange={(event) => setName(event.target.value)} required /></label>
+          <label>Categoría
+            <select value={category} disabled={saving} onChange={(event) => setCategory(event.target.value as Product["category"])}>
+              <option value="Diseñador">Diseñador</option><option value="Árabes">Árabes</option><option value="Nicho">Nicho</option>
+            </select>
+          </label>
+          <label>Género
+            <select value={gender} disabled={saving} onChange={(event) => setGender(event.target.value as Product["gender"])}>
+              <option value="Hombres">Hombres</option><option value="Mujeres">Mujeres</option><option value="Unisex">Unisex</option>
+            </select>
+          </label>
+          <label>Familia olfativa<input value={family} disabled={saving} onChange={(event) => setFamily(event.target.value)} /></label>
+          <label>Clima<input value={climate} disabled={saving} onChange={(event) => setClimate(event.target.value)} placeholder="Separar valores con coma" /></label>
+          <label className="form-wide">Descripción
+            <textarea value={description} disabled={saving} onChange={(event) => setDescription(event.target.value)} rows={3} />
+          </label>
+        </div>
         <label className="auth-label">
           Promoción
           <select value={promotionId} disabled={saving} onChange={(event) => setPromotionId(event.target.value)}>
@@ -2403,10 +2561,12 @@ function EditProductModal({
           )}
         </section>
         <section className="edit-variant-list">
-          <h3>Precios, costos y stock</h3>
+          <h3>Presentaciones, precios, costos y stock</h3>
           {variants.map((variant, index) => (
             <div className="edit-variant-row" key={variant.id}>
-              <strong>{variant.size} ml</strong>
+              <label>Tamaño (ml)
+                <input type="number" min="1" step="1" value={variant.sizeDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sizeDraft: event.target.value } : item))} required />
+              </label>
               <label>Precio
                 <input type="number" min="0" step="1" value={variant.priceDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, priceDraft: event.target.value } : item))} required />
               </label>

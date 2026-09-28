@@ -817,6 +817,8 @@ declare
   new_stock integer;
   stock_delta integer;
   expected_variants integer;
+  variant_size integer;
+  variant_sizes integer[] := '{}';
 begin
   if not public.is_admin() then
     raise exception 'Administrator access required' using errcode = '42501';
@@ -865,12 +867,20 @@ begin
   for variant in select value from jsonb_array_elements(variants_data)
   loop
     variant_id := (variant->>'id')::uuid;
-    if nullif(variant->>'price', '') is null
+    if nullif(variant->>'size', '') is null
+       or (variant->>'size') !~ '^[0-9]+$'
+       or (variant->>'size')::integer <= 0
+       or nullif(variant->>'price', '') is null
        or (variant->>'price')::numeric < 0
        or (variant->>'cost') is not null and (variant->>'cost')::numeric < 0
        or (variant->>'stock') !~ '^[0-9]+$' then
       raise exception 'Presentation price, cost, or stock is invalid';
     end if;
+    variant_size := (variant->>'size')::integer;
+    if variant_size = any(variant_sizes) then
+      raise exception 'Product presentation sizes must be unique';
+    end if;
+    variant_sizes := array_append(variant_sizes, variant_size);
 
     select stock into previous_stock
     from public.product_variants
@@ -883,7 +893,8 @@ begin
     new_stock := (variant->>'stock')::integer;
     stock_delta := new_stock - previous_stock;
     update public.product_variants
-    set price = (variant->>'price')::numeric,
+    set size_ml = variant_size,
+        price = (variant->>'price')::numeric,
         cost = nullif(variant->>'cost', '')::numeric,
         stock = new_stock
     where id = variant_id;
