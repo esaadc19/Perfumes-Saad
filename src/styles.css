@@ -309,14 +309,32 @@ footer { border-top: 1px solid var(--border); padding: 28px 5%; display: flex; g
 .footer-brand { font: 600 18px "Playfair Display", serif; color: #111; }
 footer a { color: #111; }
 
-.admin-layout { height: 100vh; min-height: 100vh; display: grid; grid-template-columns: 230px minmax(0, 1fr); overflow: hidden; background: #f7f6f4; }
-.sidebar { position: sticky; top: 0; height: 100vh; background: #111; color: white; padding: 30px 20px; display: flex; flex-direction: column; }
-.admin-logo { border: 0; background: transparent; color: white; text-align: left; font: 600 25px "Playfair Display", serif; margin-bottom: 40px; }
+.admin-layout { --sidebar-width: 230px; height: 100vh; min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); overflow: hidden; background: #f7f6f4; transition: grid-template-columns .24s ease; }
+.admin-layout.sidebar-collapsed { --sidebar-width: 82px; }
+.sidebar { position: sticky; top: 0; height: 100vh; min-width: 0; overflow: visible; background: #111; color: white; padding: 24px 14px; display: flex; flex-direction: column; transition: padding .24s ease; z-index: 4; }
+.sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; margin-bottom: 30px; }
+.admin-logo { border: 0; background: transparent; color: white; text-align: left; font: 600 25px "Playfair Display", serif; white-space: nowrap; }
 .admin-logo span { color: #c48a7c; }
-.sidebar nav { display: grid; gap: 5px; }
-.sidebar nav button, .back-store { border: 0; background: transparent; color: #aaa; padding: 12px; text-align: left; display: flex; gap: 10px; align-items: center; }
-.sidebar nav button.selected { background: #242424; color: white; }
-.back-store { margin-top: auto; border-top: 1px solid #333; padding-top: 20px; }
+.sidebar-collapse { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #333; border-radius: 8px; background: #191919; color: #ddd; }
+.sidebar-collapse:hover { background: #282828; color: white; }
+.admin-dock { display: flex; flex-direction: column; align-items: stretch; gap: 7px; }
+.dock-item { position: relative; width: 100%; min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 4px 10px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: #aaa; text-align: left; cursor: pointer; }
+.dock-item-icon { flex: 0 0 auto; display: grid; place-items: center; color: inherit; }
+.dock-item-label { overflow: hidden; opacity: 1; white-space: nowrap; font-size: 13px; transition: opacity .16s ease; }
+.dock-item:hover, .dock-item:focus-visible { background: #202020; color: #fff; outline: none; }
+.dock-item.selected { background: #282828; color: #fff; border-color: #383838; }
+.dock-outer.is-collapsed .dock-item { justify-content: center; padding: 4px; }
+.dock-outer.is-collapsed .dock-item-label { display: none; }
+.dock-outer.is-collapsed .dock-item::after { content: attr(data-label); position: absolute; left: calc(100% + 10px); top: 50%; z-index: 10; padding: 7px 10px; border: 1px solid #3a3a3a; border-radius: 7px; background: #171717; color: white; font-size: 12px; white-space: nowrap; pointer-events: none; opacity: 0; transform: translate(-4px, -50%); transition: opacity .15s ease, transform .15s ease; }
+.dock-outer.is-collapsed .dock-item:hover::after, .dock-outer.is-collapsed .dock-item:focus-visible::after { opacity: 1; transform: translate(0, -50%); }
+.back-store { min-height: 46px; margin-top: auto; border: 0; border-top: 1px solid #333; padding: 18px 10px 0; background: transparent; color: #aaa; text-align: left; display: flex; gap: 10px; align-items: center; }
+.back-store:hover { color: white; }
+.sidebar-collapsed .sidebar { padding-right: 12px; padding-left: 12px; }
+.sidebar-collapsed .sidebar-heading { justify-content: center; }
+.sidebar-collapsed .admin-logo { display: none; }
+.sidebar-collapsed .sidebar-collapse { width: 40px; height: 40px; }
+.sidebar-collapsed .back-store { justify-content: center; padding-right: 0; padding-left: 0; }
+.sidebar-collapsed .back-store span { display: none; }
 .admin-section-tabs { display: none; }
 .admin-main { height: 100vh; overflow-y: auto; overscroll-behavior: contain; padding: 42px; max-width: 1500px; width: 100%; margin: auto; }
 .admin-top { display: flex; justify-content: space-between; align-items: end; margin-bottom: 28px; }

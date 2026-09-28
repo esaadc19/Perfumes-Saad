@@ -43,6 +43,7 @@ import AuthDialog from "./components/AuthDialog";
 import AccountDialog from "./components/AccountDialog";
 import ReceiptDialog from "./components/ReceiptDialog";
 import PeekRating from "./components/PeekRating";
+import Dock from "./components/Dock";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -50,6 +51,8 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
   Download,
   LayoutDashboard,
   Menu,
@@ -1080,6 +1083,7 @@ function Admin({
   onSignOut: () => void;
 }) {
   const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "profiles">("overview");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
@@ -1458,21 +1462,32 @@ function Admin({
   const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
 
   return (
-    <div className="admin-layout">
+    <div className={`admin-layout${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
-        <button className="admin-logo" onClick={onBack}>SAAD<span>.</span></button>
-        <nav>
-          {sections.map((item) => (
-            <button
-              key={item.id}
-              className={section === item.id ? "selected" : ""}
-              onClick={() => { setSection(item.id); setSearch(""); }}
-            >
-              {item.icon}{item.title}
-            </button>
-          ))}
-        </nav>
-        <button className="back-store" onClick={onBack}><ArrowLeft size={16}/> Ver tienda</button>
+        <div className="sidebar-heading">
+          <button className="admin-logo" onClick={onBack}>SAAD<span>.</span></button>
+          <button
+            type="button"
+            className="sidebar-collapse"
+            aria-label={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
+            onClick={() => setSidebarCollapsed((current) => !current)}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        </div>
+        <Dock
+          className="admin-dock"
+          collapsed={sidebarCollapsed}
+          items={sections.map((item) => ({
+            icon: item.icon,
+            label: item.title,
+            selected: section === item.id,
+            onClick: () => { setSection(item.id); setSearch(""); },
+          }))}
+        />
+        <button className="back-store" onClick={onBack}><ArrowLeft size={16}/><span>Ver tienda</span></button>
       </aside>
 
       <main className="admin-main">
