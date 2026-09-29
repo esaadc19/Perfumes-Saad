@@ -1466,3 +1466,99 @@ drop policy if exists "Admins can delete product images" on storage.objects;
 create policy "Admins can delete product images"
   on storage.objects for delete to authenticated
   using (bucket_id = 'product-images' and (select public.is_admin()));
+
+
+-- Configuración general de la tienda / cuenta administrativa.
+create table if not exists public.store_settings (
+  id integer primary key default 1 check (id = 1),
+  business_name text not null default 'Perfumes SAAD',
+  logo_url text,
+  legal_representative text,
+  identification_type text,
+  identification_number text,
+  business_email text,
+  business_phone text,
+  whatsapp_number text,
+  website_url text,
+  address text,
+  city text,
+  department text,
+  country text not null default 'Colombia',
+  tax_regime text,
+  tax_id text,
+  invoice_prefix text default 'SAAD',
+  invoice_resolution text,
+  invoice_resolution_date date,
+  invoice_notes text,
+  currency text not null default 'COP',
+  instagram_url text,
+  facebook_url text,
+  tiktok_url text,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.store_settings (id)
+values (1)
+on conflict (id) do nothing;
+
+create or replace function public.admin_get_store_settings()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare result jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  select to_jsonb(s) into result from public.store_settings s where s.id = 1;
+  return coalesce(result, '{}'::jsonb);
+end;
+$$;
+
+create or replace function public.admin_update_store_settings(settings_data jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare result jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  update public.store_settings
+  set
+    business_name = coalesce(nullif(trim(settings_data->>'business_name'), ''), 'Perfumes SAAD'),
+    logo_url = nullif(trim(settings_data->>'logo_url'), ''),
+    legal_representative = nullif(trim(settings_data->>'legal_representative'), ''),
+    identification_type = nullif(trim(settings_data->>'identification_type'), ''),
+    identification_number = nullif(trim(settings_data->>'identification_number'), ''),
+    business_email = nullif(trim(settings_data->>'business_email'), ''),
+    business_phone = nullif(trim(settings_data->>'business_phone'), ''),
+    whatsapp_number = nullif(trim(settings_data->>'whatsapp_number'), ''),
+    website_url = nullif(trim(settings_data->>'website_url'), ''),
+    address = nullif(trim(settings_data->>'address'), ''),
+    city = nullif(trim(settings_data->>'city'), ''),
+    department = nullif(trim(settings_data->>'department'), ''),
+    country = coalesce(nullif(trim(settings_data->>'country'), ''), 'Colombia'),
+    tax_regime = nullif(trim(settings_data->>'tax_regime'), ''),
+    tax_id = nullif(trim(settings_data->>'tax_id'), ''),
+    invoice_prefix = nullif(trim(settings_data->>'invoice_prefix'), ''),
+    invoice_resolution = nullif(trim(settings_data->>'invoice_resolution'), ''),
+    invoice_resolution_date = nullif(trim(settings_data->>'invoice_resolution_date'), '')::date,
+    invoice_notes = nullif(trim(settings_data->>'invoice_notes'), ''),
+    currency = coalesce(nullif(trim(settings_data->>'currency'), ''), 'COP'),
+    instagram_url = nullif(trim(settings_data->>'instagram_url'), ''),
+    facebook_url = nullif(trim(settings_data->>'facebook_url'), ''),
+    tiktok_url = nullif(trim(settings_data->>'tiktok_url'), ''),
+    updated_at = now()
+  where id = 1;
+
+  select to_jsonb(s) into result from public.store_settings s where s.id = 1;
+  return result;
+end;
+$$;
