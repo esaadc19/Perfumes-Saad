@@ -1701,6 +1701,70 @@ function Admin({
                 </div>
               ) : <p className="insight">Aún no hay pedidos registrados para generar métricas de productos.</p>}
             </section>
+            <section className="inventory-dashboard-grid">
+              <div className="admin-card inventory-summary-card">
+                <div className="card-title">
+                  <div><h2>Inventario</h2><span>Estado actual de tus presentaciones activas.</span></div>
+                  <Package size={18} />
+                </div>
+                <div className="inventory-summary-stats">
+                  <div><strong>{totalStock}</strong><span>unidades disponibles</span></div>
+                  <div><strong>{lowStock}</strong><span>presentaciones por reponer</span></div>
+                  <div><strong>{soldOut}</strong><span>productos agotados</span></div>
+                </div>
+                <div className="inventory-alert-meter">
+                  <div className="inventory-meter-head"><span>Nivel de atención</span><strong>{lowStock + soldOut === 0 ? "Estable" : soldOut > 0 ? "Prioritario" : "Revisar"}</strong></div>
+                  <div className="inventory-meter-track"><span style={{ width: `${Math.min(100, ((lowStock + soldOut) / Math.max(stockTrackedProducts.length, 1)) * 100)}%` }} /></div>
+                </div>
+              </div>
+              <div className="admin-card inventory-reorder-card">
+                <div className="card-title">
+                  <div><h2>Para reponer</h2><span>Presentaciones con stock igual o inferior al mínimo.</span></div>
+                  <AlertTriangle size={18} />
+                </div>
+                <div className="inventory-reorder-list">
+                  {stockTrackedProducts.flatMap((product) =>
+                    product.variants
+                      .filter((variant) => variant.active !== false && variant.stock > 0 && variant.stock <= (variant.minStock ?? 2))
+                      .map((variant) => ({ product, variant }))
+                  ).slice(0, 5).map(({ product, variant }) => (
+                    <button key={variant.id} className="inventory-reorder-item" onClick={() => { setSection("products"); setProductSearch(product.name); }}>
+                      <div>
+                        <strong>{product.name}</strong>
+                        <span>{product.brand} · {variant.size} ml</span>
+                      </div>
+                      <b>{variant.stock}</b>
+                    </button>
+                  ))}
+                  {lowStock === 0 && <p className="insight">No hay presentaciones por debajo del mínimo configurado.</p>}
+                </div>
+              </div>
+            </section>
+            <section className="inventory-stock-list admin-card">
+              <div className="card-title">
+                <div><h2>Stock por presentación</h2><span>Ordenado para detectar rápidamente los productos que requieren atención.</span></div>
+              </div>
+              <div className="inventory-stock-grid">
+                {stockTrackedProducts.flatMap((product) =>
+                  product.variants.filter((variant) => variant.active !== false).map((variant) => ({ product, variant }))
+                ).sort((a, b) => a.variant.stock - b.variant.stock).slice(0, 8).map(({ product, variant }) => {
+                  const minimum = variant.minStock ?? 2;
+                  const state = variant.stock <= 0 ? "Agotado" : variant.stock <= minimum ? "Reponer" : "Disponible";
+                  return (
+                    <div className={`inventory-stock-item ${state === "Agotado" ? "is-empty" : state === "Reponer" ? "is-low" : ""}`} key={variant.id}>
+                      <div className="inventory-stock-copy">
+                        <strong>{product.name}</strong>
+                        <span>{product.brand} · {variant.size} ml</span>
+                      </div>
+                      <div className="inventory-stock-value">
+                        <b>{variant.stock}</b>
+                        <small>{state}</small>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
             <section className="insight-grid">
               <div className="admin-card">
                 <div className="card-title"><div><h2>Consejo</h2><span>Lectura inicial del inventario</span></div><Sparkles size={18}/></div>
