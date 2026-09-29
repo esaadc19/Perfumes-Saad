@@ -1569,19 +1569,23 @@ insert into storage.buckets (id, name, public)
 values ('store-assets', 'store-assets', true)
 on conflict (id) do update set public = true;
 
-create policy if not exists "Admins can upload store assets"
+drop policy if exists "Admins can upload store assets" on storage.objects;
+create policy "Admins can upload store assets"
 on storage.objects for insert to authenticated
 with check (bucket_id = 'store-assets' and public.is_admin());
 
-create policy if not exists "Admins can update store assets"
+drop policy if exists "Admins can update store assets" on storage.objects;
+create policy "Admins can update store assets"
 on storage.objects for update to authenticated
 using (bucket_id = 'store-assets' and public.is_admin())
 with check (bucket_id = 'store-assets' and public.is_admin());
 
-create policy if not exists "Admins can delete store assets"
+drop policy if exists "Admins can delete store assets" on storage.objects;
+create policy "Admins can delete store assets"
 on storage.objects for delete to authenticated
 using (bucket_id = 'store-assets' and public.is_admin());
 
-create policy if not exists "Anyone can read store assets"
+drop policy if exists "Anyone can read store assets" on storage.objects;
+create policy "Anyone can read store assets"
 on storage.objects for select to public
 using (bucket_id = 'store-assets');
