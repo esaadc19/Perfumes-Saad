@@ -324,7 +324,7 @@ export async function updateAdminProduct(input: {
         promotion_id: input.product.promotion_id ?? null,
       },
       variants_data: input.product.variants.map((variant) => ({
-        id: variant.id,
+        id: variant.id.startsWith("new-") ? null : variant.id,
         size: variant.size,
         price: variant.price,
         cost: variant.cost,

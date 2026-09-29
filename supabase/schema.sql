@@ -842,10 +842,15 @@ begin
   select count(*) into expected_variants
   from public.product_variants
   where product_id = target_product_id;
-  if jsonb_array_length(variants_data) <> expected_variants
+  if (
+       select count(*)
+       from jsonb_array_elements(variants_data) as item(value)
+       where nullif(item.value->>'id', '') is not null
+     ) <> expected_variants
      or (
-       select count(distinct value->>'id')
-       from jsonb_array_elements(variants_data)
+       select count(distinct item.value->>'id')
+       from jsonb_array_elements(variants_data) as item(value)
+       where nullif(item.value->>'id', '') is not null
      ) <> expected_variants then
     raise exception 'All product presentations must be included exactly once';
   end if;
@@ -866,7 +871,6 @@ begin
 
   for variant in select value from jsonb_array_elements(variants_data)
   loop
-    variant_id := (variant->>'id')::uuid;
     if nullif(variant->>'size', '') is null
        or (variant->>'size') !~ '^[0-9]+$'
        or (variant->>'size')::integer <= 0
@@ -882,31 +886,48 @@ begin
     end if;
     variant_sizes := array_append(variant_sizes, variant_size);
 
-    select stock into previous_stock
-    from public.product_variants
-    where id = variant_id and product_id = target_product_id
-    for update;
-    if not found then
-      raise exception 'Product presentation not found';
-    end if;
-
     new_stock := (variant->>'stock')::integer;
-    stock_delta := new_stock - previous_stock;
-    update public.product_variants
-    set size_ml = variant_size,
-        price = (variant->>'price')::numeric,
-        cost = nullif(variant->>'cost', '')::numeric,
-        stock = new_stock
-    where id = variant_id;
-
-    if stock_delta <> 0 then
-      insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+    if nullif(variant->>'id', '') is null then
+      insert into public.product_variants (product_id, size_ml, price, cost, stock)
       values (
-        variant_id,
-        case when stock_delta > 0 then 'adjustment_in' else 'adjustment_out' end,
-        stock_delta,
-        'Product details edited'
-      );
+        target_product_id,
+        variant_size,
+        (variant->>'price')::numeric,
+        nullif(variant->>'cost', '')::numeric,
+        new_stock
+      )
+      returning id into variant_id;
+      if new_stock > 0 then
+        insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+        values (variant_id, 'adjustment_in', new_stock, 'New product presentation added');
+      end if;
+    else
+      variant_id := (variant->>'id')::uuid;
+      select stock into previous_stock
+      from public.product_variants
+      where id = variant_id and product_id = target_product_id
+      for update;
+      if not found then
+        raise exception 'Product presentation not found';
+      end if;
+
+      stock_delta := new_stock - previous_stock;
+      update public.product_variants
+      set size_ml = variant_size,
+          price = (variant->>'price')::numeric,
+          cost = nullif(variant->>'cost', '')::numeric,
+          stock = new_stock
+      where id = variant_id;
+
+      if stock_delta <> 0 then
+        insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+        values (
+          variant_id,
+          case when stock_delta > 0 then 'adjustment_in' else 'adjustment_out' end,
+          stock_delta,
+          'Product details edited'
+        );
+      end if;
     end if;
   end loop;
 end;

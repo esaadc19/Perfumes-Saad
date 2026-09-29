@@ -2576,14 +2576,38 @@ function EditProductModal({
           )}
         </section>
         <section className="edit-variant-list">
-          <h3>Presentaciones, precios, costos y stock</h3>
+          <div className="edit-variant-heading">
+            <h3>Presentaciones, precios, costos y stock</h3>
+            <button
+              className="secondary"
+              type="button"
+              disabled={saving}
+              onClick={() => setVariants((current) => [
+                ...current,
+                {
+                  id: `new-${crypto.randomUUID()}`,
+                  size: 200,
+                  price: 0,
+                  cost: null,
+                  stock: 0,
+                  active: true,
+                  sizeDraft: "200",
+                  priceDraft: "",
+                  costDraft: "",
+                  stockDraft: "0",
+                },
+              ])}
+            >
+              <Plus size={15} /> Agregar presentación
+            </button>
+          </div>
           {variants.map((variant, index) => (
             <div className="edit-variant-row" key={variant.id}>
               <label>Tamaño (ml)
                 <input type="number" min="1" step="1" value={variant.sizeDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sizeDraft: event.target.value } : item))} required />
               </label>
               <label>Precio
-                <input type="number" min="0" step="1" value={variant.priceDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, priceDraft: event.target.value } : item))} required />
+                <input type="number" min="0" step="1" value={variant.priceDraft} placeholder="Precio de venta" disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, priceDraft: event.target.value } : item))} required />
               </label>
               <label>Costo
                 <input type="number" min="0" step="1" value={variant.costDraft} disabled={saving} placeholder="Sin costo" onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, costDraft: event.target.value } : item))} />
