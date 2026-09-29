@@ -1487,7 +1487,7 @@ function Admin({
             onClick: () => { setSection(item.id); setSearch(""); },
           }))}
         />
-        <button className="back-store" onClick={onBack}><ArrowLeft size={16}/><span>Ver tienda</span></button>
+        <button className="back-store" onClick={onBack}><ArrowLeft size={20}/><span>Ver tienda</span></button>
       </aside>
 
       <main className="admin-main">
