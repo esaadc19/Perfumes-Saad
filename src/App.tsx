@@ -173,6 +173,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
+  const [publicSettings, setPublicSettings] = useState<StoreSettings | null>(null);
   useEffect(() => {
     let active = true;
 
@@ -204,6 +205,20 @@ function App() {
       active = false;
     };
   }, []);
+  useEffect(() => {
+    let active = true;
+    void getStoreSettings()
+      .then((settings) => {
+        if (active) setPublicSettings(settings);
+      })
+      .catch((settingsError) => {
+        console.warn("No se pudieron cargar los datos públicos de la tienda:", settingsError);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState("");
@@ -593,7 +608,7 @@ function App() {
           <main>
             <section className="hero">
               <div>
-                <p className="eyebrow">PERFUMES SAAD</p>
+                <p className="eyebrow">{publicSettings?.business_name?.toUpperCase() || "PERFUMES SAAD"}</p>
                 <h1>Encuentra una fragancia que vaya contigo.</h1>
                 <p>
                   Catálogo de perfumería con recomendaciones, diferentes
@@ -601,7 +616,7 @@ function App() {
                 </p>
                 <a
                   className="primary hero-whatsapp"
-                  href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Hola, quiero hacer una consulta sobre sus perfumes.")}`}
+                  href={`https://wa.me/${(publicSettings?.whatsapp_number || whatsappNumber).replace(/\D/g, "")}?text=${encodeURIComponent(`Hola, quiero hacer una consulta sobre ${publicSettings?.business_name || "sus perfumes"}.`)}`}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -912,8 +927,13 @@ function App() {
           )}
 
           <footer>
-            <div className="footer-brand">Perfumes SAAD</div>
-            <span>Perfumería · Barranquilla · Colombia</span>
+            <div className="footer-brand">{publicSettings?.business_name || "Perfumes SAAD"}</div>
+            <span>{[publicSettings?.city || "Barranquilla", publicSettings?.country || "Colombia"].join(" · ")}</span>
+            <div className="footer-socials">
+              {publicSettings?.instagram_url && <a href={publicSettings.instagram_url} target="_blank" rel="noreferrer">Instagram</a>}
+              {publicSettings?.facebook_url && <a href={publicSettings.facebook_url} target="_blank" rel="noreferrer">Facebook</a>}
+              {publicSettings?.tiktok_url && <a href={publicSettings.tiktok_url} target="_blank" rel="noreferrer">TikTok</a>}
+            </div>
             {userRole === "admin" && (
               <a href="#" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
                 Administración
@@ -1030,6 +1050,7 @@ function App() {
         <ReceiptDialog
           cart={cart}
           user={user}
+          storeSettings={publicSettings}
           onClose={() => setReceiptOpen(false)}
           onSignIn={() => {
             setReceiptOpen(false);
