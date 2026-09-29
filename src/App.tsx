@@ -1460,6 +1460,14 @@ function Admin({
   const normalizePaymentStatus = (status: string): "pending" | "paid" | "refunded" =>
     status === "paid" || status === "refunded" ? status : "pending";
   const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
+  const topProductsMaxUnits = Math.max(...(metrics?.top_products.map((product) => product.units) ?? [0]), 1);
+  const orderStatusSummary = [
+    { label: "Pagados", value: orders.filter((order) => order.payment_status === "paid").length },
+    { label: "Pendientes", value: orders.filter((order) => order.payment_status === "pending" && order.status !== "cancelled").length },
+    { label: "Devueltos", value: orders.filter((order) => order.payment_status === "refunded").length },
+    { label: "Cancelados", value: orders.filter((order) => order.status === "cancelled").length },
+  ];
+  const orderStatusTotal = Math.max(orderStatusSummary.reduce((sum, item) => sum + item.value, 0), 1);
 
   return (
     <div className={`admin-layout${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
@@ -1631,6 +1639,50 @@ function Admin({
                   <div className="performance-card-head"><span>Utilidad bruta</span><strong>{metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}</strong></div>
                   <div className="performance-bar"><span style={{ width: metrics.missing_cost_items > 0 || Number(metrics.sales_revenue) <= 0 ? "0%" : `${Math.min(100, Math.max(0, Number(metrics.sales_profit) / Number(metrics.sales_revenue) * 100))}%` }} /></div>
                   <small>{metrics.missing_cost_items > 0 ? "Completa los costos pendientes para calcularla" : "Margen bruto sobre las ventas registradas"}</small>
+                </div>
+              </div>
+            </section>
+            <section className="dashboard-charts">
+              <div className="admin-card chart-card">
+                <div className="card-title">
+                  <div><h2>Productos más vendidos</h2><span>Comparación por unidades vendidas.</span></div>
+                  <BarChart3 size={18} />
+                </div>
+                {metrics.top_products.length ? (
+                  <div className="sales-bars">
+                    {metrics.top_products.slice(0, 6).map((product) => (
+                      <div className="sales-bar-row" key={`${product.name}-${product.size_ml}`}>
+                        <div className="sales-bar-label">
+                          <span>{product.name}</span>
+                          <strong>{product.units}</strong>
+                        </div>
+                        <div className="sales-bar-track">
+                          <span style={{ width: `${Math.max(6, (product.units / topProductsMaxUnits) * 100)}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="insight">Aún no hay ventas suficientes para construir este gráfico.</p>
+                )}
+              </div>
+              <div className="admin-card chart-card">
+                <div className="card-title">
+                  <div><h2>Estado de pedidos</h2><span>Distribución de pedidos registrados.</span></div>
+                  <ReceiptText size={18} />
+                </div>
+                <div className="order-status-chart">
+                  <div className="status-donut" style={{ background: `conic-gradient(#111 0 ${orderStatusSummary[0].value / orderStatusTotal * 100}%, #a86c5d ${orderStatusSummary[0].value / orderStatusTotal * 100}% ${(orderStatusSummary[0].value + orderStatusSummary[1].value) / orderStatusTotal * 100}%, #c8c0b8 ${(orderStatusSummary[0].value + orderStatusSummary[1].value) / orderStatusTotal * 100}% ${(orderStatusSummary[0].value + orderStatusSummary[1].value + orderStatusSummary[2].value) / orderStatusTotal * 100}%, #e9e4df ${(orderStatusSummary[0].value + orderStatusSummary[1].value + orderStatusSummary[2].value) / orderStatusTotal * 100}% 100%)` }}>
+                    <div><strong>{orders.length}</strong><span>pedidos</span></div>
+                  </div>
+                  <div className="status-legend">
+                    {orderStatusSummary.map((item) => (
+                      <div key={item.label}>
+                        <span>{item.label}</span>
+                        <strong>{item.value}</strong>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </section>
