@@ -1562,3 +1562,26 @@ begin
   return result;
 end;
 $$;
+
+
+-- Storage público para logos y recursos de identidad de la tienda.
+insert into storage.buckets (id, name, public)
+values ('store-assets', 'store-assets', true)
+on conflict (id) do update set public = true;
+
+create policy if not exists "Admins can upload store assets"
+on storage.objects for insert to authenticated
+with check (bucket_id = 'store-assets' and public.is_admin());
+
+create policy if not exists "Admins can update store assets"
+on storage.objects for update to authenticated
+using (bucket_id = 'store-assets' and public.is_admin())
+with check (bucket_id = 'store-assets' and public.is_admin());
+
+create policy if not exists "Admins can delete store assets"
+on storage.objects for delete to authenticated
+using (bucket_id = 'store-assets' and public.is_admin());
+
+create policy if not exists "Anyone can read store assets"
+on storage.objects for select to public
+using (bucket_id = 'store-assets');
