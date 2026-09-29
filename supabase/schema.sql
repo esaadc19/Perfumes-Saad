@@ -816,9 +816,9 @@ declare
   previous_stock integer;
   new_stock integer;
   stock_delta integer;
-  expected_variants integer;
   variant_size integer;
   variant_sizes integer[] := '{}';
+  retired_variant_id uuid;
 begin
   if not public.is_admin() then
     raise exception 'Administrator access required' using errcode = '42501';
@@ -839,20 +839,28 @@ begin
     raise exception 'Product not found';
   end if;
 
-  select count(*) into expected_variants
-  from public.product_variants
-  where product_id = target_product_id;
   if (
        select count(*)
        from jsonb_array_elements(variants_data) as item(value)
        where nullif(item.value->>'id', '') is not null
-     ) <> expected_variants
-     or (
+     ) <> (
        select count(distinct item.value->>'id')
        from jsonb_array_elements(variants_data) as item(value)
        where nullif(item.value->>'id', '') is not null
-     ) <> expected_variants then
-    raise exception 'All product presentations must be included exactly once';
+     ) then
+    raise exception 'Product presentations cannot be repeated';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(variants_data) as item(value)
+    left join public.product_variants pv
+      on pv.id = (item.value->>'id')::uuid
+      and pv.product_id = target_product_id
+    where nullif(item.value->>'id', '') is not null
+      and pv.id is null
+  ) then
+    raise exception 'Product presentation not found';
   end if;
 
   update public.products
@@ -888,18 +896,45 @@ begin
 
     new_stock := (variant->>'stock')::integer;
     if nullif(variant->>'id', '') is null then
-      insert into public.product_variants (product_id, size_ml, price, cost, stock)
-      values (
-        target_product_id,
-        variant_size,
-        (variant->>'price')::numeric,
-        nullif(variant->>'cost', '')::numeric,
-        new_stock
-      )
-      returning id into variant_id;
-      if new_stock > 0 then
-        insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
-        values (variant_id, 'adjustment_in', new_stock, 'New product presentation added');
+      select id, stock into variant_id, previous_stock
+      from public.product_variants
+      where product_id = target_product_id
+        and size_ml = variant_size
+        and active = false
+      for update;
+
+      if found then
+        stock_delta := new_stock - previous_stock;
+        update public.product_variants
+        set price = (variant->>'price')::numeric,
+            cost = nullif(variant->>'cost', '')::numeric,
+            stock = new_stock,
+            active = true
+        where id = variant_id;
+
+        if stock_delta <> 0 then
+          insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+          values (
+            variant_id,
+            case when stock_delta > 0 then 'adjustment_in' else 'adjustment_out' end,
+            stock_delta,
+            'Product presentation restored'
+          );
+        end if;
+      else
+        insert into public.product_variants (product_id, size_ml, price, cost, stock)
+        values (
+          target_product_id,
+          variant_size,
+          (variant->>'price')::numeric,
+          nullif(variant->>'cost', '')::numeric,
+          new_stock
+        )
+        returning id into variant_id;
+        if new_stock > 0 then
+          insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+          values (variant_id, 'adjustment_in', new_stock, 'New product presentation added');
+        end if;
       end if;
     else
       variant_id := (variant->>'id')::uuid;
@@ -928,6 +963,39 @@ begin
           'Product details edited'
         );
       end if;
+    end if;
+  end loop;
+
+  for retired_variant_id in
+    select pv.id
+    from public.product_variants pv
+    where pv.product_id = target_product_id
+      and pv.active = true
+      and not exists (
+        select 1
+        from jsonb_array_elements(variants_data) as item(value)
+        where nullif(item.value->>'id', '') is not null
+          and (item.value->>'id')::uuid = pv.id
+      )
+    for update
+  loop
+    select stock into previous_stock
+    from public.product_variants
+    where id = retired_variant_id;
+
+    if exists (select 1 from public.order_items oi where oi.variant_id = retired_variant_id)
+       or exists (select 1 from public.inventory_movements im where im.variant_id = retired_variant_id)
+       or previous_stock > 0 then
+      update public.product_variants
+      set active = false, stock = 0
+      where id = retired_variant_id;
+
+      if previous_stock > 0 then
+        insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+        values (retired_variant_id, 'adjustment_out', -previous_stock, 'Product presentation removed');
+      end if;
+    else
+      delete from public.product_variants where id = retired_variant_id;
     end if;
   end loop;
 end;

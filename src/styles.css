@@ -390,9 +390,11 @@ footer a { color: #111; }
 .edit-variant-list h3 { margin: 0; font-size: 15px; }
 .edit-variant-heading .secondary { min-height: 38px; padding: 0 10px; font-size: 11px; }
 .edit-variant-row { display: grid; grid-template-columns: 70px repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; padding: 12px 0; border-top: 1px solid var(--border); }
+.edit-variant-row { grid-template-columns: repeat(4, minmax(0, 1fr)) 34px; }
+.edit-variant-remove { width: 34px; height: 42px; display: grid; place-items: center; color: #8c3c36; }
+.edit-variant-remove:disabled { cursor: not-allowed; opacity: .4; }
 .edit-product-fields { margin-top: 14px; }
 .edit-product-fields textarea { width: 100%; min-height: 84px; padding: 10px; border: 1px solid var(--border); background: white; resize: vertical; }
-.edit-variant-row { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .edit-variant-row > strong { padding-bottom: 13px; }
 .edit-variant-row label { display: grid; gap: 6px; font-size: 11px; font-weight: 600; }
 .edit-variant-row input { width: 100%; min-width: 0; height: 42px; padding: 0 10px; border: 1px solid var(--border); background: white; }
@@ -619,7 +621,7 @@ footer a { color: #111; }
   .order-actions::before { display: block; width: 100%; content: "Acciones"; margin-bottom: 0; color: var(--muted); font-size: 10px; font-weight: 600; }
   .order-actions button { flex: 1; }
   .order-editor-line { grid-template-columns: minmax(0, 1fr) 82px 32px; gap: 6px; }
-  .edit-variant-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .edit-variant-row { grid-template-columns: repeat(2, minmax(0, 1fr)) 34px; gap: 9px; }
   .edit-variant-row input { padding: 0 6px; font-size: 12px; }
   .edit-variant-heading { align-items: flex-start; flex-direction: column; }
   .edit-product-actions button { flex: 1; }

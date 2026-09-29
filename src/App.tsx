@@ -2418,13 +2418,15 @@ function EditProductModal({
   const [climate, setClimate] = useState(product.climate.join(", "));
   const [promotionId, setPromotionId] = useState(product.promotion_id ?? "");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
-  const [variants, setVariants] = useState(product.variants.map((variant) => ({
+  const [variants, setVariants] = useState(product.variants
+    .filter((variant) => variant.active !== false)
+    .map((variant) => ({
     ...variant,
     sizeDraft: String(variant.size),
     priceDraft: String(variant.price),
     costDraft: variant.cost == null ? "" : String(variant.cost),
     stockDraft: String(variant.stock),
-  })));
+    })));
   const [error, setError] = useState<string | null>(null);
 
   const save = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -2451,6 +2453,10 @@ function EditProductModal({
     }
     if (new Set(parsedVariants.map((variant) => variant.size)).size !== parsedVariants.length) {
       setError("No puedes repetir el tamaño de una presentación.");
+      return;
+    }
+    if (parsedVariants.length === 0) {
+      setError("El producto debe tener al menos una presentación.");
       return;
     }
     if (!brand.trim() || !name.trim()) {
@@ -2615,6 +2621,23 @@ function EditProductModal({
               <label>Stock
                 <input type="number" min="0" step="1" value={variant.stockDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, stockDraft: event.target.value } : item))} required />
               </label>
+              <button
+                type="button"
+                className="icon-button edit-variant-remove"
+                aria-label={`Eliminar presentación de ${variant.sizeDraft} ml`}
+                title={`Eliminar presentación de ${variant.sizeDraft} ml`}
+                disabled={saving || variants.length <= 1}
+                onClick={() => {
+                  if (variants.length <= 1) {
+                    setError("El producto debe conservar al menos una presentación.");
+                    return;
+                  }
+                  setVariants((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                  setError(null);
+                }}
+              >
+                <Trash2 size={17} />
+              </button>
             </div>
           ))}
         </section>

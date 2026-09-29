@@ -323,13 +323,15 @@ export async function updateAdminProduct(input: {
         image_urls: imageUrls,
         promotion_id: input.product.promotion_id ?? null,
       },
-      variants_data: input.product.variants.map((variant) => ({
+      variants_data: input.product.variants
+        .filter((variant) => variant.active !== false)
+        .map((variant) => ({
         id: variant.id.startsWith("new-") ? null : variant.id,
         size: variant.size,
         price: variant.price,
         cost: variant.cost,
         stock: variant.stock,
-      })),
+        })),
     });
     if (error) throw error;
     const removedImages = existingImages.filter((imageUrl) => !imageUrls.includes(imageUrl));
