@@ -39,7 +39,7 @@ import {
   type AdminOrder,
   type AdminProfile,
 } from "./services/admin";
-import { getStoreSettings, updateStoreSettings, type StoreSettings, type StoreSettingsInput } from "./services/settings";
+import { getStoreSettings, updateStoreSettings, uploadStoreLogo, type StoreSettings, type StoreSettingsInput } from "./services/settings";
 import AuthDialog from "./components/AuthDialog";
 import AccountDialog from "./components/AccountDialog";
 import ReceiptDialog from "./components/ReceiptDialog";
@@ -1222,9 +1222,18 @@ function Admin({
     setSettingsFeedback(null);
     setSectionError(null);
     const form = new FormData(event.currentTarget);
+    const logoFile = (document.getElementById("store-logo-file") as HTMLInputElement | null)?.files?.[0] ?? null;
+    let uploadedLogoUrl: string | null = null;
+    if (logoFile) {
+      const extension = logoFile.name.split(".").pop()?.toLowerCase() || "png";
+      const safeExtension = ["png", "jpg", "jpeg", "webp", "svg"].includes(extension) ? extension : "png";
+      const path = `store/logo-${Date.now()}.${safeExtension}`;
+      const upload = await uploadStoreLogo(logoFile, path);
+      uploadedLogoUrl = upload;
+    }
     const input: StoreSettingsInput = {
       business_name: String(form.get("business_name") ?? "").trim(),
-      logo_url: String(form.get("logo_url") ?? "").trim() || null,
+      logo_url: uploadedLogoUrl || String(form.get("logo_url") ?? "").trim() || null,
       legal_representative: String(form.get("legal_representative") ?? "").trim() || null,
       identification_type: String(form.get("identification_type") ?? "").trim() || null,
       identification_number: String(form.get("identification_number") ?? "").trim() || null,
@@ -1671,6 +1680,7 @@ function Admin({
                 <div className="settings-fields">
                   <label>Nombre comercial<input name="business_name" defaultValue={storeSettings?.business_name ?? "Perfumes SAAD"} required /></label>
                   <label>Logo — URL<input name="logo_url" type="url" defaultValue={storeSettings?.logo_url ?? ""} placeholder="https://..." /></label>
+                  <label>Subir logo<input id="store-logo-file" type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" /><small className="settings-help">PNG, JPG, WEBP o SVG. Al guardar, se subirá a Supabase Storage.</small></label>
                   <label>Correo empresarial<input name="business_email" type="email" defaultValue={storeSettings?.business_email ?? ""} /></label>
                   <label>Teléfono<input name="business_phone" defaultValue={storeSettings?.business_phone ?? ""} /></label>
                   <label>WhatsApp de ventas<input name="whatsapp_number" defaultValue={storeSettings?.whatsapp_number ?? ""} placeholder="573001234567" /></label>
