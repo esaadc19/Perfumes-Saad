@@ -471,6 +471,7 @@ footer a { color: #111; }
 .sales-bar-track span { display: block; height: 100%; min-width: 6%; background: var(--black); transition: width .35s ease; }
 .order-status-chart { display: grid; grid-template-columns: 150px 1fr; gap: 24px; align-items: center; min-height: 190px; }
 .status-donut {
+  position: relative;
   width: 150px;
   height: 150px;
   display: grid;
@@ -581,6 +582,7 @@ footer a { color: #111; }
   .receipt-paper { max-width: 380px; margin: 0 auto; }
   .receipt-heading { margin-bottom: 18px; }
   .metrics { grid-template-columns: 1fr 1fr; }
+  .dashboard-charts { grid-template-columns: 1fr; }
   .insight-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
@@ -642,6 +644,11 @@ footer a { color: #111; }
   .card-title span { display: block; margin-top: 5px; line-height: 1.5; }
   .admin-search { min-width: 0; }
   .metrics { gap: 8px; margin-bottom: 12px; }
+  .dashboard-performance { padding: 18px 12px; }
+  .dashboard-performance-head { flex-direction: column; }
+  .performance-grid { grid-template-columns: 1fr; }
+  .order-status-chart { grid-template-columns: 1fr; justify-items: center; }
+  .status-legend { width: 100%; }
   .metric { grid-template-columns: 28px minmax(0, 1fr); gap: 7px; padding: 12px 9px; }
   .metric-icon { width: 28px; height: 28px; }
   .metric-icon svg { width: 16px; height: 16px; }
