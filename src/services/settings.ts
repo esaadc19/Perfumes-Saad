@@ -30,6 +30,18 @@ export type StoreSettings = {
 
 export type StoreSettingsInput = Omit<StoreSettings, "id" | "updated_at">;
 
+export async function uploadStoreLogo(file: File, path: string): Promise<string> {
+  const client = requireSupabase();
+  const { error } = await client.storage.from("store-assets").upload(path, file, {
+    upsert: true,
+    contentType: file.type,
+    cacheControl: "3600",
+  });
+  if (error) throw error;
+  const { data } = client.storage.from("store-assets").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 function requireSupabase() {
   if (!supabase) throw new Error("Supabase no está configurado.");
   return supabase;
