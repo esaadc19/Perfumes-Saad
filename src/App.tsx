@@ -39,6 +39,7 @@ import {
   type AdminOrder,
   type AdminProfile,
 } from "./services/admin";
+import { getStoreSettings, updateStoreSettings, type StoreSettings, type StoreSettingsInput } from "./services/settings";
 import AuthDialog from "./components/AuthDialog";
 import AccountDialog from "./components/AccountDialog";
 import ReceiptDialog from "./components/ReceiptDialog";
@@ -63,6 +64,11 @@ import {
   Search,
   ReceiptText,
   ShieldCheck,
+  Settings,
+  Save,
+  Building2,
+  FileText,
+  Image as ImageIcon,
   ShoppingBag,
   Sparkles,
   Tag,
@@ -1082,7 +1088,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "profiles">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "profiles" | "settings">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
@@ -1091,6 +1097,9 @@ function Admin({
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings | null>(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsFeedback, setSettingsFeedback] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<AdminCustomer | null>(null);
   const [customerSaving, setCustomerSaving] = useState(false);
@@ -1152,6 +1161,7 @@ function Admin({
     { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
+    { id: "settings", title: "Configuración", icon: <Settings size={17} /> },
   ] as const;
 
   useEffect(() => {
@@ -1186,9 +1196,12 @@ function Admin({
         } else if (section === "customers") {
           const result = await getAdminCustomers();
           if (active) setCustomers(result);
-        } else {
+        } else if (section === "profiles") {
           const result = await getAdminProfiles();
           if (active) setProfiles(result);
+        } else if (section === "settings") {
+          const result = await getStoreSettings();
+          if (active) setStoreSettings(result);
         }
       } catch (loadError) {
         console.error(`No se pudo cargar la sección ${section}:`, loadError);
@@ -1202,6 +1215,49 @@ function Admin({
       active = false;
     };
   }, [section, sectionRevision]);
+
+  const saveStoreSettings = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSettingsSaving(true);
+    setSettingsFeedback(null);
+    setSectionError(null);
+    const form = new FormData(event.currentTarget);
+    const input: StoreSettingsInput = {
+      business_name: String(form.get("business_name") ?? "").trim(),
+      logo_url: String(form.get("logo_url") ?? "").trim() || null,
+      legal_representative: String(form.get("legal_representative") ?? "").trim() || null,
+      identification_type: String(form.get("identification_type") ?? "").trim() || null,
+      identification_number: String(form.get("identification_number") ?? "").trim() || null,
+      business_email: String(form.get("business_email") ?? "").trim() || null,
+      business_phone: String(form.get("business_phone") ?? "").trim() || null,
+      whatsapp_number: String(form.get("whatsapp_number") ?? "").trim() || null,
+      website_url: String(form.get("website_url") ?? "").trim() || null,
+      address: String(form.get("address") ?? "").trim() || null,
+      city: String(form.get("city") ?? "").trim() || null,
+      department: String(form.get("department") ?? "").trim() || null,
+      country: String(form.get("country") ?? "Colombia").trim() || "Colombia",
+      tax_regime: String(form.get("tax_regime") ?? "").trim() || null,
+      tax_id: String(form.get("tax_id") ?? "").trim() || null,
+      invoice_prefix: String(form.get("invoice_prefix") ?? "").trim() || null,
+      invoice_resolution: String(form.get("invoice_resolution") ?? "").trim() || null,
+      invoice_resolution_date: String(form.get("invoice_resolution_date") ?? "").trim() || null,
+      invoice_notes: String(form.get("invoice_notes") ?? "").trim() || null,
+      currency: String(form.get("currency") ?? "COP").trim() || "COP",
+      instagram_url: String(form.get("instagram_url") ?? "").trim() || null,
+      facebook_url: String(form.get("facebook_url") ?? "").trim() || null,
+      tiktok_url: String(form.get("tiktok_url") ?? "").trim() || null,
+    };
+    try {
+      const saved = await updateStoreSettings(input);
+      setStoreSettings(saved);
+      setSettingsFeedback("La configuración se guardó correctamente.");
+    } catch (saveError) {
+      console.error("No se pudo guardar la configuración:", saveError);
+      setSectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar la configuración.");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
 
   const saveCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1591,6 +1647,89 @@ function Admin({
         {section === "promotions" && promotionFeedback && <p className="import-feedback" role="status">{promotionFeedback}</p>}
         {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
         {sectionLoading && <p className="catalog-message" role="status">Cargando {pageTitle.toLowerCase()}...</p>}
+
+        {section === "settings" && (
+          <form className="settings-page" onSubmit={saveStoreSettings}>
+            <section className="settings-card settings-hero">
+              <div className="settings-logo-preview">
+                {storeSettings?.logo_url ? (
+                  <img src={storeSettings.logo_url} alt="Logo de la tienda" />
+                ) : (
+                  <ImageIcon size={30} />
+                )}
+              </div>
+              <div>
+                <p className="eyebrow">IDENTIDAD DE LA TIENDA</p>
+                <h2>{storeSettings?.business_name || "Perfumes SAAD"}</h2>
+                <span>Configura la información que identifica tu negocio en la tienda y en futuros documentos.</span>
+              </div>
+            </section>
+
+            <div className="settings-grid">
+              <section className="settings-card">
+                <div className="settings-card-title"><Building2 size={18} /><div><h2>Empresa</h2><span>Datos generales y contacto.</span></div></div>
+                <div className="settings-fields">
+                  <label>Nombre comercial<input name="business_name" defaultValue={storeSettings?.business_name ?? "Perfumes SAAD"} required /></label>
+                  <label>Logo — URL<input name="logo_url" type="url" defaultValue={storeSettings?.logo_url ?? ""} placeholder="https://..." /></label>
+                  <label>Correo empresarial<input name="business_email" type="email" defaultValue={storeSettings?.business_email ?? ""} /></label>
+                  <label>Teléfono<input name="business_phone" defaultValue={storeSettings?.business_phone ?? ""} /></label>
+                  <label>WhatsApp de ventas<input name="whatsapp_number" defaultValue={storeSettings?.whatsapp_number ?? ""} placeholder="573001234567" /></label>
+                  <label>Dirección<input name="address" defaultValue={storeSettings?.address ?? ""} /></label>
+                  <div className="settings-two-col">
+                    <label>Ciudad<input name="city" defaultValue={storeSettings?.city ?? ""} /></label>
+                    <label>Departamento<input name="department" defaultValue={storeSettings?.department ?? ""} /></label>
+                  </div>
+                  <label>País<input name="country" defaultValue={storeSettings?.country ?? "Colombia"} /></label>
+                  <label>Sitio web<input name="website_url" type="url" defaultValue={storeSettings?.website_url ?? ""} placeholder="https://..." /></label>
+                </div>
+              </section>
+
+              <section className="settings-card">
+                <div className="settings-card-title"><User size={18} /><div><h2>Representante legal</h2><span>Información del responsable del negocio.</span></div></div>
+                <div className="settings-fields">
+                  <label>Nombre completo<input name="legal_representative" defaultValue={storeSettings?.legal_representative ?? ""} /></label>
+                  <div className="settings-two-col">
+                    <label>Tipo de documento<select name="identification_type" defaultValue={storeSettings?.identification_type ?? ""}><option value="">Seleccionar</option><option value="CC">Cédula de ciudadanía</option><option value="CE">Cédula de extranjería</option><option value="NIT">NIT</option><option value="PASAPORTE">Pasaporte</option></select></label>
+                    <label>Número de documento<input name="identification_number" defaultValue={storeSettings?.identification_number ?? ""} /></label>
+                  </div>
+                </div>
+              </section>
+
+              <section className="settings-card settings-card-wide">
+                <div className="settings-card-title"><FileText size={18} /><div><h2>Facturación</h2><span>Datos que podremos reutilizar cuando construyamos la facturación electrónica o comprobantes.</span></div></div>
+                <div className="settings-fields">
+                  <div className="settings-two-col">
+                    <label>Régimen tributario<input name="tax_regime" defaultValue={storeSettings?.tax_regime ?? ""} placeholder="Ej. Régimen simple" /></label>
+                    <label>NIT / identificación tributaria<input name="tax_id" defaultValue={storeSettings?.tax_id ?? ""} /></label>
+                  </div>
+                  <div className="settings-two-col">
+                    <label>Prefijo de factura<input name="invoice_prefix" defaultValue={storeSettings?.invoice_prefix ?? "SAAD"} /></label>
+                    <label>Resolución<input name="invoice_resolution" defaultValue={storeSettings?.invoice_resolution ?? ""} /></label>
+                  </div>
+                  <div className="settings-two-col">
+                    <label>Fecha de resolución<input name="invoice_resolution_date" type="date" defaultValue={storeSettings?.invoice_resolution_date ?? ""} /></label>
+                    <label>Moneda<select name="currency" defaultValue={storeSettings?.currency ?? "COP"}><option value="COP">COP — Peso colombiano</option><option value="USD">USD — Dólar estadounidense</option></select></label>
+                  </div>
+                  <label>Notas para facturas<textarea name="invoice_notes" defaultValue={storeSettings?.invoice_notes ?? ""} rows={3} placeholder="Información adicional que quieras mostrar en comprobantes." /></label>
+                </div>
+              </section>
+
+              <section className="settings-card">
+                <div className="settings-card-title"><Sparkles size={18} /><div><h2>Redes sociales</h2><span>Enlaces que podremos mostrar en la tienda.</span></div></div>
+                <div className="settings-fields">
+                  <label>Instagram<input name="instagram_url" type="url" defaultValue={storeSettings?.instagram_url ?? ""} placeholder="https://instagram.com/..." /></label>
+                  <label>Facebook<input name="facebook_url" type="url" defaultValue={storeSettings?.facebook_url ?? ""} placeholder="https://facebook.com/..." /></label>
+                  <label>TikTok<input name="tiktok_url" type="url" defaultValue={storeSettings?.tiktok_url ?? ""} placeholder="https://tiktok.com/@..." /></label>
+                </div>
+              </section>
+            </div>
+
+            <div className="settings-actions">
+              {settingsFeedback && <span className="import-feedback" role="status">{settingsFeedback}</span>}
+              <button className="primary" type="submit" disabled={settingsSaving}><Save size={16} /> {settingsSaving ? "Guardando..." : "Guardar configuración"}</button>
+            </div>
+          </form>
+        )}
 
         {section === "overview" && metrics && (
           <>
