@@ -1604,6 +1604,36 @@ function Admin({
               <Metric title="Costos pendientes" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning={metrics.missing_cost_items > 0} />
               <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
             </div>
+            <section className="dashboard-performance">
+              <div className="dashboard-performance-head">
+                <div>
+                  <p className="eyebrow">RENDIMIENTO COMERCIAL</p>
+                  <h2>Resumen de ventas</h2>
+                  <span>Una lectura rápida de ingresos, costos y utilidad registrada.</span>
+                </div>
+                <div className="dashboard-performance-badge">
+                  <TrendingUp size={16} />
+                  <span>{metrics.completed_sales} ventas completas</span>
+                </div>
+              </div>
+              <div className="performance-grid">
+                <div className="performance-card">
+                  <div className="performance-card-head"><span>Ingresos</span><strong>{money(Number(metrics.sales_revenue))}</strong></div>
+                  <div className="performance-bar"><span style={{ width: "100%" }} /></div>
+                  <small>Total vendido en pedidos pagados</small>
+                </div>
+                <div className="performance-card">
+                  <div className="performance-card-head"><span>Costos</span><strong>{money(Number(metrics.sales_cost))}</strong></div>
+                  <div className="performance-bar"><span style={{ width: metrics.sales_revenue > 0 ? `${Math.min(100, Math.max(0, Number(metrics.sales_cost) / Number(metrics.sales_revenue) * 100))}%` : "0%" }} /></div>
+                  <small>{metrics.missing_cost_items > 0 ? `${metrics.missing_cost_items} unidades sin costo registrado` : "Costo registrado para todas las ventas"}</small>
+                </div>
+                <div className={`performance-card ${metrics.sales_profit < 0 ? "negative" : ""}`}>
+                  <div className="performance-card-head"><span>Utilidad bruta</span><strong>{metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}</strong></div>
+                  <div className="performance-bar"><span style={{ width: metrics.missing_cost_items > 0 || Number(metrics.sales_revenue) <= 0 ? "0%" : `${Math.min(100, Math.max(0, Number(metrics.sales_profit) / Number(metrics.sales_revenue) * 100))}%` }} /></div>
+                  <small>{metrics.missing_cost_items > 0 ? "Completa los costos pendientes para calcularla" : "Margen bruto sobre las ventas registradas"}</small>
+                </div>
+              </div>
+            </section>
             <section className="admin-card">
               <div className="card-title">
                 <div><h2>Más solicitados</h2><span>Unidades incluidas en pedidos guardados, ordenadas por cantidad.</span></div>
