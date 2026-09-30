@@ -651,6 +651,67 @@ footer a { color: #111; }
   .receipt-paper { position: absolute; left: 0; top: 0; width: 72mm; max-width: none; margin: 0; padding: 0; box-shadow: none; }
 }
 
+/* ============================================
+   ESTILOS PARA FORMULARIO DE GASTOS Y REPORTE
+   ============================================ */
+.report-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.expense-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 16px;
+  background: var(--soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.expense-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.expense-form input,
+.expense-form select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+}
+
+.expense-form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.expense-row {
+  grid-template-columns: 2fr 1fr 1fr 1fr 40px !important;
+}
+
+.expense-row > :nth-child(1)::before { content: "Nombre"; }
+.expense-row > :nth-child(2)::before { content: "Categoría"; }
+.expense-row > :nth-child(3)::before { content: "Monto"; }
+.expense-row > :nth-child(4)::before { content: "Fecha"; }
+
+.receipt-auto-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;

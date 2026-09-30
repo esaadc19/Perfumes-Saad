@@ -39,6 +39,13 @@ import {
   type AdminOrder,
   type AdminProfile,
 } from "./services/admin";
+import {
+  getExpenses,
+  createExpense,
+  deleteExpense,
+  EXPENSE_CATEGORIES,
+  type Expense,
+} from "./services/expenses";
 import AuthDialog from "./components/AuthDialog";
 import AccountDialog from "./components/AccountDialog";
 import ReceiptDialog from "./components/ReceiptDialog";
@@ -67,6 +74,7 @@ import {
   Sparkles,
   Tag,
   Trash2,
+  Wallet,
   TrendingUp,
   Upload,
   User,
@@ -213,6 +221,10 @@ function App() {
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
   const [savingCostVariantId, setSavingCostVariantId] = useState<string | null>(null);
   const [savingStockVariantId, setSavingStockVariantId] = useState<string | null>(null);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseForm, setExpenseForm] = useState({ name: "", amount: "", category: "General", date: new Date().toISOString().split("T")[0] });
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
 
   useEffect(() => {
     const imageCount = selectedProduct?.images?.length ?? 0;
@@ -1148,6 +1160,7 @@ function Admin({
     { id: "promotions", title: "Promociones", icon: <Tag size={17} /> },
     { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
+    { id: "expenses", title: "Gastos", icon: <Wallet size={17} /> },
     { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
   ] as const;
 
@@ -1183,6 +1196,9 @@ function Admin({
         } else if (section === "customers") {
           const result = await getAdminCustomers();
           if (active) setCustomers(result);
+        } else if (section === "expenses") {
+          const result = await getExpenses();
+          if (active) setExpenses(result);
         } else {
           const result = await getAdminProfiles();
           if (active) setProfiles(result);
@@ -1221,6 +1237,41 @@ function Admin({
       setSectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar el cliente.");
     } finally {
       setCustomerSaving(false);
+    }
+  };
+
+  const saveExpense = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSavingExpense(true);
+    setSectionError(null);
+    try {
+      await createExpense({
+        name: expenseForm.name.trim(),
+        amount: Number(expenseForm.amount),
+        category: expenseForm.category,
+        expense_date: expenseForm.date,
+      });
+      setExpenseForm({ name: "", amount: "", category: "General", date: new Date().toISOString().split("T")[0] });
+      setSectionRevision((current) => current + 1);
+    } catch (saveError) {
+      console.error("No se pudo guardar el gasto:", saveError);
+      setSectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar el gasto.");
+    } finally {
+      setSavingExpense(false);
+    }
+  };
+
+  const removeExpense = async (id: string) => {
+    setDeletingExpenseId(id);
+    setSectionError(null);
+    try {
+      await deleteExpense(id);
+      setSectionRevision((current) => current + 1);
+    } catch (deleteError) {
+      console.error("No se pudo eliminar el gasto:", deleteError);
+      setSectionError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el gasto.");
+    } finally {
+      setDeletingExpenseId(null);
     }
   };
 
@@ -1583,6 +1634,22 @@ function Admin({
 
         {section === "overview" && metrics && (
           <>
+            <div className="report-actions">
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => {
+                  const number = "573181749436";
+                  window.open(
+                    `https://wa.me/${number}?text=${encodeURIComponent("Hola, quiero generar el reporte semanal de ventas.")}`,
+                    "_blank",
+                    "noopener,noreferrer"
+                  );
+                }}
+              >
+                <BarChart3 size={16} /> Generar reporte semanal
+              </button>
+            </div>
             <div className="metrics">
               <Metric title="Ventas completas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
               <Metric title="Total vendido" value={money(Number(metrics.sales_revenue))} icon={<BarChart3 />} />
@@ -1642,6 +1709,59 @@ function Admin({
               </div>
             </section>
           </>
+        )}
+
+        {section === "expenses" && (
+          <section className="admin-card">
+            <div className="card-title">
+              <div>
+                <h2>Gastos</h2>
+                <span>Registra los gastos del negocio para incluirlos en el reporte semanal.</span>
+              </div>
+            </div>
+            <form className="expense-form" onSubmit={(event) => void saveExpense(event)}>
+              <label>Nombre
+                <input value={expenseForm.name} onChange={(event) => setExpenseForm((current) => ({ ...current, name: event.target.value }))} placeholder="Ej. Alquiler local" required />
+              </label>
+              <label>Monto
+                <input type="number" min="0" step="1" value={expenseForm.amount} onChange={(event) => setExpenseForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" required />
+              </label>
+              <label>Categoría
+                <select value={expenseForm.category} onChange={(event) => setExpenseForm((current) => ({ ...current, category: event.target.value }))}>
+                  {EXPENSE_CATEGORIES.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </label>
+              <label>Fecha
+                <input type="date" value={expenseForm.date} onChange={(event) => setExpenseForm((current) => ({ ...current, date: event.target.value }))} required />
+              </label>
+              <button className="primary" type="submit" disabled={savingExpense}>
+                {savingExpense ? "Guardando..." : "Agregar gasto"}
+              </button>
+            </form>
+            {expenses.length > 0 && (
+              <div className="admin-table">
+                <div className="table-row expense-row header"><span>Nombre</span><span>Categoría</span><span>Monto</span><span>Fecha</span><span></span></div>
+                {expenses.map((expense) => (
+                  <div className="table-row expense-row" key={expense.id}>
+                    <strong>{expense.name}</strong>
+                    <span>{expense.category}</span>
+                    <span>{money(expense.amount)}</span>
+                    <span>{expense.expense_date}</span>
+                    <button
+                      className="icon-button"
+                      aria-label={`Eliminar gasto ${expense.name}`}
+                      disabled={deletingExpenseId === expense.id}
+                      onClick={() => void removeExpense(expense.id)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         )}
 
         {section === "products" && <section className="admin-card">
