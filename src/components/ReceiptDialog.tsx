@@ -18,10 +18,7 @@ type ReceiptCartItem = {
 
 type PrinterPhase = "idle" | "feeding-in" | "printing" | "feeding-out";
 
-const publicEnv = (import.meta as ImportMeta & {
-  env: { VITE_WHATSAPP_NUMBER?: string };
-}).env;
-const WHATSAPP_NUMBER = publicEnv.VITE_WHATSAPP_NUMBER || "573181749436";
+const WHATSAPP_NUMBER = "573181749436";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CO", {

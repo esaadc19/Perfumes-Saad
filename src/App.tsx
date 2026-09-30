@@ -148,10 +148,7 @@ const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const publicEnv = (import.meta as ImportMeta & {
-  env: { VITE_WHATSAPP_NUMBER?: string };
-}).env;
-const whatsappNumber = publicEnv.VITE_WHATSAPP_NUMBER?.replace(/\D/g, "") || "573181749436";
+const whatsappNumber = "573181749436";
 
 function App() {
   const [view, setView] = useState<"store" | "admin">("store");
