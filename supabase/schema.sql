@@ -79,6 +79,7 @@ create table if not exists public.customers (
   phone text,
   email text,
   city text,
+  delivery_address text,
   source text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -1051,6 +1052,7 @@ returns table (
   saved_customer_name text,
   saved_customer_phone text,
   saved_customer_email text,
+  saved_customer_address text,
   order_message text,
   receipt_items jsonb
 )
@@ -1064,6 +1066,7 @@ declare
   customer_name text;
   customer_phone text;
   customer_email text;
+  customer_address text;
   item jsonb;
   item_quantity integer;
   variant_record record;
@@ -1094,8 +1097,8 @@ begin
   promotion_discounts := public.calculate_promotion_discounts(items_data);
 
   if current_account_id is not null then
-    select p.id, p.full_name, p.phone, coalesce(p.email, u.email)
-    into customer_record_id, customer_name, customer_phone, customer_email
+    select p.id, p.full_name, p.phone, coalesce(p.email, u.email), p.delivery_address
+    into customer_record_id, customer_name, customer_phone, customer_email, customer_address
     from public.profiles p
     join auth.users u on u.id = p.id
     where p.id = current_account_id;
@@ -1104,32 +1107,35 @@ begin
       raise exception 'Customer profile not found' using errcode = '42501';
     end if;
     if nullif(trim(customer_name), '') is null
-       or nullif(trim(customer_phone), '') is null
-       or nullif(trim(customer_email), '') is null then
-      raise exception 'Complete your name, phone, and email before placing the order';
+       or nullif(trim(customer_phone), '') is null then
+      raise exception 'Complete your name and phone before placing the order';
     end if;
 
-    insert into public.customers (account_id, full_name, phone, email, source)
-    values (current_account_id, trim(customer_name), trim(customer_phone), lower(trim(customer_email)), 'web')
+    insert into public.customers (account_id, full_name, phone, email, delivery_address, source)
+    values (current_account_id, trim(customer_name), trim(customer_phone), lower(trim(customer_email)), customer_address, 'web')
     on conflict (account_id) where account_id is not null
     do update set
       full_name = excluded.full_name,
       phone = excluded.phone,
       email = excluded.email,
+      delivery_address = excluded.delivery_address,
       updated_at = now()
     returning id into customer_record_id;
   else
     customer_name := nullif(trim(customer_data->>'full_name'), '');
     customer_phone := nullif(trim(customer_data->>'phone'), '');
     customer_email := lower(nullif(trim(customer_data->>'email'), ''));
+    customer_address := nullif(trim(customer_data->>'delivery_address'), '');
 
-    if customer_name is null or customer_phone is null or customer_email is null
-       or customer_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$' then
-      raise exception 'Enter a valid name, phone, and email address';
+    if customer_name is null or customer_phone is null then
+      raise exception 'Enter a valid name and phone number';
+    end if;
+    if customer_email is not null and customer_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$' then
+      raise exception 'Enter a valid email address';
     end if;
 
-    insert into public.customers (full_name, phone, email, source)
-    values (customer_name, customer_phone, customer_email, 'web_guest')
+    insert into public.customers (full_name, phone, email, delivery_address, source)
+    values (customer_name, customer_phone, customer_email, customer_address, 'web_guest')
     returning id into customer_record_id;
   end if;
 
@@ -1214,11 +1220,12 @@ begin
   where id = order_id;
 
   order_message := format(
-    E'Hola Perfumes SAAD 👋\n\nQuiero confirmar este pedido:\nRecibo: %s\nCliente: %s\nWhatsApp: %s\nCorreo: %s\n%s\n\nAhorro por promociones: $%s\nTotal: $%s\n\nQuedo atento(a) para confirmar disponibilidad, domicilio y medio de pago.',
+    E'Hola Perfumes SAAD 👋\n\nQuiero confirmar este pedido:\nRecibo: %s\nCliente: %s\nWhatsApp: %s\nCorreo: %s\nDirección: %s\n%s\n\nAhorro por promociones: $%s\nTotal: $%s\n\nQuedo atento(a) para confirmar disponibilidad, domicilio y medio de pago.',
     upper(left(order_id::text, 8)),
     customer_name,
     customer_phone,
     customer_email,
+    coalesce(customer_address, 'No proporcionada'),
     message_lines,
     to_char(calculated_discount, 'FM999G999G999G990'),
     to_char(calculated_total, 'FM999G999G999G990')
@@ -1231,6 +1238,7 @@ begin
   saved_customer_name := customer_name;
   saved_customer_phone := customer_phone;
   saved_customer_email := customer_email;
+  saved_customer_address := customer_address;
   receipt_items := line_items;
   return next;
 end;

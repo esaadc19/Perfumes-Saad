@@ -43,6 +43,7 @@ export default function ReceiptDialog({
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
   const [profileLoading, setProfileLoading] = useState(Boolean(user));
   const [printerPhase, setPrinterPhase] = useState<PrinterPhase>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +77,7 @@ export default function ReceiptDialog({
     setProfileLoading(true);
     void client
       .from("profiles")
-      .select("full_name, phone, email")
+      .select("full_name, phone, email, delivery_address")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data, error: profileError }) => {
@@ -88,6 +89,7 @@ export default function ReceiptDialog({
           setCustomerName(data?.full_name ?? String(user.user_metadata.full_name ?? ""));
           setCustomerPhone(data?.phone ?? String(user.user_metadata.phone ?? ""));
           setCustomerEmail(data?.email ?? user.email ?? "");
+          setCustomerAddress(data?.delivery_address ?? "");
         }
         setProfileLoading(false);
       });
@@ -99,10 +101,10 @@ export default function ReceiptDialog({
 
   // Auto-submit when user is registered and profile is loaded
   useEffect(() => {
-    if (user && !profileLoading && customerName && customerPhone && customerEmail && !receipt && printerPhase === "idle") {
+    if (user && !profileLoading && customerName && customerPhone && !receipt && printerPhase === "idle") {
       void submitOrder({ preventDefault: () => {} } as React.FormEvent<HTMLFormElement>);
     }
-  }, [user, profileLoading, customerName, customerPhone, customerEmail, receipt, printerPhase]);
+  }, [user, profileLoading, customerName, customerPhone, receipt, printerPhase]);
 
   // Auto-send to WhatsApp when receipt is generated
   useEffect(() => {
@@ -145,6 +147,7 @@ export default function ReceiptDialog({
             full_name: customerName.trim(),
             phone: customerPhone.trim(),
             email: customerEmail.trim().toLowerCase(),
+            delivery_address: customerAddress.trim(),
           })
           .eq("id", user.id);
         if (profileError) throw profileError;
@@ -155,6 +158,7 @@ export default function ReceiptDialog({
           full_name: customerName.trim(),
           phone: customerPhone.trim(),
           email: customerEmail.trim().toLowerCase(),
+          delivery_address: customerAddress.trim(),
         },
         items: cart.map((item) => ({
           variant_id: item.variant.id,
@@ -264,6 +268,10 @@ export default function ReceiptDialog({
                     Correo electrónico (opcional)
                     <input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} />
                   </label>
+                  <label className="auth-label">
+                    Dirección de entrega
+                    <input autoComplete="street-address" value={customerAddress} onChange={(event) => setCustomerAddress(event.target.value)} placeholder="Calle, número, barrio, ciudad" />
+                  </label>
                   {!user && (
                     <button className="text-button receipt-signin" type="button" onClick={onSignIn}>
                       ¿Ya tienes cuenta? Inicia sesión para usar tus datos guardados
@@ -305,6 +313,7 @@ export default function ReceiptDialog({
                 <span>CLIENTE: {receipt?.customerName ?? (customerName.trim() || "—")}</span>
                 <span>WHATSAPP: {receipt?.customerPhone ?? (customerPhone.trim() || "—")}</span>
                 <span>CORREO: {receipt?.customerEmail ?? (customerEmail.trim() || "—")}</span>
+                <span>DIRECCIÓN: {receipt?.customerAddress ?? (customerAddress.trim() || "—")}</span>
                 <span>RECIBO: {receipt ? receipt.orderId.slice(0, 8).toUpperCase() : "PENDIENTE"}</span>
               </div>
               <div className="receipt-rule receipt-dashed" />

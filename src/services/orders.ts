@@ -16,12 +16,13 @@ export interface CreatedOrderReceipt {
   customerName: string;
   customerPhone: string;
   customerEmail: string;
+  customerAddress: string;
   message: string;
   items: ReceiptItem[];
 }
 
 export async function createWhatsAppOrder(input: {
-  customer: { full_name: string; phone: string; email: string };
+  customer: { full_name: string; phone: string; email: string; delivery_address?: string };
   items: { variant_id: string; quantity: number }[];
   isRegisteredCustomer: boolean;
 }): Promise<CreatedOrderReceipt> {
@@ -30,7 +31,12 @@ export async function createWhatsAppOrder(input: {
   }
 
   const { data, error } = await supabase.rpc("create_whatsapp_order", {
-    customer_data: input.isRegisteredCustomer ? {} : input.customer,
+    customer_data: input.isRegisteredCustomer ? {} : {
+      full_name: input.customer.full_name,
+      phone: input.customer.phone,
+      email: input.customer.email,
+      delivery_address: input.customer.delivery_address ?? null,
+    },
     items_data: input.items,
   });
 
@@ -63,6 +69,7 @@ export async function createWhatsAppOrder(input: {
     customerName: result.saved_customer_name,
     customerPhone: result.saved_customer_phone,
     customerEmail: result.saved_customer_email,
+    customerAddress: result.saved_customer_address ?? "",
     message: result.order_message,
     items: (result.receipt_items ?? []).map((item: ReceiptItem) => ({
       ...item,
