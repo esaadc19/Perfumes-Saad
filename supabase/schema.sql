@@ -63,7 +63,7 @@ create table if not exists public.product_variants (
   id uuid primary key default gen_random_uuid(),
   product_id uuid not null references public.products(id) on delete cascade,
   size_ml integer not null check (size_ml > 0),
-  price numeric(12,2) not null default 0 check (price >= 0),
+  price numeric(12,2) not null default 0 check (price > 0),
   cost numeric(12,2),
   stock integer not null default 0 check (stock >= 0),
   min_stock integer not null default 2 check (min_stock >= 0),

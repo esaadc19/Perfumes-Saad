@@ -2441,11 +2441,11 @@ function EditProductModal({
     }
     if (parsedVariants.some((variant) =>
       !Number.isInteger(variant.size) || variant.size <= 0 ||
-      !Number.isFinite(variant.price) || variant.price < 0 ||
+      !Number.isFinite(variant.price) || variant.price <= 0 ||
       (variant.cost !== null && (!Number.isFinite(variant.cost) || variant.cost < 0)) ||
       !Number.isInteger(variant.stock) || variant.stock < 0
     )) {
-      setError("Revisa los tamaños, precios, costos y cantidades de stock.");
+      setError("Revisa los tamaños, precios, costos y cantidades de stock. El precio debe ser mayor que 0.");
       return;
     }
     if (new Set(parsedVariants.map((variant) => variant.size)).size !== parsedVariants.length) {
@@ -2592,12 +2592,12 @@ function EditProductModal({
                   size: 200,
                   price: 0,
                   cost: null,
-                  stock: 0,
+                  stock: 1,
                   active: true,
                   sizeDraft: "200",
                   priceDraft: "",
                   costDraft: "",
-                  stockDraft: "0",
+                  stockDraft: "1",
                 },
               ])}
             >
