@@ -97,6 +97,25 @@ export default function ReceiptDialog({
     };
   }, [user]);
 
+  // Auto-submit when user is registered and profile is loaded
+  useEffect(() => {
+    if (user && !profileLoading && customerName && customerPhone && customerEmail && !receipt && printerPhase === "idle") {
+      void submitOrder({ preventDefault: () => {} } as React.FormEvent<HTMLFormElement>);
+    }
+  }, [user, profileLoading, customerName, customerPhone, customerEmail, receipt, printerPhase]);
+
+  // Auto-send to WhatsApp when receipt is generated
+  useEffect(() => {
+    if (receipt) {
+      const number = WHATSAPP_NUMBER.replace(/\D/g, "");
+      window.open(
+        `https://wa.me/${number}?text=${encodeURIComponent(receipt.message)}`,
+        "_blank",
+        "noopener,noreferrer"
+      );
+    }
+  }, [receipt]);
+
   const submitOrder = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
@@ -104,8 +123,8 @@ export default function ReceiptDialog({
       setError("Conecta Supabase y ejecuta el esquema antes de guardar pedidos.");
       return;
     }
-    if (!customerName.trim() || !customerPhone.trim() || !customerEmail.trim()) {
-      setError("Completa el nombre, el número de WhatsApp y el correo.");
+    if (!customerName.trim() || !customerPhone.trim()) {
+      setError("Completa el nombre y el número de WhatsApp.");
       return;
     }
     if (customerPhone.replace(/\D/g, "").length < 7) {
@@ -242,8 +261,8 @@ export default function ReceiptDialog({
                     <input type="tel" autoComplete="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} required />
                   </label>
                   <label className="auth-label">
-                    Correo electrónico
-                    <input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} required />
+                    Correo electrónico (opcional)
+                    <input type="email" autoComplete="email" value={customerEmail} onChange={(event) => setCustomerEmail(event.target.value)} />
                   </label>
                   {!user && (
                     <button className="text-button receipt-signin" type="button" onClick={onSignIn}>
@@ -321,7 +340,7 @@ export default function ReceiptDialog({
             {receipt ? (
               <div className="receipt-actions">
                 <button className="secondary" onClick={() => window.print()}><Printer size={17} /> Imprimir recibo</button>
-                <button className="primary" onClick={sendToWhatsApp}><Send size={17} /> Enviar pedido a WhatsApp</button>
+                <span className="receipt-auto-send"><Send size={15} /> Pedido enviado a WhatsApp automáticamente</span>
               </div>
             ) : (
               <p className="receipt-print-hint"><Printer size={15} /> Vista previa estilo recibo térmico</p>
