@@ -535,10 +535,14 @@ $$;
 
 revoke all on function public.calculate_promotion_discounts(jsonb) from public, anon, authenticated;
 
+drop function if exists public.admin_save_pending_order(uuid, uuid, jsonb);
+
 create or replace function public.admin_save_pending_order(
   target_order_id uuid,
   target_customer_id uuid,
-  items_data jsonb
+  customer_data jsonb,
+  items_data jsonb,
+  order_date date
 )
 returns uuid
 language plpgsql
@@ -555,14 +559,27 @@ declare
   line_discount numeric(12,2) := 0;
   promotion_discounts jsonb;
   saved_order_id uuid;
+  saved_customer_id uuid;
 begin
   if not public.is_admin() then
     raise exception 'Administrator access required' using errcode = '42501';
   end if;
-  if target_customer_id is null or not exists (
+  if (target_customer_id is null) = (customer_data is null) then
+    raise exception 'Select an existing customer or enter a new customer';
+  end if;
+  if target_customer_id is not null and not exists (
     select 1 from public.customers where id = target_customer_id
   ) then
     raise exception 'Select a valid customer';
+  end if;
+  if target_customer_id is null and (
+    jsonb_typeof(customer_data) is distinct from 'object'
+    or nullif(btrim(customer_data->>'full_name'), '') is null
+  ) then
+    raise exception 'Enter the customer name';
+  end if;
+  if order_date is null or order_date > (now() at time zone 'America/Bogota')::date then
+    raise exception 'Order date cannot be in the future';
   end if;
   if jsonb_typeof(items_data) is distinct from 'array' then
     raise exception 'An order must contain at least one product';
@@ -580,9 +597,31 @@ begin
   end if;
   promotion_discounts := public.calculate_promotion_discounts(items_data);
 
+  if target_customer_id is null then
+    insert into public.customers (
+      full_name, phone, email, city, delivery_address, source
+    )
+    values (
+      btrim(customer_data->>'full_name'),
+      nullif(btrim(customer_data->>'phone'), ''),
+      nullif(btrim(customer_data->>'email'), ''),
+      nullif(btrim(customer_data->>'city'), ''),
+      nullif(btrim(customer_data->>'delivery_address'), ''),
+      'admin'
+    )
+    returning id into saved_customer_id;
+  else
+    saved_customer_id := target_customer_id;
+  end if;
+
   if target_order_id is null then
-    insert into public.orders (customer_id, status, payment_status)
-    values (target_customer_id, 'pending_confirmation', 'pending')
+    insert into public.orders (customer_id, status, payment_status, created_at)
+    values (
+      saved_customer_id,
+      'pending_confirmation',
+      'pending',
+      order_date::timestamp at time zone 'America/Bogota'
+    )
     returning id into saved_order_id;
   else
     select * into order_record
@@ -598,6 +637,9 @@ begin
     end if;
     saved_order_id := target_order_id;
     delete from public.order_items where order_id = saved_order_id;
+    update public.orders
+    set created_at = order_date::timestamp at time zone 'America/Bogota'
+    where id = saved_order_id;
   end if;
 
   for item in
@@ -654,7 +696,7 @@ begin
   end loop;
 
   update public.orders
-  set customer_id = target_customer_id,
+  set customer_id = saved_customer_id,
       subtotal = calculated_subtotal,
   discount = calculated_discount,
   total = calculated_subtotal + shipping - calculated_discount,
@@ -1417,7 +1459,7 @@ revoke all on function public.admin_set_profile_role(uuid, text) from public, an
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
 revoke all on function public.admin_get_products() from public, anon;
 revoke all on function public.admin_update_order_transaction(uuid, text, text) from public, anon;
-revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb) from public, anon;
+revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date) from public, anon;
 revoke all on function public.admin_delete_pending_order(uuid) from public, anon;
 revoke all on function public.admin_update_variant_stock(uuid, integer) from public, anon;
 grant execute on function public.admin_dashboard_metrics() to authenticated;
@@ -1426,7 +1468,7 @@ grant execute on function public.admin_set_profile_role(uuid, text) to authentic
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
 grant execute on function public.admin_get_products() to authenticated;
 grant execute on function public.admin_update_order_transaction(uuid, text, text) to authenticated;
-grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb) to authenticated;
+grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date) to authenticated;
 grant execute on function public.admin_delete_pending_order(uuid) to authenticated;
 grant execute on function public.admin_update_variant_stock(uuid, integer) to authenticated;
 
