@@ -884,7 +884,7 @@ begin
        or (variant->>'size') !~ '^[0-9]+$'
        or (variant->>'size')::integer <= 0
        or nullif(variant->>'price', '') is null
-       or (variant->>'price')::numeric < 0
+       or (variant->>'price')::numeric <= 0
        or (variant->>'cost') is not null and (variant->>'cost')::numeric < 0
        or (variant->>'stock') !~ '^[0-9]+$' then
       raise exception 'Presentation price, cost, or stock is invalid';

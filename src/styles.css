@@ -77,6 +77,12 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .product-info > span, .product-info > p { color: var(--muted); font-size: 12px; margin: 0 0 5px; }
 .product-info h3 { margin: 0 0 5px; font-size: 17px; font-weight: 500; }
 .product-info strong { display: block; margin: 11px 0; font-size: 14px; }
+.catalog-variant-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.catalog-variant-option { min-width: 68px; display: grid; gap: 3px; padding: 6px 8px; border: 1px solid var(--border); background: white; color: var(--black); text-align: left; cursor: pointer; }
+.catalog-variant-option span { font-size: 11px; }
+.catalog-variant-option small { color: var(--muted); font-size: 10px; }
+.catalog-variant-option.selected { border-color: var(--black); background: #f4f1ed; }
+.catalog-variant-option:disabled { cursor: not-allowed; opacity: .5; }
 .product-info .promotion-card-copy { display: block; margin: -5px 0 11px; color: #71492c; font-size: 11px; line-height: 1.45; }
 .text-button { border: 0; padding: 0; background: transparent; color: var(--black); text-decoration: underline; font-size: 12px; }
 .product-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

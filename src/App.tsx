@@ -206,6 +206,7 @@ function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState("");
+  const [catalogVariantIds, setCatalogVariantIds] = useState<Record<string, string>>({});
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
@@ -221,10 +222,6 @@ function App() {
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
   const [savingCostVariantId, setSavingCostVariantId] = useState<string | null>(null);
   const [savingStockVariantId, setSavingStockVariantId] = useState<string | null>(null);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [expenseForm, setExpenseForm] = useState({ name: "", amount: "", category: "General", date: new Date().toISOString().split("T")[0] });
-  const [savingExpense, setSavingExpense] = useState(false);
-  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
 
   useEffect(() => {
     const imageCount = selectedProduct?.images?.length ?? 0;
@@ -525,7 +522,9 @@ function App() {
     setSelectedProduct(product);
     setSelectedImageIndex(0);
     setSelectedVariantId(
-      product.variants.find((v) => v.stock > 0)?.id ?? product.variants[0].id
+      product.variants.find((variant) =>
+        variant.id === catalogVariantIds[product.id] && variant.stock > 0
+      )?.id ?? product.variants.find((variant) => variant.stock > 0)?.id ?? product.variants[0].id
     );
   };
 
@@ -660,6 +659,9 @@ function App() {
                 ) : filteredProducts.map((product) => {
                   const firstAvailable =
                     product.variants.find((v) => v.stock > 0) ?? product.variants[0];
+                  const cardVariant = product.variants.find((variant) =>
+                    variant.id === catalogVariantIds[product.id]
+                  ) ?? firstAvailable;
                   return (
                     <article className="product-card" key={product.id}>
                       <button className="product-image" onClick={() => openProduct(product)}>
@@ -673,7 +675,25 @@ function App() {
                         <span>{product.brand}</span>
                         <h3>{product.name}</h3>
                         <p>{product.gender}</p>
-                        <strong>{money(firstAvailable.price)}</strong>
+                        <div className="catalog-variant-options" role="group" aria-label={`Presentaciones de ${product.name}`}>
+                          {product.variants.map((variant) => (
+                            <button
+                              key={variant.id}
+                              type="button"
+                              className={cardVariant.id === variant.id ? "catalog-variant-option selected" : "catalog-variant-option"}
+                              aria-pressed={cardVariant.id === variant.id}
+                              disabled={variant.stock <= 0}
+                              onClick={() => setCatalogVariantIds((current) => ({
+                                ...current,
+                                [product.id]: variant.id,
+                              }))}
+                            >
+                              <span>{variant.size} ml</span>
+                              <small>{money(variant.price)}</small>
+                            </button>
+                          ))}
+                        </div>
+                        <strong>{money(cardVariant.price)}</strong>
                         {product.promotion?.active && (
                           <span className="promotion-card-copy">
                             {product.promotion.required_quantity} por {money(product.promotion.bundle_price)}
@@ -687,8 +707,8 @@ function App() {
                           <button
                             type="button"
                             className="quick-add-button"
-                            disabled={firstAvailable.stock <= 0}
-                            onClick={() => addVariantToCart(product, firstAvailable)}
+                            disabled={cardVariant.stock <= 0}
+                            onClick={() => addVariantToCart(product, cardVariant)}
                           >
                             <Plus size={15} /> Agregar
                           </button>
@@ -1091,7 +1111,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "profiles">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "profiles">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
@@ -1100,6 +1120,10 @@ function Admin({
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [expenseForm, setExpenseForm] = useState({ name: "", amount: "", category: "General", date: new Date().toISOString().split("T")[0] });
+  const [savingExpense, setSavingExpense] = useState(false);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<AdminCustomer | null>(null);
   const [customerSaving, setCustomerSaving] = useState(false);
@@ -2818,11 +2842,11 @@ function AddProductModal({
     }
     if (parsedVariants.some((variant) =>
       !Number.isInteger(variant.size) || variant.size <= 0 ||
-      !Number.isFinite(variant.price) || variant.price < 0 ||
+      !Number.isFinite(variant.price) || variant.price <= 0 ||
       !Number.isFinite(variant.cost) || variant.cost < 0 ||
       !Number.isInteger(variant.stock) || variant.stock < 0
     )) {
-      setError("Revisa los tamaños, precios, costos y cantidades de stock.");
+      setError("El precio debe ser mayor que cero; revisa también los tamaños, costos y cantidades de stock.");
       return;
     }
     if (new Set(parsedVariants.map((variant) => variant.size)).size !== parsedVariants.length) {
