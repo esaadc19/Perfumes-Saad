@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
-const BREVO_SENDER_EMAIL = Deno.env.get("BREVO_SENDER_EMAIL") ?? "";
+const BREVO_SENDER_EMAIL = Deno.env.get("BREVO_SENDER_EMAIL") ?? "noreply@brevo.com";
 const REPORT_RECIPIENT_EMAIL = Deno.env.get("REPORT_RECIPIENT_EMAIL") ?? "";
 const WHATSAPP_NUMBERS = (Deno.env.get("WHATSAPP_NUMBERS") ?? "3102318786").split(",");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -104,10 +104,16 @@ async function sendBrevoEmail(
     });
     if (!response.ok) {
       const providerError = await response.text();
-      console.error("Brevo rejected the report email:", response.status, providerError);
+      console.error("Brevo rejected the report email:", response.status, providerError.slice(0, 1000));
+      if (response.status === 401) {
+        return {
+          sent: false,
+          error: "Brevo no autorizó la clave (HTTP 401). Actualiza BREVO_API_KEY con una API key de Brevo válida; no uses la clave SMTP.",
+        };
+      }
       return {
         sent: false,
-        error: `Brevo rechazó el envío (HTTP ${response.status}). Verifica la API key y que el remitente esté verificado en Brevo.`,
+        error: `Brevo rechazó el envío (HTTP ${response.status}). Verifica el remitente y la configuración de Brevo.`,
       };
     }
     return { sent: true, error: null };
