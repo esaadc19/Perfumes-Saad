@@ -666,6 +666,22 @@ footer a { color: #111; }
   margin-bottom: 16px;
 }
 
+.report-result {
+  margin: -4px 0 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: var(--soft);
+  color: var(--black);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.report-result a {
+  color: var(--black);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .expense-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

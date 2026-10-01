@@ -1597,11 +1597,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  current_week_start date := date_trunc('week', current_date)::date;
-  previous_week_start date := current_week_start - interval '7 days';
-  previous_week_end date := current_week_start - interval '1 day';
-  last_month_start date := date_trunc('month', current_date - interval '1 month')::date;
-  last_month_end date := (date_trunc('month', current_date) - interval '1 day')::date;
+  local_today date := (now() at time zone 'America/Bogota')::date;
+  this_week_start date := date_trunc('week', local_today)::date;
+  report_week_start date := this_week_start - 7;
+  report_week_end date := this_week_start - 1;
+  previous_week_start date := report_week_start - 7;
+  this_month_start date := date_trunc('month', local_today)::date;
+  last_month_start date := (this_month_start - interval '1 month')::date;
   
   -- Current week metrics
   current_week_sales numeric;
@@ -1639,94 +1641,95 @@ declare
   
   result jsonb;
 begin
-  -- Current week sales
-  select coalesce(sum(total), 0), count(*), coalesce(sum((select sum(quantity) from order_items where order_id = orders.id)), 0)
+  -- The report compares the last two completed weeks using the local business timezone.
+  select coalesce(sum(total), 0), count(*),
+         coalesce(sum((select sum(oi.quantity) from public.order_items oi where oi.order_id = o.id)), 0)
   into current_week_sales, current_week_orders, current_week_items
-  from orders
-  where created_at >= current_week_start
-    and status != 'cancelled';
+  from public.orders o
+  where o.payment_status = 'paid'
+    and o.paid_at >= report_week_start::timestamp at time zone 'America/Bogota'
+    and o.paid_at < this_week_start::timestamp at time zone 'America/Bogota';
   
   -- Previous week sales
   select coalesce(sum(total), 0), count(*)
   into previous_week_sales, previous_week_orders
-  from orders
-  where created_at >= previous_week_start
-    and created_at <= previous_week_end
-    and status != 'cancelled';
+  from public.orders o
+  where o.payment_status = 'paid'
+    and o.paid_at >= previous_week_start::timestamp at time zone 'America/Bogota'
+    and o.paid_at < report_week_start::timestamp at time zone 'America/Bogota';
   
   -- Last month sales
   select coalesce(sum(total), 0)
   into last_month_sales
-  from orders
-  where created_at >= last_month_start
-    and created_at <= last_month_end
-    and status != 'cancelled';
+  from public.orders o
+  where o.payment_status = 'paid'
+    and o.paid_at >= last_month_start::timestamp at time zone 'America/Bogota'
+    and o.paid_at < this_month_start::timestamp at time zone 'America/Bogota';
   
   -- Best product this week
-  select p.brand || ' ' || p.name, sum(oi.quantity)
+  select oi.product_name_snapshot, sum(oi.quantity)
   into best_product_this_week, best_product_week_qty
-  from order_items oi
-  join product_variants pv on pv.id = oi.variant_id
-  join products p on p.id = pv.product_id
-  join orders o on o.id = oi.order_id
-  where o.created_at >= current_week_start
-    and o.status != 'cancelled'
-  group by p.id, p.brand, p.name
+  from public.order_items oi
+  join public.orders o on o.id = oi.order_id
+  where o.payment_status = 'paid'
+    and o.paid_at >= report_week_start::timestamp at time zone 'America/Bogota'
+    and o.paid_at < this_week_start::timestamp at time zone 'America/Bogota'
+  group by oi.product_name_snapshot
   order by sum(oi.quantity) desc
   limit 1;
   
   -- Best product last month
-  select p.brand || ' ' || p.name, sum(oi.quantity)
+  select oi.product_name_snapshot, sum(oi.quantity)
   into best_product_last_month, best_product_month_qty
-  from order_items oi
-  join product_variants pv on pv.id = oi.variant_id
-  join products p on p.id = pv.product_id
-  join orders o on o.id = oi.order_id
-  where o.created_at >= last_month_start
-    and o.created_at <= last_month_end
-    and o.status != 'cancelled'
-  group by p.id, p.brand, p.name
+  from public.order_items oi
+  join public.orders o on o.id = oi.order_id
+  where o.payment_status = 'paid'
+    and o.paid_at >= last_month_start::timestamp at time zone 'America/Bogota'
+    and o.paid_at < this_month_start::timestamp at time zone 'America/Bogota'
+  group by oi.product_name_snapshot
   order by sum(oi.quantity) desc
   limit 1;
   
   -- New customers this week
   select count(*)
   into new_customers_count
-  from customers
-  where created_at >= current_week_start;
+  from public.customers
+  where created_at >= report_week_start::timestamp at time zone 'America/Bogota'
+    and created_at < this_week_start::timestamp at time zone 'America/Bogota';
   
   -- Low stock products
   select count(*)
   into low_stock_count
-  from product_variants
-  where active = true and stock <= min_stock;
+  from public.product_variants pv
+  join public.products p on p.id = pv.product_id
+  where pv.active = true and p.active = true and pv.stock <= pv.min_stock;
   
   -- Pending orders
   select count(*)
   into pending_orders_count
-  from orders
-  where status = 'pending_confirmation';
+  from public.orders
+  where payment_status = 'pending' and status <> 'cancelled';
   
   -- Weekly expenses
   select coalesce(sum(amount), 0)
   into weekly_expenses
-  from expenses
-  where expense_date >= current_week_start;
+  from public.expenses
+  where expense_date >= report_week_start and expense_date < this_week_start;
   
   -- Monthly expenses
   select coalesce(sum(amount), 0)
   into monthly_expenses
-  from expenses
-  where expense_date >= date_trunc('month', current_date)::date;
+  from public.expenses
+  where expense_date >= this_month_start and expense_date < (this_month_start + interval '1 month')::date;
   
   -- Average order value
   avg_order_value := case when current_week_orders > 0 then current_week_sales / current_week_orders else 0 end;
   
   -- Build result
   result := jsonb_build_object(
-    'report_date', current_date,
-    'week_start', current_week_start,
-    'week_end', current_week_start + interval '6 days',
+    'report_date', local_today,
+    'week_start', report_week_start,
+    'week_end', report_week_end,
     'current_week', jsonb_build_object(
       'sales', current_week_sales,
       'orders', current_week_orders,
@@ -1762,7 +1765,8 @@ end;
 $$;
 
 revoke all on function public.weekly_sales_report() from public;
-grant execute on function public.weekly_sales_report() to anon, authenticated;
+revoke all on function public.weekly_sales_report() from anon, authenticated;
+grant execute on function public.weekly_sales_report() to service_role;
 
 -- ============================================
 -- CRON JOB: REPORTE SEMANAL (Domingos 8am Colombia = 1pm UTC)

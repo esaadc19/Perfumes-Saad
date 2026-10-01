@@ -111,7 +111,11 @@ En **Clientes**, también puedes importar contactos desde CSV o Excel `.xlsx`. U
 
 Los pedidos antiguos pueden no tener costo histórico. El panel los señala y deja su utilidad incompleta en lugar de inventar costos. Los importes son utilidad bruta y no incluyen domicilio, comisiones ni otros gastos.
 
-El número de WhatsApp se configura en `VITE_WHATSAPP_NUMBER`, en formato internacional, sin `+` ni espacios.
+El número de WhatsApp de pedidos se configura en `VITE_WHATSAPP_NUMBER`, en formato internacional, sin `+` ni espacios. El reporte semanal usa `WHATSAPP_NUMBERS`; si no se define, se envía a `3102318786` (Colombia, prefijo `57` aplicado automáticamente).
+
+### Reporte semanal
+
+El botón **Generar reporte semanal** ejecuta la función `weekly-report`, que solo permite el acceso a administradores. Genera el reporte de ventas pagadas de la última semana completa, lo compara con la semana anterior y ofrece abrir el contenido real del reporte en WhatsApp. También intenta enviarlo por correo; configura `BREVO_API_KEY`, `BREVO_SENDER_EMAIL` (remitente verificado en Brevo), `REPORT_RECIPIENT_EMAIL` y, opcionalmente, `WHATSAPP_NUMBERS` como secretos en **Supabase → Edge Functions → Secrets**. El valor predeterminado de `WHATSAPP_NUMBERS` es `3102318786`; los celulares colombianos de 10 dígitos reciben el prefijo `57`. No compartas la API key ni la subas a GitHub. Ejecuta el `supabase/schema.sql` actualizado y despliega la función con `supabase functions deploy weekly-report`. El cron dominical depende además de que `app.settings.supabase_url` y `app.settings.supabase_service_role_key` estén configurados en la base de datos; el enlace de WhatsApp requiere que un administrador lo abra.
 
 ## Vercel
 

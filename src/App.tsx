@@ -1116,6 +1116,13 @@ function Admin({
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportResult, setReportResult] = useState<{
+    whatsappUrl: string;
+    emailSent: boolean;
+    emailError: string | null;
+  } | null>(null);
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
@@ -1261,6 +1268,38 @@ function Admin({
       setSectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar el cliente.");
     } finally {
       setCustomerSaving(false);
+    }
+  };
+
+  const generateWeeklyReport = async () => {
+    if (!supabase) {
+      setReportError("Supabase no está configurado.");
+      return;
+    }
+    setReportLoading(true);
+    setReportError(null);
+    setReportResult(null);
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke("weekly-report");
+      if (functionError) throw functionError;
+      const whatsappUrl = Array.isArray(data?.whatsapp_links)
+        ? data.whatsapp_links.find((link: unknown) => typeof link === "string")
+        : null;
+      if (data?.success !== true || typeof whatsappUrl !== "string") {
+        throw new Error(typeof data?.error === "string" ? data.error : "Supabase no devolvió el reporte esperado.");
+      }
+      setReportResult({
+        whatsappUrl,
+        emailSent: data.email_sent === true,
+        emailError: typeof data.email_error === "string" ? data.email_error : null,
+      });
+    } catch (reportFailure) {
+      console.error("No se pudo generar el reporte semanal:", reportFailure);
+      setReportError(reportFailure instanceof Error
+        ? reportFailure.message
+        : "No se pudo generar el reporte semanal.");
+    } finally {
+      setReportLoading(false);
     }
   };
 
@@ -1662,18 +1701,21 @@ function Admin({
               <button
                 className="secondary"
                 type="button"
-                onClick={() => {
-                  const number = "573181749436";
-                  window.open(
-                    `https://wa.me/${number}?text=${encodeURIComponent("Hola, quiero generar el reporte semanal de ventas.")}`,
-                    "_blank",
-                    "noopener,noreferrer"
-                  );
-                }}
+                onClick={() => void generateWeeklyReport()}
+                disabled={reportLoading}
               >
-                <BarChart3 size={16} /> Generar reporte semanal
+                <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte semanal"}
               </button>
             </div>
+            {reportError && <p className="form-error" role="alert">{reportError}</p>}
+            {reportResult && (
+              <p className="report-result" role="status">
+                Reporte generado. {reportResult.emailSent
+                  ? "Correo enviado. "
+                  : `${reportResult.emailError ?? "No se pudo enviar el correo."} `}
+                <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
+              </p>
+            )}
             <div className="metrics">
               <Metric title="Ventas completas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
               <Metric title="Total vendido" value={money(Number(metrics.sales_revenue))} icon={<BarChart3 />} />

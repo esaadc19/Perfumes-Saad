@@ -2,9 +2,12 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
-const BREVO_SENDER_EMAIL = Deno.env.get("BREVO_SENDER_EMAIL") ?? "perfumes.saadc@gmail.com";
-const REPORT_RECIPIENT_EMAIL = Deno.env.get("REPORT_RECIPIENT_EMAIL") ?? "perfumes.saadc@gmail.com";
-const WHATSAPP_NUMBERS = (Deno.env.get("WHATSAPP_NUMBERS") ?? "3102318786,3016303982").split(",");
+const BREVO_SENDER_EMAIL = Deno.env.get("BREVO_SENDER_EMAIL") ?? "";
+const REPORT_RECIPIENT_EMAIL = Deno.env.get("REPORT_RECIPIENT_EMAIL") ?? "";
+const WHATSAPP_NUMBERS = (Deno.env.get("WHATSAPP_NUMBERS") ?? "3102318786").split(",");
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,12 +43,12 @@ function formatReport(data: any): string {
 ━━━━━━━━━━━━━━━━━━━━━━
 
 💰 *VENTAS*
-• Esta semana: ${formatCurrency(currentWeek.sales)} (${currentWeek.orders} pedidos)
+• Semana reportada: ${formatCurrency(currentWeek.sales)} (${currentWeek.orders} pedidos)
 • Semana pasada: ${formatCurrency(previousWeek.sales)} (${previousWeek.orders} pedidos)
 • Tendencia: ${salesTrend} ${salesDiff >= 0 ? "+" : "-"}${formatCurrency(Math.abs(salesDiff))} (${salesDiffPercent}%)
 
 📦 *PRODUCTO MÁS VENDIDO*
-• Esta semana: ${bestThisWeek.name} (${bestThisWeek.quantity} unidades)
+• Semana reportada: ${bestThisWeek.name} (${bestThisWeek.quantity} unidades)
 • Mes pasado: ${bestLastMonth.name} (${bestLastMonth.quantity} unidades)
 
 💵 *RESUMEN DE INGRESOS*
@@ -66,11 +69,24 @@ function formatReport(data: any): string {
 
 ━━━━━━━━━━━━━━━━━━━━━━
 
-_Reporte generado automáticamente el ${data.report_date}_
+_Reporte generado el ${data.report_date}_
   `.trim();
 }
 
-async function sendBrevoEmail(subject: string, htmlContent: string): Promise<boolean> {
+async function sendBrevoEmail(
+  subject: string,
+  htmlContent: string
+): Promise<{ sent: boolean; error: string | null }> {
+  if (!BREVO_API_KEY) {
+    return { sent: false, error: "Falta configurar BREVO_API_KEY en los secretos de Supabase." };
+  }
+  if (!BREVO_SENDER_EMAIL || !REPORT_RECIPIENT_EMAIL) {
+    return {
+      sent: false,
+      error: "Configura BREVO_SENDER_EMAIL y REPORT_RECIPIENT_EMAIL en los secretos de Supabase.",
+    };
+  }
+
   try {
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -86,10 +102,18 @@ async function sendBrevoEmail(subject: string, htmlContent: string): Promise<boo
         htmlContent: htmlContent,
       }),
     });
-    return response.ok;
+    if (!response.ok) {
+      const providerError = await response.text();
+      console.error("Brevo rejected the report email:", response.status, providerError);
+      return {
+        sent: false,
+        error: `Brevo rechazó el envío (HTTP ${response.status}). Verifica la API key y que el remitente esté verificado en Brevo.`,
+      };
+    }
+    return { sent: true, error: null };
   } catch (error) {
     console.error("Error sending Brevo email:", error);
-    return false;
+    return { sent: false, error: "No se pudo conectar con Brevo para enviar el correo." };
   }
 }
 
@@ -99,34 +123,86 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-    );
+    if (req.method !== "POST") {
+      return new Response(JSON.stringify({ success: false, error: "Method not allowed" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 405,
+      });
+    }
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Supabase report function environment is not configured.");
+    }
 
-    const { data, error } = await supabase.rpc("weekly_sales_report");
+    const authorization = req.headers.get("authorization") ?? "";
+    const accessToken = authorization.replace(/^Bearer\s+/i, "");
+    if (!accessToken) {
+      return new Response(JSON.stringify({ success: false, error: "Authentication required" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401,
+      });
+    }
+
+    const serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    if (accessToken !== SUPABASE_SERVICE_ROLE_KEY) {
+      if (!SUPABASE_ANON_KEY) throw new Error("Supabase public key is not configured.");
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+      });
+      const { data: userData, error: userError } = await userClient.auth.getUser(accessToken);
+      if (userError || !userData.user) {
+        return new Response(JSON.stringify({ success: false, error: "Valid user authentication is required" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 401,
+        });
+      }
+
+      const { data: profile, error: profileError } = await serviceClient
+        .from("profiles")
+        .select("role")
+        .eq("id", userData.user.id)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (profile?.role !== "admin") {
+        return new Response(JSON.stringify({ success: false, error: "Administrator access required" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 403,
+        });
+      }
+    }
+
+    const { data, error } = await serviceClient.rpc("weekly_sales_report");
     if (error) throw error;
 
     const reportText = formatReport(data);
-    const reportHtml = `<pre style="font-family: monospace; white-space: pre-wrap;">${reportText}</pre>`;
+    const escapedReport = reportText.replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[character] ?? character);
+    const reportHtml = `<pre style="font-family: monospace; white-space: pre-wrap;">${escapedReport}</pre>`;
 
     // Send email via Brevo
-    const emailSent = await sendBrevoEmail(
+    const emailResult = await sendBrevoEmail(
       `📊 Reporte Semanal - Semana del ${data.week_start}`,
       reportHtml
     );
 
     // Generate WhatsApp links
     const whatsappLinks = WHATSAPP_NUMBERS.map((number) => {
-      const cleanNumber = number.replace(/\D/g, "");
+      let cleanNumber = number.replace(/\D/g, "");
+      if (cleanNumber.length === 10) cleanNumber = `57${cleanNumber}`;
       return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(reportText)}`;
-    });
+    }).filter((link) => !link.startsWith("https://wa.me/?"));
 
     return new Response(
       JSON.stringify({
         success: true,
-        email_sent: emailSent,
+        email_sent: emailResult.sent,
+        email_error: emailResult.error,
         whatsapp_links: whatsappLinks,
+        report_text: reportText,
         report: data,
         message: "Reporte generado exitosamente",
       }),
