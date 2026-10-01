@@ -1280,7 +1280,15 @@ function Admin({
     setReportError(null);
     setReportResult(null);
     try {
-      const { data, error: functionError } = await supabase.functions.invoke("weekly-report");
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const accessToken = sessionData.session?.access_token;
+      if (!accessToken) {
+        throw new Error("Tu sesión no está activa. Cierra sesión, vuelve a entrar como administrador e inténtalo nuevamente.");
+      }
+      const { data, error: functionError } = await supabase.functions.invoke("weekly-report", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       if (functionError) throw functionError;
       const whatsappUrl = Array.isArray(data?.whatsapp_links)
         ? data.whatsapp_links.find((link: unknown) => typeof link === "string")
