@@ -445,7 +445,14 @@ footer a { color: #111; }
 .order-actions button { min-height: 36px; padding: 0 8px; font-size: 11px; }
 .order-actions > span { color: var(--muted); font-size: 11px; }
 .order-editor-modal { width: min(760px, 100%); }
-.order-editor-modal .auth-label select { width: 100%; height: 46px; margin-top: 7px; padding: 0 10px; border: 1px solid var(--border); background: white; }
+.order-editor-modal .auth-label select, .order-editor-modal .auth-label input { width: 100%; height: 46px; margin-top: 7px; padding: 0 10px; border: 1px solid var(--border); background: white; }
+.order-entry-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, .55fr); gap: 18px; align-items: end; }
+.order-client-entry > span { display: block; margin-bottom: 7px; font-size: 12px; font-weight: 600; }
+.order-client-mode { display: flex; flex-wrap: wrap; gap: 8px; }
+.order-client-mode .selected { border-color: var(--black); background: var(--black); color: white; }
+.order-date-field { margin-top: 0; }
+.order-manual-customer { margin: 12px 0 0; }
+.order-manual-customer input { width: 100%; min-height: 42px; margin-top: 7px; padding: 0 10px; border: 1px solid var(--border); background: white; }
 .order-editor-lines { margin-top: 22px; }
 .order-editor-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; }
 .order-editor-line { display: grid; grid-template-columns: minmax(0, 1fr) 110px 36px; gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid var(--border); }
@@ -532,6 +539,8 @@ footer a { color: #111; }
   .auth-modal h2, .add-modal h2 { font-size: 30px; }
   .form-grid { grid-template-columns: minmax(0, 1fr); }
   .form-grid .form-wide { grid-column: auto; }
+  .order-entry-fields { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .order-client-mode button { flex: 1 1 auto; }
   .variant-form-row { align-items: end; gap: 7px; }
   .variant-form-row label { min-width: 0; }
   .variant-form-row input { padding: 0 8px; }

@@ -1377,14 +1377,22 @@ function Admin({
   };
 
   const savePendingOrder = async (
-    customerId: string,
+    customerId: string | null,
+    customer: {
+      full_name: string;
+      phone: string | null;
+      email: string | null;
+      city: string | null;
+      delivery_address: string | null;
+    } | null,
     items: { variant_id: string; quantity: number }[],
-    orderId: string | null
+    orderId: string | null,
+    orderDate: string
   ) => {
     setOrderSaving(true);
     setSectionError(null);
     try {
-      await saveAdminPendingOrder({ orderId, customerId, items });
+      await saveAdminPendingOrder({ orderId, customerId, customer, items, orderDate });
       setOrderEditor(null);
       setSectionRevision((current) => current + 1);
     } catch (saveError) {
@@ -2170,11 +2178,11 @@ function Admin({
                   </p>
                 )}
                 <div className="admin-table">
-                <div className="table-row transaction-row header"><span>Pedido / Cliente</span><span>Fecha de venta</span><span>Vendido</span><span>Costo</span><span>Utilidad</span><span>Estado del pedido</span><span>Pago</span><span>Acciones</span></div>
+                <div className="table-row transaction-row header"><span>Pedido / Cliente</span><span>Fecha del pedido</span><span>Vendido</span><span>Costo</span><span>Utilidad</span><span>Estado del pedido</span><span>Pago</span><span>Acciones</span></div>
                 {visibleOrders.map((order) => (
                   <div className="table-row transaction-row" key={order.id}>
                     <div className="profile-cell" aria-readonly="true"><strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong><span>{order.order_items?.map((item) => `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`).join(" · ") || order.customers?.phone || "Sin detalle"}</span></div>
-                    <span>{order.paid_at ? new Date(order.paid_at).toLocaleDateString("es-CO") : "—"}</span>
+                    <span>{new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}</span>
                     <strong>{order.payment_status === "paid" ? money(Number(order.total)) : "—"}</strong>
                     <span>{order.payment_status !== "paid" ? "—" : order.order_items.some((item) => item.unit_cost_snapshot === null)
                       ? "Falta costo"
@@ -2279,7 +2287,9 @@ function Admin({
           saving={orderSaving}
           error={sectionError}
           onClose={() => { if (!orderSaving) setOrderEditor(null); }}
-          onSave={(customerId, items) => void savePendingOrder(customerId, items, orderEditor.order?.id ?? null)}
+          onSave={(customerId, customer, items, orderDate) =>
+            void savePendingOrder(customerId, customer, items, orderEditor.order?.id ?? null, orderDate)
+          }
         />
       )}
       {editingProduct && (
@@ -2410,9 +2420,46 @@ function OrderEditorModal({
   saving: boolean;
   error: string | null;
   onClose: () => void;
-  onSave: (customerId: string, items: { variant_id: string; quantity: number }[]) => void;
+  onSave: (
+    customerId: string | null,
+    customer: {
+      full_name: string;
+      phone: string | null;
+      email: string | null;
+      city: string | null;
+      delivery_address: string | null;
+    } | null,
+    items: { variant_id: string; quantity: number }[],
+    orderDate: string
+  ) => void;
 }) {
   const [customerId, setCustomerId] = useState(order?.customer_id ?? "");
+  const [customerMode, setCustomerMode] = useState<"registered" | "manual">(
+    order || customers.length > 0 ? "registered" : "manual"
+  );
+  const [manualCustomer, setManualCustomer] = useState({
+    full_name: "",
+    phone: "",
+    email: "",
+    city: "",
+    delivery_address: "",
+  });
+  const localToday = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const [orderDate, setOrderDate] = useState(
+    order
+      ? new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Bogota",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(new Date(order.created_at))
+      : localToday
+  );
   const [items, setItems] = useState(
     order?.order_items.map((item) => ({ variantId: item.variant_id, quantity: String(item.quantity) })) ?? []
   );
@@ -2470,28 +2517,116 @@ function OrderEditorModal({
         aria-labelledby="order-editor-title"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!customerId || !validItems) return;
-          onSave(customerId, items.map((item) => ({
-            variant_id: item.variantId,
-            quantity: Number(item.quantity),
-          })));
+          if ((customerMode === "registered" && !customerId) ||
+            (customerMode === "manual" && !manualCustomer.full_name.trim()) ||
+            !orderDate || !validItems) return;
+          onSave(
+            customerMode === "registered" ? customerId : null,
+            customerMode === "manual" ? {
+              full_name: manualCustomer.full_name.trim(),
+              phone: manualCustomer.phone.trim() || null,
+              email: manualCustomer.email.trim() || null,
+              city: manualCustomer.city.trim() || null,
+              delivery_address: manualCustomer.delivery_address.trim() || null,
+            } : null,
+            items.map((item) => ({
+              variant_id: item.variantId,
+              quantity: Number(item.quantity),
+            })),
+            orderDate
+          );
         }}
       >
         <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
         <p className="eyebrow">GESTIÓN DE PEDIDOS</p>
         <h2 id="order-editor-title">{order ? "Editar pedido pendiente" : "Crear pedido"}</h2>
-        <label className="auth-label">
-          Cliente
-          <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} required>
-            <option value="">Selecciona un cliente</option>
-            {customers.map((customer) => (
-              <option key={customer.id} value={customer.id}>
-                {customer.full_name}{customer.phone ? ` · ${customer.phone}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        {customers.length === 0 && <p className="form-error">No hay clientes registrados. Crea primero un pedido desde la tienda para registrar un cliente.</p>}
+        <div className="order-entry-fields">
+          <div className="order-client-entry">
+            <span>Cliente</span>
+            <div className="order-client-mode">
+              <button
+                type="button"
+                className={customerMode === "registered" ? "secondary selected" : "secondary"}
+                onClick={() => setCustomerMode("registered")}
+                disabled={customers.length === 0}
+              >
+                Cliente registrado
+              </button>
+              <button
+                type="button"
+                className={customerMode === "manual" ? "secondary selected" : "secondary"}
+                onClick={() => setCustomerMode("manual")}
+              >
+                Ingresar manualmente
+              </button>
+            </div>
+          </div>
+          <label className="auth-label order-date-field">
+            Fecha del pedido
+            <input
+              type="date"
+              value={orderDate}
+              max={localToday}
+              disabled={saving}
+              onChange={(event) => setOrderDate(event.target.value)}
+              required
+            />
+          </label>
+        </div>
+        {customerMode === "registered" ? (
+          <label className="auth-label">
+            Seleccionar cliente
+            <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} required>
+              <option value="">Selecciona un cliente</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>
+                  {customer.full_name}{customer.phone ? ` · ${customer.phone}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="form-grid order-manual-customer">
+            <label>Nombre del cliente
+              <input
+                value={manualCustomer.full_name}
+                onChange={(event) => setManualCustomer((current) => ({ ...current, full_name: event.target.value }))}
+                autoComplete="name"
+                required
+              />
+            </label>
+            <label>WhatsApp / teléfono
+              <input
+                type="tel"
+                value={manualCustomer.phone}
+                onChange={(event) => setManualCustomer((current) => ({ ...current, phone: event.target.value }))}
+                autoComplete="tel"
+              />
+            </label>
+            <label>Correo (opcional)
+              <input
+                type="email"
+                value={manualCustomer.email}
+                onChange={(event) => setManualCustomer((current) => ({ ...current, email: event.target.value }))}
+                autoComplete="email"
+              />
+            </label>
+            <label>Ciudad (opcional)
+              <input
+                value={manualCustomer.city}
+                onChange={(event) => setManualCustomer((current) => ({ ...current, city: event.target.value }))}
+                autoComplete="address-level2"
+              />
+            </label>
+            <label className="form-wide">Dirección (opcional)
+              <input
+                value={manualCustomer.delivery_address}
+                onChange={(event) => setManualCustomer((current) => ({ ...current, delivery_address: event.target.value }))}
+                autoComplete="street-address"
+              />
+            </label>
+          </div>
+        )}
         <div className="order-editor-lines">
           <div className="order-editor-heading"><strong>Productos del pedido</strong><button type="button" className="text-button" onClick={addItem} disabled={!canAddItem}>+ Añadir producto</button></div>
           {items.map((item, index) => (
@@ -2547,7 +2682,15 @@ function OrderEditorModal({
         <div className="order-editor-total"><span>Total del pedido</span><strong>{money(orderPrice.total)}</strong></div>
         {items.length > 0 && !validItems && <p className="form-error">Revisa productos, cantidades disponibles y evita repetir presentaciones.</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="primary full" type="submit" disabled={saving || !customerId || !validItems}>
+        <button
+          className="primary full"
+          type="submit"
+          disabled={saving ||
+            (customerMode === "registered" && !customerId) ||
+            (customerMode === "manual" && !manualCustomer.full_name.trim()) ||
+            !orderDate ||
+            !validItems}
+        >
           {saving ? "Guardando…" : order ? "Guardar cambios" : "Crear pedido"}
         </button>
       </form>
