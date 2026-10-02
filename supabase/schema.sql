@@ -85,6 +85,30 @@ create table if not exists public.customers (
   updated_at timestamptz not null default now()
 );
 
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'customers'
+      and column_name = 'Addrees'
+  ) then
+    if exists (
+      select 1 from information_schema.columns
+      where table_schema = 'public'
+        and table_name = 'customers'
+        and column_name = 'delivery_address'
+    ) then
+      execute 'update public.customers set delivery_address = coalesce(delivery_address, "Addrees") where delivery_address is null and "Addrees" is not null';
+    else
+      alter table public.customers rename column "Addrees" to delivery_address;
+    end if;
+  else
+    alter table public.customers add column if not exists delivery_address text;
+  end if;
+end;
+$$;
+
 alter table public.customers add column if not exists account_id uuid references auth.users(id) on delete set null;
 create unique index if not exists customers_account_id_unique
   on public.customers(account_id) where account_id is not null;
