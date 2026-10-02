@@ -324,13 +324,13 @@ export async function updateAdminProduct(input: {
         promotion_id: input.product.promotion_id ?? null,
       },
       variants_data: input.product.variants
-        .filter((variant) => variant.active !== false)
         .map((variant) => ({
         id: variant.id.startsWith("new-") ? null : variant.id,
         size: variant.size,
         price: variant.price,
         cost: variant.cost,
         stock: variant.stock,
+        active: variant.active !== false,
         })),
     });
     if (error) throw error;

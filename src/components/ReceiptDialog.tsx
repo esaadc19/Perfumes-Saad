@@ -18,8 +18,6 @@ type ReceiptCartItem = {
 
 type PrinterPhase = "idle" | "feeding-in" | "printing" | "feeding-out";
 
-const WHATSAPP_NUMBER = "573181749436";
-
 const money = (value: number) =>
   new Intl.NumberFormat("es-CO", {
     style: "currency",
@@ -30,12 +28,20 @@ const money = (value: number) =>
 export default function ReceiptDialog({
   cart,
   user,
+  whatsappNumber,
+  whatsappGreeting,
+  storeName,
+  receiptFooterMessage,
   onClose,
   onSignIn,
   onOrderSaved,
 }: {
   cart: ReceiptCartItem[];
   user: User | null;
+  whatsappNumber: string;
+  whatsappGreeting: string;
+  storeName: string;
+  receiptFooterMessage: string;
   onClose: () => void;
   onSignIn: () => void;
   onOrderSaved: () => void;
@@ -62,6 +68,9 @@ export default function ReceiptDialog({
     [cart]
   );
   const previewTotal = previewPrice.total;
+  const whatsappMessage = receipt
+    ? `${whatsappGreeting}\n\n${receipt.message}`
+    : "";
 
   useEffect(() => {
     let active = true;
@@ -109,14 +118,14 @@ export default function ReceiptDialog({
   // Auto-send to WhatsApp when receipt is generated
   useEffect(() => {
     if (receipt) {
-      const number = WHATSAPP_NUMBER.replace(/\D/g, "");
+      const number = whatsappNumber.replace(/\D/g, "");
       window.open(
-        `https://wa.me/${number}?text=${encodeURIComponent(receipt.message)}`,
+        `https://wa.me/${number}?text=${encodeURIComponent(whatsappMessage)}`,
         "_blank",
         "noopener,noreferrer"
       );
     }
-  }, [receipt]);
+  }, [receipt, whatsappNumber, whatsappMessage]);
 
   const submitOrder = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -200,9 +209,9 @@ export default function ReceiptDialog({
 
   const sendToWhatsApp = () => {
     if (!receipt) return;
-    const number = WHATSAPP_NUMBER.replace(/\D/g, "");
+    const number = whatsappNumber.replace(/\D/g, "");
     window.open(
-      `https://wa.me/${number}?text=${encodeURIComponent(receipt.message)}`,
+      `https://wa.me/${number}?text=${encodeURIComponent(whatsappMessage)}`,
       "_blank",
       "noopener,noreferrer"
     );
@@ -342,7 +351,7 @@ export default function ReceiptDialog({
                 {receipt ? "PEDIDO PENDIENTE DE CONFIRMACIÓN" : "VISTA PREVIA · SIN GUARDAR"}
               </div>
               <footer className="receipt-footer">
-                <span>Gracias por elegir Perfumes SAAD</span>
+                <span>{receiptFooterMessage || `Gracias por elegir ${storeName}`}</span>
                 <small>El pago y la entrega se coordinan por WhatsApp.</small>
               </footer>
             </article>

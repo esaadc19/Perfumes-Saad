@@ -1642,6 +1642,38 @@ create table if not exists public.expenses (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.store_settings (
+  id smallint primary key default 1 check (id = 1),
+  store_name text not null default 'Perfumes SAAD',
+  logo_url text,
+  whatsapp_number text not null default '573181749436',
+  contact_email text,
+  whatsapp_greeting text not null default 'Hola, quiero hacer una consulta sobre sus perfumes.',
+  home_title text not null default 'Encuentra una fragancia que vaya contigo.',
+  home_message text not null default 'Catálogo de perfumería con recomendaciones, diferentes presentaciones y atención personalizada por WhatsApp.',
+  receipt_footer_message text not null default 'Gracias por elegir Perfumes SAAD',
+  updated_at timestamptz not null default now()
+);
+
+insert into public.store_settings (id)
+values (1)
+on conflict (id) do nothing;
+
+alter table public.store_settings enable row level security;
+grant select on public.store_settings to anon, authenticated;
+grant update on public.store_settings to authenticated;
+
+drop policy if exists "Public can read store settings" on public.store_settings;
+create policy "Public can read store settings"
+  on public.store_settings for select to anon, authenticated
+  using (true);
+
+drop policy if exists "Admins can update store settings" on public.store_settings;
+create policy "Admins can update store settings"
+  on public.store_settings for update to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
+
 alter table public.expenses add column if not exists name text not null;
 alter table public.expenses add column if not exists amount numeric(12,2) not null default 0 check (amount >= 0);
 alter table public.expenses add column if not exists category text not null default 'general';

@@ -51,6 +51,12 @@ import AccountDialog from "./components/AccountDialog";
 import ReceiptDialog from "./components/ReceiptDialog";
 import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
+import SettingsPage from "./components/admin/SettingsPage";
+import {
+  DEFAULT_STORE_SETTINGS,
+  getStoreSettings,
+  type StoreSettings,
+} from "./services/store-settings";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -69,6 +75,7 @@ import {
   RefreshCw,
   Search,
   ReceiptText,
+  Settings,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
@@ -156,8 +163,6 @@ const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-const whatsappNumber = "573181749436";
-
 function App() {
   const [view, setView] = useState<"store" | "admin">("store");
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -169,6 +174,8 @@ function App() {
   const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>(DEFAULT_STORE_SETTINGS);
+  const [storeSettingsError, setStoreSettingsError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
@@ -203,6 +210,31 @@ function App() {
       active = false;
     };
   }, []);
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    void getStoreSettings()
+      .then((settings) => {
+        if (active) {
+          setStoreSettings(settings);
+          setStoreSettingsError(null);
+        }
+      })
+      .catch((settingsError: unknown) => {
+        console.error("No se pudo cargar la configuración de la tienda:", settingsError);
+        if (active) setStoreSettingsError(
+          settingsError instanceof Error
+            ? settingsError.message
+            : "No se pudo cargar la configuración de la tienda."
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    document.title = storeSettings.store_name;
+  }, [storeSettings.store_name]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState("");
@@ -569,8 +601,10 @@ function App() {
               <button onClick={() => setCategory("Nicho")}>Nicho</button>
             </nav>
 
-            <button className="brand" onClick={() => setCategory("Todos")}>
-              Perfumes <span>SAAD</span>
+            <button className="brand" onClick={() => setCategory("Todos")} aria-label={storeSettings.store_name}>
+              {storeSettings.logo_url
+                ? <img className="brand-logo" src={storeSettings.logo_url} alt={storeSettings.store_name} />
+                : storeSettings.store_name}
             </button>
 
             <div className="nav-actions">
@@ -595,15 +629,12 @@ function App() {
           <main>
             <section className="hero">
               <div>
-                <p className="eyebrow">PERFUMES SAAD</p>
-                <h1>Encuentra una fragancia que vaya contigo.</h1>
-                <p>
-                  Catálogo de perfumería con recomendaciones, diferentes
-                  presentaciones y atención personalizada por WhatsApp.
-                </p>
+                <p className="eyebrow">{storeSettings.store_name}</p>
+                <h1>{storeSettings.home_title}</h1>
+                <p>{storeSettings.home_message}</p>
                 <a
                   className="primary hero-whatsapp"
-                  href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Hola, quiero hacer una consulta sobre sus perfumes.")}`}
+                  href={`https://wa.me/${storeSettings.whatsapp_number.replace(/\D/g, "")}?text=${encodeURIComponent(storeSettings.whatsapp_greeting)}`}
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -923,7 +954,7 @@ function App() {
                     </div>
                     <p className="checkout-note">
                       Genera tu recibo tipo impresora, verifica los datos del cliente y
-                      envía el pedido a Perfumes SAAD por WhatsApp.
+                      envía el pedido a {storeSettings.store_name} por WhatsApp.
                     </p>
                     <button className="primary full" onClick={() => setReceiptOpen(true)}>
                       Generar recibo del pedido
@@ -935,8 +966,9 @@ function App() {
           )}
 
           <footer>
-            <div className="footer-brand">Perfumes SAAD</div>
+            <div className="footer-brand">{storeSettings.store_name}</div>
             <span>Perfumería · Barranquilla · Colombia</span>
+            {storeSettings.contact_email && <a href={`mailto:${storeSettings.contact_email}`}>{storeSettings.contact_email}</a>}
             {userRole === "admin" && (
               <a href="#" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
                 Administración
@@ -947,6 +979,12 @@ function App() {
       ) : userRole === "admin" ? (
         <Admin
           products={products}
+          storeSettings={storeSettings}
+          storeSettingsError={storeSettingsError}
+          onStoreSettingsSaved={(settings) => {
+            setStoreSettings(settings);
+            setStoreSettingsError(null);
+          }}
           promotions={promotions}
           onPromotionsChange={setPromotions}
           currentUserId={user?.id ?? ""}
@@ -1053,6 +1091,10 @@ function App() {
         <ReceiptDialog
           cart={cart}
           user={user}
+          whatsappNumber={storeSettings.whatsapp_number}
+          whatsappGreeting={storeSettings.whatsapp_greeting}
+          storeName={storeSettings.store_name}
+          receiptFooterMessage={storeSettings.receipt_footer_message}
           onClose={() => setReceiptOpen(false)}
           onSignIn={() => {
             setReceiptOpen(false);
@@ -1070,6 +1112,9 @@ function App() {
 
 function Admin({
   products,
+  storeSettings,
+  storeSettingsError,
+  onStoreSettingsSaved,
   promotions,
   onPromotionsChange,
   onProductsRefresh,
@@ -1091,6 +1136,9 @@ function Admin({
   onSignOut,
 }: {
   products: Product[];
+  storeSettings: StoreSettings;
+  storeSettingsError: string | null;
+  onStoreSettingsSaved: (settings: StoreSettings) => void;
   promotions: Promotion[];
   onPromotionsChange: (promotions: Promotion[]) => void;
   onProductsRefresh: () => Promise<void>;
@@ -1111,7 +1159,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "profiles">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "profiles" | "settings">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
@@ -1193,12 +1241,13 @@ function Admin({
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "expenses", title: "Gastos", icon: <Wallet size={17} /> },
     { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
+    { id: "settings", title: "Configuración", icon: <Settings size={17} /> },
   ] as const;
 
   useEffect(() => {
     let active = true;
     const loadSection = async () => {
-      if (section === "products") {
+      if (section === "products" || section === "settings") {
         setSectionLoading(false);
         setSectionError(null);
         return;
@@ -1592,7 +1641,11 @@ function Admin({
     <div className={`admin-layout${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <aside className="sidebar">
         <div className="sidebar-heading">
-          <button className="admin-logo" onClick={onBack}>SAAD<span>.</span></button>
+          <button className="admin-logo" onClick={onBack} aria-label={storeSettings.store_name}>
+            {storeSettings.logo_url
+              ? <img src={storeSettings.logo_url} alt="" />
+              : storeSettings.store_name}
+          </button>
           <button
             type="button"
             className="sidebar-collapse"
@@ -1620,7 +1673,7 @@ function Admin({
       <main className="admin-main">
         <div className="admin-top">
           <div>
-            <p className="eyebrow">PERFUMES SAAD</p>
+            <p className="eyebrow">{storeSettings.store_name}</p>
             <h1>{pageTitle}</h1>
           </div>
           <div className="admin-actions">
@@ -1846,6 +1899,14 @@ function Admin({
           </section>
         )}
 
+        {section === "settings" && (
+          <SettingsPage
+            settings={storeSettings}
+            loadError={storeSettingsError}
+            onSaved={onStoreSettingsSaved}
+          />
+        )}
+
         {section === "products" && <section className="admin-card">
           <div className="card-title">
             <div>
@@ -1919,7 +1980,10 @@ function Admin({
                   <div className="variant-cost-list">
                     {product.variants.map((variant) => (
                       <label key={variant.id}>
-                        <span>{variant.size} ml · precio {money(variant.price)}</span>
+                        <span>
+                          {variant.size} ml · precio {money(variant.price)}
+                          {variant.active === false && <small className="variant-hidden-label">Oculta en tienda</small>}
+                        </span>
                         <span className="cost-input-wrap">
                           <span>Costo</span>
                           <input
@@ -2753,7 +2817,6 @@ function EditProductModal({
   const [promotionId, setPromotionId] = useState(product.promotion_id ?? "");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [variants, setVariants] = useState(product.variants
-    .filter((variant) => variant.active !== false)
     .map((variant) => ({
     ...variant,
     sizeDraft: String(variant.size),
@@ -2945,6 +3008,17 @@ function EditProductModal({
             <div className="edit-variant-row" key={variant.id}>
               <label>Tamaño (ml)
                 <input type="number" min="1" step="1" value={variant.sizeDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, sizeDraft: event.target.value } : item))} required />
+                <span className="variant-active-control">
+                  <input
+                    type="checkbox"
+                    checked={variant.active !== false}
+                    disabled={saving}
+                    onChange={(event) => setVariants((current) => current.map((item, itemIndex) =>
+                      itemIndex === index ? { ...item, active: event.target.checked } : item
+                    ))}
+                  />
+                  Visible en tienda
+                </span>
               </label>
               <label>Precio
                 <input type="number" min="0" step="1" value={variant.priceDraft} placeholder="Precio de venta" disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, priceDraft: event.target.value } : item))} required />
