@@ -157,7 +157,7 @@ export async function saveAdminPendingOrder(input: {
   });
   if (error) {
     console.error("No se pudo guardar el pedido:", error);
-    throw error;
+    throw new Error(error.message || "No se pudo guardar el pedido.");
   }
   if (typeof data !== "string") throw new Error("Supabase no devolvió el pedido guardado.");
   return data;
