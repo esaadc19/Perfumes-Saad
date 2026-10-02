@@ -884,7 +884,8 @@ declare
   new_stock integer;
   stock_delta integer;
   variant_size integer;
-  variant_sizes integer[] := '{}';
+  variant_sizes integer[] := array[]::integer[];
+  variant_active boolean;
   retired_variant_id uuid;
 begin
   if not public.is_admin() then
@@ -946,6 +947,9 @@ begin
 
   for variant in select value from jsonb_array_elements(variants_data)
   loop
+    if variant ? 'active' and jsonb_typeof(variant->'active') is distinct from 'boolean' then
+      raise exception 'Presentation visibility is invalid';
+    end if;
     if nullif(variant->>'size', '') is null
        or (variant->>'size') !~ '^[0-9]+$'
        or (variant->>'size')::integer <= 0
@@ -962,6 +966,7 @@ begin
     variant_sizes := array_append(variant_sizes, variant_size);
 
     new_stock := (variant->>'stock')::integer;
+    variant_active := coalesce((variant->>'active')::boolean, true);
     if nullif(variant->>'id', '') is null then
       select id, stock into variant_id, previous_stock
       from public.product_variants
@@ -976,7 +981,7 @@ begin
         set price = (variant->>'price')::numeric,
             cost = nullif(variant->>'cost', '')::numeric,
             stock = new_stock,
-            active = true
+            active = variant_active
         where id = variant_id;
 
         if stock_delta <> 0 then
@@ -989,13 +994,14 @@ begin
           );
         end if;
       else
-        insert into public.product_variants (product_id, size_ml, price, cost, stock)
+        insert into public.product_variants (product_id, size_ml, price, cost, stock, active)
         values (
           target_product_id,
           variant_size,
           (variant->>'price')::numeric,
           nullif(variant->>'cost', '')::numeric,
-          new_stock
+          new_stock,
+          variant_active
         )
         returning id into variant_id;
         if new_stock > 0 then
@@ -1018,7 +1024,8 @@ begin
       set size_ml = variant_size,
           price = (variant->>'price')::numeric,
           cost = nullif(variant->>'cost', '')::numeric,
-          stock = new_stock
+          stock = new_stock,
+          active = variant_active
       where id = variant_id;
 
       if stock_delta <> 0 then
@@ -1037,7 +1044,6 @@ begin
     select pv.id
     from public.product_variants pv
     where pv.product_id = target_product_id
-      and pv.active = true
       and not exists (
         select 1
         from jsonb_array_elements(variants_data) as item(value)
