@@ -71,11 +71,11 @@ _Reporte generado el ${data.report_date}_
   `.trim();
 }
 
-function formatDailyReport(data: any): string {
+function formatDateRangeReport(data: any): string {
   const bestProduct = data.best_product;
   return `
-📊 *REPORTE DIARIO - PERFUMES SAAD*
-📅 Fecha: ${data.report_date}
+📊 *REPORTE DE VENTAS - PERFUMES SAAD*
+📅 Rango: ${data.start_date} al ${data.end_date}
 
 💰 *VENTAS*
 • Total vendido: ${formatCurrency(data.sales)}
@@ -88,7 +88,10 @@ function formatDailyReport(data: any): string {
 💸 *GASTOS*
 • Gastos registrados: ${formatCurrency(data.expenses)}
 
-_Reporte generado el ${data.report_date}_
+_Reporte generado el ${new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    dateStyle: "long",
+  }).format(new Date())}_
   `.trim();
 }
 
@@ -146,32 +149,50 @@ serve(async (req) => {
     }
 
     const requestBody = await req.json();
-    const requestedDate = requestBody?.report_date;
-    if (requestedDate !== undefined &&
-      (typeof requestedDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate))) {
-      throw new Error("La fecha del reporte debe tener el formato AAAA-MM-DD.");
+    if (typeof requestBody !== "object" || requestBody === null || Array.isArray(requestBody)) {
+      throw new Error("El contenido de la solicitud no es válido.");
     }
-    if (typeof requestedDate === "string") {
-      const parsedDate = new Date(`${requestedDate}T00:00:00Z`);
-      const parsedDateText = parsedDate.toISOString().slice(0, 10);
+    const requestedStart = requestBody.report_start;
+    const requestedEnd = requestBody.report_end;
+    const hasRange = requestedStart !== undefined || requestedEnd !== undefined;
+    if (hasRange && (
+      typeof requestedStart !== "string" ||
+      typeof requestedEnd !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(requestedStart) ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(requestedEnd)
+    )) {
+      throw new Error("Selecciona ambas fechas del reporte con el formato AAAA-MM-DD.");
+    }
+    if (hasRange) {
+      const validDate = (value: string) => {
+        const date = new Date(`${value}T00:00:00Z`);
+        return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+      };
       const today = new Intl.DateTimeFormat("en-CA", {
         timeZone: "America/Bogota",
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
       }).format(new Date());
-      if (parsedDateText !== requestedDate || requestedDate > today) {
-        throw new Error("La fecha del reporte diario no es válida.");
+      if (
+        !validDate(requestedStart) ||
+        !validDate(requestedEnd) ||
+        requestedStart > requestedEnd ||
+        requestedEnd > today
+      ) {
+        throw new Error("El rango de fechas del reporte no es válido.");
       }
     }
 
-    const isDailyReport = typeof requestedDate === "string";
-    const { data, error } = isDailyReport
-      ? await serviceClient.rpc("daily_sales_report", { target_date: requestedDate })
+    const { data, error } = hasRange
+      ? await serviceClient.rpc("sales_report_by_date_range", {
+          start_date: requestedStart,
+          end_date: requestedEnd,
+        })
       : await serviceClient.rpc("weekly_sales_report");
     if (error) throw error;
 
-    const reportText = isDailyReport ? formatDailyReport(data) : formatReport(data);
+    const reportText = hasRange ? formatDateRangeReport(data) : formatReport(data);
     const escapedReport = reportText.replace(/[&<>"']/g, (character) => ({
       "&": "&amp;",
       "<": "&lt;",
@@ -183,8 +204,8 @@ serve(async (req) => {
 
     // Send email via Brevo
     const emailResult = await sendAppsScriptEmail(
-      isDailyReport
-        ? `📊 Reporte Diario - ${data.report_date}`
+      hasRange
+        ? `📊 Reporte de ventas - ${data.start_date} al ${data.end_date}`
         : `📊 Reporte Semanal - Semana del ${data.week_start}`,
       reportHtml
     );

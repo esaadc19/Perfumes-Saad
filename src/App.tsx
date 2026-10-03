@@ -1190,7 +1190,8 @@ function Admin({
   const [sectionError, setSectionError] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
-  const [reportDate, setReportDate] = useState(getBogotaDate);
+  const [reportStartDate, setReportStartDate] = useState(getBogotaDate);
+  const [reportEndDate, setReportEndDate] = useState(getBogotaDate);
   const [reportResult, setReportResult] = useState<{
     whatsappUrl: string;
     emailSent: boolean;
@@ -1365,13 +1366,17 @@ function Admin({
     }
   };
 
-  const generateReport = async (dailyReportDate: string | null = null) => {
+  const generateReport = async (dateRange: { start: string; end: string } | null = null) => {
     if (!supabase) {
       setReportError("Supabase no está configurado.");
       return;
     }
-    if (dailyReportDate && dailyReportDate > getBogotaDate()) {
-      setReportError("El reporte diario no puede usar una fecha futura.");
+    if (dateRange && (!dateRange.start || !dateRange.end || dateRange.start > dateRange.end)) {
+      setReportError("Selecciona un rango de fechas válido: la fecha inicial debe ser anterior o igual a la final.");
+      return;
+    }
+    if (dateRange && dateRange.end > getBogotaDate()) {
+      setReportError("El reporte no puede incluir fechas futuras.");
       return;
     }
     setReportLoading(true);
@@ -1385,7 +1390,9 @@ function Admin({
         throw new Error("Tu sesión no está activa. Cierra sesión, vuelve a entrar como administrador e inténtalo nuevamente.");
       }
       const { data, error: functionError } = await supabase.functions.invoke("weekly-report", {
-        body: dailyReportDate ? { report_date: dailyReportDate } : {},
+        body: dateRange
+          ? { report_start: dateRange.start, report_end: dateRange.end }
+          : {},
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (functionError) throw functionError;
@@ -1399,7 +1406,9 @@ function Admin({
         whatsappUrl,
         emailSent: data.email_sent === true,
         emailError: typeof data.email_error === "string" ? data.email_error : null,
-        label: dailyReportDate ? `diario del ${dailyReportDate}` : "semanal",
+        label: dateRange
+          ? `del ${formatBogotaDate(dateRange.start)} al ${formatBogotaDate(dateRange.end)}`
+          : "semanal",
       });
     } catch (reportFailure) {
       console.error("No se pudo generar el reporte:", reportFailure);
@@ -1826,22 +1835,35 @@ function Admin({
           <>
             <div className="report-actions">
               <label className="report-date-field">
-                Fecha del reporte diario
+                Fecha inicial
                 <input
                   type="date"
-                  value={reportDate}
+                  value={reportStartDate}
                   max={getBogotaDate()}
                   disabled={reportLoading}
-                  onChange={(event) => setReportDate(event.target.value)}
+                  onChange={(event) => setReportStartDate(event.target.value)}
+                  required
+                />
+              </label>
+              <label className="report-date-field">
+                Fecha final
+                <input
+                  type="date"
+                  value={reportEndDate}
+                  min={reportStartDate}
+                  max={getBogotaDate()}
+                  disabled={reportLoading}
+                  onChange={(event) => setReportEndDate(event.target.value)}
+                  required
                 />
               </label>
               <button
                 className="secondary"
                 type="button"
-                onClick={() => void generateReport(reportDate)}
-                disabled={reportLoading || !reportDate}
+                onClick={() => void generateReport({ start: reportStartDate, end: reportEndDate })}
+                disabled={reportLoading || !reportStartDate || !reportEndDate || reportStartDate > reportEndDate}
               >
-                <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte diario"}
+                <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte por rango"}
               </button>
               <button
                 className="secondary"
