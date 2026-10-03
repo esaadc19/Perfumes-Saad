@@ -427,7 +427,7 @@ footer a { color: #111; }
 .profile-cell { min-width: 0; display: grid; gap: 4px; }
 .profile-cell span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; }
 .order-row { min-width: 980px; grid-template-columns: 2.2fr .7fr .8fr 1fr 1fr; }
-.transaction-row { min-width: 1660px; grid-template-columns: 2.1fr .8fr .9fr .9fr .9fr 1fr 1.2fr 1fr; }
+.transaction-row { min-width: 1740px; grid-template-columns: 2.1fr .8fr .9fr .9fr .9fr .9fr 1fr 1.2fr 1fr; }
 .admin-table select { width: 100%; min-width: 110px; padding: 8px; border: 1px solid var(--border); background: white; color: var(--ink); font-size: 12px; }
 .profile-notice { display: flex; align-items: center; gap: 9px; margin-bottom: 18px; padding: 12px 14px; background: #f4f0ea; color: #65564c; font-size: 12px; line-height: 1.5; }
 .variant-cost-list { display: grid; gap: 9px; }
@@ -438,7 +438,7 @@ footer a { color: #111; }
 .transaction-filters { display: flex; gap: 8px; margin: -2px 0 20px; overflow-x: auto; }
 .transaction-filters button { flex: 0 0 auto; padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; background: white; color: var(--ink); font-size: 12px; }
 .transaction-filters button.selected { border-color: #111; background: #111; color: white; }
-.transaction-metrics { margin-top: 8px; }
+.transaction-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 8px; }
 .admin-customer-modal { width: min(100%, 520px); }
 .admin-customer-modal .auth-label { display: grid; gap: 7px; margin-bottom: 12px; }
 .admin-customer-modal .auth-label input { width: 100%; }
@@ -635,12 +635,14 @@ footer a { color: #111; }
   .profile-row > :nth-child(3)::before { content: "Alta"; }
   .profile-row > :nth-child(4)::before { content: "Permiso"; }
   .transaction-row > :nth-child(1)::before { content: "Pedido / cliente"; }
-  .transaction-row > :nth-child(2)::before { content: "Fecha de venta"; }
+  .transaction-row > :nth-child(2)::before { content: "Fecha de pedido"; }
   .transaction-row > :nth-child(3)::before { content: "Vendido"; }
-  .transaction-row > :nth-child(4)::before { content: "Costo"; }
-  .transaction-row > :nth-child(5)::before { content: "Utilidad"; }
-  .transaction-row > :nth-child(6)::before { content: "Estado del pedido"; }
-  .transaction-row > :nth-child(7)::before { content: "Pago"; }
+  .transaction-row > :nth-child(4)::before { content: "Costo productos"; }
+  .transaction-row > :nth-child(5)::before { content: "Domicilio"; }
+  .transaction-row > :nth-child(6)::before { content: "Utilidad neta"; }
+  .transaction-row > :nth-child(7)::before { content: "Estado del pedido"; }
+  .transaction-row > :nth-child(8)::before { content: "Pago"; }
+  .transaction-row > :nth-child(9)::before { content: "Acciones"; }
   .profile-cell { gap: 3px; }
   .profile-cell::before { margin-bottom: 4px; }
   .admin-table select { min-width: 0; }

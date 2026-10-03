@@ -120,12 +120,15 @@ create table if not exists public.orders (
   payment_status text not null default 'pending',
   subtotal numeric(12,2) not null default 0,
   shipping numeric(12,2) not null default 0,
+  delivery_cost numeric(12,2) not null default 0 check (delivery_cost >= 0),
   discount numeric(12,2) not null default 0,
   total numeric(12,2) not null default 0,
   whatsapp_message text,
   created_at timestamptz not null default now()
 );
 
+alter table public.orders
+  add column if not exists delivery_cost numeric(12,2) not null default 0 check (delivery_cost >= 0);
 alter table public.orders add column if not exists paid_at timestamptz;
 update public.orders
 set paid_at = created_at
@@ -560,13 +563,16 @@ $$;
 revoke all on function public.calculate_promotion_discounts(jsonb) from public, anon, authenticated;
 
 drop function if exists public.admin_save_pending_order(uuid, uuid, jsonb);
+drop function if exists public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date);
+drop function if exists public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric);
 
 create or replace function public.admin_save_pending_order(
   target_order_id uuid,
   target_customer_id uuid,
   customer_data jsonb,
   items_data jsonb,
-  order_date date
+  order_date date,
+  new_delivery_cost numeric
 )
 returns uuid
 language plpgsql
@@ -605,6 +611,9 @@ begin
   if order_date is null or order_date > (now() at time zone 'America/Bogota')::date then
     raise exception 'Order date cannot be in the future';
   end if;
+  if new_delivery_cost is null or new_delivery_cost < 0 then
+    raise exception 'Delivery cost must be zero or greater';
+  end if;
   if jsonb_typeof(items_data) is distinct from 'array' then
     raise exception 'An order must contain at least one product';
   end if;
@@ -639,12 +648,13 @@ begin
   end if;
 
   if target_order_id is null then
-    insert into public.orders (customer_id, status, payment_status, created_at)
+    insert into public.orders (customer_id, status, payment_status, created_at, delivery_cost)
     values (
       saved_customer_id,
       'pending_confirmation',
       'pending',
-      order_date::timestamp at time zone 'America/Bogota'
+      order_date::timestamp at time zone 'America/Bogota',
+      new_delivery_cost
     )
     returning id into saved_order_id;
   else
@@ -662,7 +672,8 @@ begin
     saved_order_id := target_order_id;
     delete from public.order_items where order_id = saved_order_id;
     update public.orders
-    set created_at = order_date::timestamp at time zone 'America/Bogota'
+    set created_at = order_date::timestamp at time zone 'America/Bogota',
+        delivery_cost = new_delivery_cost
     where id = saved_order_id;
   end if;
 
@@ -1349,11 +1360,16 @@ begin
       join public.order_items oi on oi.order_id = o.id
       where o.payment_status = 'paid' and oi.unit_cost_snapshot is not null
     ), 0),
+    'sales_delivery_cost', coalesce((
+      select sum(delivery_cost) from public.orders where payment_status = 'paid'
+    ), 0),
     'sales_profit', coalesce((
       select sum(oi.subtotal - oi.unit_cost_snapshot * oi.quantity)
       from public.orders o
       join public.order_items oi on oi.order_id = o.id
       where o.payment_status = 'paid' and oi.unit_cost_snapshot is not null
+    ), 0) - coalesce((
+      select sum(delivery_cost) from public.orders where payment_status = 'paid'
     ), 0),
     'missing_cost_items', coalesce((
       select sum(oi.quantity)
@@ -1489,7 +1505,7 @@ revoke all on function public.admin_set_profile_role(uuid, text) from public, an
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
 revoke all on function public.admin_get_products() from public, anon;
 revoke all on function public.admin_update_order_transaction(uuid, text, text) from public, anon;
-revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date) from public, anon;
+revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric) from public, anon;
 revoke all on function public.admin_delete_pending_order(uuid) from public, anon;
 revoke all on function public.admin_update_variant_stock(uuid, integer) from public, anon;
 grant execute on function public.admin_dashboard_metrics() to authenticated;
@@ -1498,7 +1514,7 @@ grant execute on function public.admin_set_profile_role(uuid, text) to authentic
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
 grant execute on function public.admin_get_products() to authenticated;
 grant execute on function public.admin_update_order_transaction(uuid, text, text) to authenticated;
-grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date) to authenticated;
+grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric) to authenticated;
 grant execute on function public.admin_delete_pending_order(uuid) to authenticated;
 grant execute on function public.admin_update_variant_stock(uuid, integer) to authenticated;
 

@@ -51,6 +51,9 @@ import AccountDialog from "./components/AccountDialog";
 import ReceiptDialog from "./components/ReceiptDialog";
 import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
+import Metric from "./components/admin/Metric";
+import OrderEditorModal from "./components/admin/OrderEditorModal";
+import OrdersPage from "./components/admin/OrdersPage";
 import SettingsPage from "./components/admin/SettingsPage";
 import {
   DEFAULT_STORE_SETTINGS,
@@ -1196,8 +1199,8 @@ function Admin({
   const [customerImportFeedback, setCustomerImportFeedback] = useState<string | null>(null);
   const [customerImportError, setCustomerImportError] = useState<string | null>(null);
   const customerImportInput = useRef<HTMLInputElement>(null);
-  const [transactionFilter, setTransactionFilter] = useState<"all" | "paid" | "pending" | "refunded">("all");
   const [dashboardDetail, setDashboardDetail] = useState<"sold-out" | "low-stock" | "pending" | null>(null);
+  const [showPendingOrdersOnly, setShowPendingOrdersOnly] = useState(false);
   const [orderEditor, setOrderEditor] = useState<{ order: AdminOrder | null } | null>(null);
   const [orderSaving, setOrderSaving] = useState(false);
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
@@ -1436,12 +1439,13 @@ function Admin({
     } | null,
     items: { variant_id: string; quantity: number }[],
     orderId: string | null,
-    orderDate: string
+    orderDate: string,
+    deliveryCost: number
   ) => {
     setOrderSaving(true);
     setSectionError(null);
     try {
-      await saveAdminPendingOrder({ orderId, customerId, customer, items, orderDate });
+      await saveAdminPendingOrder({ orderId, customerId, customer, items, orderDate, deliveryCost });
       setOrderEditor(null);
       setSectionRevision((current) => current + 1);
     } catch (saveError) {
@@ -1601,40 +1605,6 @@ function Admin({
   const visibleProfiles = profiles.filter((profile) =>
     `${profile.full_name ?? ""} ${profile.email ?? ""} ${profile.role}`.toLowerCase().includes(query)
   );
-  const visibleOrders = orders.filter((order) =>
-    `${order.customers?.full_name ?? ""} ${order.customers?.email ?? ""} ${order.id}`.toLowerCase().includes(query)
-      && (
-        transactionFilter === "all" ||
-        (transactionFilter === "pending"
-          ? order.payment_status === "pending" && order.status !== "cancelled"
-          : order.payment_status === transactionFilter)
-      )
-  );
-  const completedOrders = orders.filter((order) => order.payment_status === "paid");
-  const transactionRevenue = completedOrders.reduce((sum, order) => sum + Number(order.total), 0);
-  const transactionMissingCostItems = completedOrders.reduce(
-    (sum, order) => sum + order.order_items.reduce(
-      (itemSum, item) => itemSum + (item.unit_cost_snapshot === null ? item.quantity : 0),
-      0
-    ),
-    0
-  );
-  const transactionCost = completedOrders.reduce(
-    (sum, order) => sum + order.order_items.reduce(
-      (itemSum, item) => itemSum + (item.unit_cost_snapshot === null
-        ? 0
-        : Number(item.unit_cost_snapshot) * item.quantity),
-      0
-    ),
-    0
-  );
-  const transactionProfit = transactionMissingCostItems > 0
-    ? null
-    : transactionRevenue - transactionCost;
-  const normalizeOrderStatus = (status: string): "pending_confirmation" | "confirmed" | "cancelled" =>
-    status === "confirmed" || status === "cancelled" ? status : "pending_confirmation";
-  const normalizePaymentStatus = (status: string): "pending" | "paid" | "refunded" =>
-    status === "paid" || status === "refunded" ? status : "pending";
   const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
 
   return (
@@ -1744,7 +1714,11 @@ function Admin({
             <button
               key={item.id}
               className={section === item.id ? "selected" : ""}
-              onClick={() => { setSection(item.id); setSearch(""); }}
+              onClick={() => {
+                setSection(item.id);
+                setSearch("");
+                if (item.id === "transactions") setShowPendingOrdersOnly(false);
+              }}
             >
               {item.icon}{item.title}
             </button>
@@ -1799,7 +1773,7 @@ function Admin({
             </div>
             <div className="metrics">
               <Metric title="Costo de ventas registrado" value={money(Number(metrics.sales_cost))} icon={<ReceiptText />} />
-              <Metric title="Utilidad bruta" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
+              <Metric title="Utilidad neta" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
               <Metric title="Costos pendientes" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning={metrics.missing_cost_items > 0} />
               <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
             </div>
@@ -2157,7 +2131,7 @@ function Admin({
           </section>
         )}
 
-        {(section === "customers" || section === "profiles" || section === "transactions") && (
+        {(section === "customers" || section === "profiles") && (
           <section className="admin-card">
             <div className="card-title">
               <div>
@@ -2211,78 +2185,21 @@ function Admin({
                 </div>
               </>
             )}
-            {section === "transactions" && (
-              <>
-                <div className="metrics transaction-metrics">
-                  <Metric title="Total vendido" value={money(transactionRevenue)} icon={<TrendingUp />} />
-                  <Metric title="Costo de ventas" value={money(transactionCost)} icon={<ReceiptText />} />
-                  <Metric title="Utilidad bruta" value={transactionProfit === null ? "Incompleta" : money(transactionProfit)} icon={<BarChart3 />} warning={transactionProfit !== null && transactionProfit < 0} />
-                  <Metric title="Ventas completas" value={String(completedOrders.length)} icon={<Check />} />
-                </div>
-                <div className="transaction-filters" aria-label="Filtrar transacciones">
-                  {([
-                    ["all", "Todos"],
-                    ["paid", "Ventas completas"],
-                    ["pending", "Pendientes"],
-                    ["refunded", "Reembolsados"],
-                  ] as const).map(([filter, label]) => (
-                    <button
-                      key={filter}
-                      className={transactionFilter === filter ? "selected" : ""}
-                      onClick={() => setTransactionFilter(filter)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {transactionMissingCostItems > 0 && (
-                  <p className="profile-notice" role="status">
-                    <AlertTriangle size={17} />
-                    Faltan costos para {transactionMissingCostItems} unidad(es) vendida(s). Completa el costo unitario desde Productos para obtener la utilidad real.
-                  </p>
-                )}
-                <div className="admin-table">
-                <div className="table-row transaction-row header"><span>Pedido / Cliente</span><span>Fecha del pedido</span><span>Vendido</span><span>Costo</span><span>Utilidad</span><span>Estado del pedido</span><span>Pago</span><span>Acciones</span></div>
-                {visibleOrders.map((order) => (
-                  <div className="table-row transaction-row" key={order.id}>
-                    <div className="profile-cell" aria-readonly="true"><strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong><span>{order.order_items?.map((item) => `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`).join(" · ") || order.customers?.phone || "Sin detalle"}</span></div>
-                    <span>{new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}</span>
-                    <strong>{order.payment_status === "paid" ? money(Number(order.total)) : "—"}</strong>
-                    <span>{order.payment_status !== "paid" ? "—" : order.order_items.some((item) => item.unit_cost_snapshot === null)
-                      ? "Falta costo"
-                      : money(order.order_items.reduce((sum, item) => sum + Number(item.unit_cost_snapshot) * item.quantity, 0))}</span>
-                    <span>{order.payment_status !== "paid" ? "—" : order.order_items.some((item) => item.unit_cost_snapshot === null)
-                      ? "Incompleta"
-                      : money(Number(order.total) - order.order_items.reduce((sum, item) => sum + Number(item.unit_cost_snapshot) * item.quantity, 0))}</span>
-                    <label className="mobile-select-cell">
-                      <select aria-label={`Estado del pedido ${order.id.slice(0, 8)}`} value={normalizeOrderStatus(order.status)} disabled={savingOrderId === order.id || order.payment_status === "paid"} title={order.payment_status === "paid" ? "Reembolsa el pedido antes de cambiar su estado." : "El estado del pedido sigue editable aunque esté confirmado."} onChange={(event) => void saveOrderStatus(order, event.target.value as "pending_confirmation" | "confirmed" | "cancelled", normalizePaymentStatus(order.payment_status))}>
-                        <option value="pending_confirmation">Por confirmar</option><option value="confirmed">Confirmado</option><option value="cancelled">Cancelado</option>
-                      </select>
-                    </label>
-                    <label className="mobile-select-cell">
-                      <select aria-label={`Pago del pedido ${order.id.slice(0, 8)}`} value={normalizePaymentStatus(order.payment_status)} disabled={savingOrderId === order.id} onChange={(event) => void saveOrderStatus(order, normalizeOrderStatus(order.status), event.target.value as "pending" | "paid" | "refunded")}>
-                        {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
-                        {order.payment_status !== "refunded" && <option value="paid" disabled={order.status === "cancelled"}>Pagado · completar venta</option>}
-                        {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
-                      </select>
-                    </label>
-                    <div className="order-actions">
-                      {order.payment_status === "pending" && order.status !== "cancelled" ? (
-                        <>
-                          <button className="secondary" type="button" onClick={() => setOrderEditor({ order })}><Pencil size={15}/> Editar</button>
-                          <button className="secondary" type="button" disabled={deletingOrderId === order.id} onClick={() => void removePendingOrder(order)}>
-                            <Trash2 size={15}/>{deletingOrderId === order.id ? "Eliminando…" : "Eliminar"}
-                          </button>
-                        </>
-                      ) : <span>Disponible antes del pago</span>}
-                    </div>
-                  </div>
-                ))}
-                {!sectionLoading && visibleOrders.length === 0 && <p className="insight">No hay pedidos que coincidan con la búsqueda.</p>}
-              </div>
-              </>
-            )}
           </section>
+        )}
+        {section === "transactions" && (
+          <OrdersPage
+            orders={orders}
+            loading={sectionLoading}
+            search={search}
+            showPendingOnly={showPendingOrdersOnly}
+            onSearchChange={setSearch}
+            savingOrderId={savingOrderId}
+            deletingOrderId={deletingOrderId}
+            onEditOrder={(order) => setOrderEditor({ order })}
+            onDeleteOrder={(order) => void removePendingOrder(order)}
+            onStatusChange={(order, status, paymentStatus) => void saveOrderStatus(order, status, paymentStatus)}
+          />
         )}
       </main>
       {dashboardDetail && (
@@ -2331,10 +2248,11 @@ function Admin({
             <button className="primary full" type="button" onClick={() => {
               if (dashboardDetail === "pending") {
                 setSection("transactions");
-                setTransactionFilter("pending");
+                setShowPendingOrdersOnly(true);
               } else {
                 setSection("products");
               }
+              setSearch("");
               setDashboardDetail(null);
             }}>
               {dashboardDetail === "pending" ? "Ir a pedidos" : "Ir a productos"}
@@ -2351,8 +2269,8 @@ function Admin({
           saving={orderSaving}
           error={sectionError}
           onClose={() => { if (!orderSaving) setOrderEditor(null); }}
-          onSave={(customerId, customer, items, orderDate) =>
-            void savePendingOrder(customerId, customer, items, orderEditor.order?.id ?? null, orderDate)
+          onSave={(customerId, customer, items, orderDate, deliveryCost) =>
+            void savePendingOrder(customerId, customer, items, orderEditor.order?.id ?? null, orderDate, deliveryCost)
           }
         />
       )}
@@ -2464,330 +2382,6 @@ function PromotionEditorModal({
         </div>
       </form>
     </div>
-  );
-}
-
-function OrderEditorModal({
-  order,
-  customers,
-  products,
-  promotions,
-  saving,
-  error,
-  onClose,
-  onSave,
-}: {
-  order: AdminOrder | null;
-  customers: AdminCustomer[];
-  products: Product[];
-  promotions: Promotion[];
-  saving: boolean;
-  error: string | null;
-  onClose: () => void;
-  onSave: (
-    customerId: string | null,
-    customer: {
-      full_name: string;
-      phone: string | null;
-      email: string | null;
-      city: string | null;
-      delivery_address: string | null;
-    } | null,
-    items: { variant_id: string; quantity: number }[],
-    orderDate: string
-  ) => void;
-}) {
-  const [customerId, setCustomerId] = useState(order?.customer_id ?? "");
-  const [customerMode, setCustomerMode] = useState<"registered" | "manual">(
-    order || customers.length > 0 ? "registered" : "manual"
-  );
-  const [manualCustomer, setManualCustomer] = useState({
-    full_name: "",
-    phone: "",
-    email: "",
-    city: "",
-    delivery_address: "",
-  });
-  const localToday = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bogota",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  const [orderDate, setOrderDate] = useState(
-    order
-      ? new Intl.DateTimeFormat("en-CA", {
-          timeZone: "America/Bogota",
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-        }).format(new Date(order.created_at))
-      : localToday
-  );
-  const [items, setItems] = useState(
-    order?.order_items.map((item) => ({ variantId: item.variant_id, quantity: String(item.quantity) })) ?? []
-  );
-  const selectableVariants = products
-    .filter((product) => product.active !== false)
-    .flatMap((product) => product.variants.filter((variant) => variant.active !== false).map((variant) => ({
-      ...variant,
-      productName: `${product.brand} ${product.name}`,
-      productId: product.id,
-      promotionId: product.promotion_id ?? null,
-      promotion: promotions.find((promotion) => promotion.id === product.promotion_id) ?? null,
-    })));
-  const orderPrice = calculatePromotionPrice(items.flatMap((item) => {
-    const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
-    const quantity = Number(item.quantity);
-    return variant && Number.isInteger(quantity) && quantity > 0
-      ? [{
-          productId: variant.productId,
-          promotionId: variant.promotionId,
-          promotion: variant.promotion,
-          variantId: variant.id,
-          unitPrice: variant.price,
-          quantity,
-        }]
-      : [];
-  }));
-  const validItems = items.length > 0 && items.every((item, index) => {
-    const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
-    const quantity = Number(item.quantity);
-    return Boolean(
-      variant &&
-      Number.isInteger(quantity) &&
-      quantity > 0 &&
-      quantity <= variant.stock &&
-      items.findIndex((other) => other.variantId === item.variantId) === index
-    );
-  });
-  const canAddItem = selectableVariants.some((variant) =>
-    variant.stock > 0 && !items.some((item) => item.variantId === variant.id)
-  );
-  const addItem = () => {
-    const variant = selectableVariants.find((candidate) =>
-      candidate.stock > 0 && !items.some((item) => item.variantId === candidate.id)
-    );
-    if (!variant) return;
-    setItems((current) => [...current, { variantId: variant.id, quantity: "1" }]);
-  };
-
-  return (
-    <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
-      <form
-        className="add-modal order-editor-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="order-editor-title"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if ((customerMode === "registered" && !customerId) ||
-            (customerMode === "manual" && !manualCustomer.full_name.trim()) ||
-            !orderDate || !validItems) return;
-          onSave(
-            customerMode === "registered" ? customerId : null,
-            customerMode === "manual" ? {
-              full_name: manualCustomer.full_name.trim(),
-              phone: manualCustomer.phone.trim() || null,
-              email: manualCustomer.email.trim() || null,
-              city: manualCustomer.city.trim() || null,
-              delivery_address: manualCustomer.delivery_address.trim() || null,
-            } : null,
-            items.map((item) => ({
-              variant_id: item.variantId,
-              quantity: Number(item.quantity),
-            })),
-            orderDate
-          );
-        }}
-      >
-        <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
-        <p className="eyebrow">GESTIÓN DE PEDIDOS</p>
-        <h2 id="order-editor-title">{order ? "Editar pedido pendiente" : "Crear pedido"}</h2>
-        <div className="order-entry-fields">
-          <div className="order-client-entry">
-            <span>Cliente</span>
-            <div className="order-client-mode">
-              <button
-                type="button"
-                className={customerMode === "registered" ? "secondary selected" : "secondary"}
-                onClick={() => setCustomerMode("registered")}
-                disabled={customers.length === 0}
-              >
-                Cliente registrado
-              </button>
-              <button
-                type="button"
-                className={customerMode === "manual" ? "secondary selected" : "secondary"}
-                onClick={() => setCustomerMode("manual")}
-              >
-                Ingresar manualmente
-              </button>
-            </div>
-          </div>
-          <label className="auth-label order-date-field">
-            Fecha del pedido
-            <input
-              type="date"
-              value={orderDate}
-              max={localToday}
-              disabled={saving}
-              onChange={(event) => setOrderDate(event.target.value)}
-              required
-            />
-          </label>
-        </div>
-        {customerMode === "registered" ? (
-          <label className="auth-label">
-            Seleccionar cliente
-            <select value={customerId} onChange={(event) => setCustomerId(event.target.value)} required>
-              <option value="">Selecciona un cliente</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>
-                  {customer.full_name}{customer.phone ? ` · ${customer.phone}` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <div className="form-grid order-manual-customer">
-            <label>Nombre del cliente
-              <input
-                value={manualCustomer.full_name}
-                onChange={(event) => setManualCustomer((current) => ({ ...current, full_name: event.target.value }))}
-                autoComplete="name"
-                required
-              />
-            </label>
-            <label>WhatsApp / teléfono
-              <input
-                type="tel"
-                value={manualCustomer.phone}
-                onChange={(event) => setManualCustomer((current) => ({ ...current, phone: event.target.value }))}
-                autoComplete="tel"
-              />
-            </label>
-            <label>Correo (opcional)
-              <input
-                type="email"
-                value={manualCustomer.email}
-                onChange={(event) => setManualCustomer((current) => ({ ...current, email: event.target.value }))}
-                autoComplete="email"
-              />
-            </label>
-            <label>Ciudad (opcional)
-              <input
-                value={manualCustomer.city}
-                onChange={(event) => setManualCustomer((current) => ({ ...current, city: event.target.value }))}
-                autoComplete="address-level2"
-              />
-            </label>
-            <label className="form-wide">Dirección (opcional)
-              <input
-                value={manualCustomer.delivery_address}
-                onChange={(event) => setManualCustomer((current) => ({ ...current, delivery_address: event.target.value }))}
-                autoComplete="street-address"
-              />
-            </label>
-          </div>
-        )}
-        <div className="order-editor-lines">
-          <div className="order-editor-heading"><strong>Productos del pedido</strong><button type="button" className="text-button" onClick={addItem} disabled={!canAddItem}>+ Añadir producto</button></div>
-          {items.map((item, index) => (
-            <div className="order-editor-line" key={`${index}-${item.variantId}`}>
-              <label>
-                Producto y presentación
-                <select
-                  value={item.variantId}
-                  onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
-                    lineIndex === index ? { ...line, variantId: event.target.value } : line
-                  ))}
-                  required
-                >
-                  <option value="">Selecciona una presentación</option>
-                  {selectableVariants.map((variant) => (
-                    <option
-                      key={variant.id}
-                      value={variant.id}
-                      disabled={
-                        (variant.stock <= 0 && variant.id !== item.variantId) ||
-                        items.some((other, otherIndex) => otherIndex !== index && other.variantId === variant.id)
-                      }
-                    >
-                      {variant.productName} · {variant.size} ml · {money(variant.price)} · stock {variant.stock}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Cantidad
-                <input
-                  type="number"
-                  min="1"
-                  max={selectableVariants.find((variant) => variant.id === item.variantId)?.stock}
-                  step="1"
-                  inputMode="numeric"
-                  value={item.quantity}
-                  onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
-                    lineIndex === index ? { ...line, quantity: event.target.value } : line
-                  ))}
-                  required
-                />
-              </label>
-              <button type="button" className="icon-button" aria-label="Quitar producto" onClick={() => setItems((current) => current.filter((_, lineIndex) => lineIndex !== index))}>
-                <Trash2 size={17} />
-              </button>
-            </div>
-          ))}
-          {items.length === 0 && <p className="insight">{canAddItem ? "Añade al menos un producto con stock disponible." : "No hay presentaciones disponibles con stock para añadir."}</p>}
-        </div>
-        <p className="order-editor-note">El total se recalcula con los precios y promociones actuales. El stock se descuenta cuando marques el pedido como pagado.</p>
-        {orderPrice.discount > 0 && <p className="cart-discount">Ahorro en promociones: -{money(orderPrice.discount)}</p>}
-        <div className="order-editor-total"><span>Total del pedido</span><strong>{money(orderPrice.total)}</strong></div>
-        {items.length > 0 && !validItems && <p className="form-error">Revisa productos, cantidades disponibles y evita repetir presentaciones.</p>}
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button
-          className="primary full"
-          type="submit"
-          disabled={saving ||
-            (customerMode === "registered" && !customerId) ||
-            (customerMode === "manual" && !manualCustomer.full_name.trim()) ||
-            !orderDate ||
-            !validItems}
-        >
-          {saving ? "Guardando…" : order ? "Guardar cambios" : "Crear pedido"}
-        </button>
-      </form>
-    </div>
-  );
-}
-
-function Metric({
-  title,
-  value,
-  icon,
-  warning,
-  onClick,
-}: {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  warning?: boolean;
-  onClick?: () => void;
-}) {
-  const content = (
-    <>
-      <div className={warning ? "metric-icon warning" : "metric-icon"}>{icon}</div>
-      <span>{title}</span>
-      <strong>{value}</strong>
-      {onClick && <span className="metric-hint">Ver detalle</span>}
-    </>
-  );
-  if (onClick) {
-    return <button type="button" className="metric metric-action" onClick={onClick}>{content}</button>;
-  }
-  return (
-    <div className="metric">{content}</div>
   );
 }
 

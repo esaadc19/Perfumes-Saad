@@ -6,6 +6,7 @@ export interface AdminDashboardMetrics {
   completed_sales: number;
   sales_revenue: number;
   sales_cost: number;
+  sales_delivery_cost: number;
   sales_profit: number;
   missing_cost_items: number;
   customer_count: number;
@@ -45,6 +46,7 @@ export interface AdminOrder {
   status: string;
   payment_status: string;
   total: number;
+  delivery_cost: number;
   paid_at: string | null;
   created_at: string;
   customers: { full_name: string; phone: string | null; email: string | null } | null;
@@ -121,7 +123,7 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("orders")
-    .select("id, customer_id, status, payment_status, total, paid_at, created_at, customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot)")
+    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot)")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los pedidos:", error);
@@ -146,6 +148,7 @@ export async function saveAdminPendingOrder(input: {
   } | null;
   items: { variant_id: string; quantity: number }[];
   orderDate: string;
+  deliveryCost: number;
 }): Promise<string> {
   const client = requireSupabase();
   const { data, error } = await client.rpc("admin_save_pending_order", {
@@ -154,6 +157,7 @@ export async function saveAdminPendingOrder(input: {
     customer_data: input.customer,
     items_data: input.items,
     order_date: input.orderDate,
+    new_delivery_cost: input.deliveryCost,
   });
   if (error) {
     console.error("No se pudo guardar el pedido:", error);
