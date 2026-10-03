@@ -1,0 +1,9 @@
+{
+  "scm.showActionButton": true,
+  "git.showActionButton": {
+    "commit": true,
+    "publish": true,
+    "sync": true
+  },
+  "git.postCommitCommand": "sync"
+}
