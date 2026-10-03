@@ -58,7 +58,7 @@ export default function OrdersPage({
     ].some((value) => value?.toLowerCase().includes(query));
     const matchesStatus = filter === "all" ||
       (filter === "pending"
-        ? order.payment_status === "pending" && order.status !== "cancelled"
+        ? order.payment_status === "pending" && order.status === "confirmed"
         : order.payment_status === filter);
     return matchesSearch && matchesStatus;
   });
@@ -120,7 +120,7 @@ export default function OrdersPage({
         {([
           ["all", "Todos"],
           ["paid", "Ventas completas"],
-          ["pending", "Pendientes"],
+          ["pending", "Pendientes de pago"],
           ["refunded", "Reembolsados"],
         ] as const).map(([status, label]) => (
           <button
@@ -171,8 +171,8 @@ export default function OrdersPage({
                   value={normalizeOrderStatus(order.status)}
                   disabled={savingOrderId === order.id || order.payment_status === "paid"}
                   title={order.payment_status === "paid"
-                    ? "Reembolsa el pedido antes de cambiar su estado."
-                    : "El estado del pedido sigue editable aunque esté confirmado."}
+                    ? "La venta completada debe reembolsarse antes de editar el pedido."
+                    : "Cambiar el estado no impide completar la venta."}
                   onChange={(event) => onStatusChange(
                     order,
                     event.target.value as OrderStatus,
@@ -196,19 +196,21 @@ export default function OrdersPage({
                   )}
                 >
                   {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
-                  {order.payment_status !== "refunded" && <option value="paid" disabled={order.status === "cancelled"}>Pagado · completar venta</option>}
+                  {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
                   {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
                 </select>
               </label>
               <div className="order-actions">
-                {order.payment_status === "pending" && order.status !== "cancelled" ? (
+                {order.payment_status !== "paid" ? (
                   <>
                     <button className="secondary" type="button" onClick={() => onEditOrder(order)}><Pencil size={15} /> Editar</button>
-                    <button className="secondary" type="button" disabled={deletingOrderId === order.id} onClick={() => onDeleteOrder(order)}>
-                      <Trash2 size={15} />{deletingOrderId === order.id ? "Eliminando…" : "Eliminar"}
-                    </button>
+                    {order.payment_status === "pending" && order.status !== "cancelled" && (
+                      <button className="secondary" type="button" disabled={deletingOrderId === order.id} onClick={() => onDeleteOrder(order)}>
+                        <Trash2 size={15} />{deletingOrderId === order.id ? "Eliminando…" : "Eliminar"}
+                      </button>
+                    )}
                   </>
-                ) : <span>Disponible antes del pago</span>}
+                ) : <span>Venta completada; reembolsa para desbloquear</span>}
               </div>
             </div>
           );

@@ -32,7 +32,7 @@ jobs:
       - name: Deploy Project Artifacts to Vercel
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
 
-  deploy-weekly-report:
+  deploy-supabase-functions:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
@@ -47,7 +47,7 @@ jobs:
         with:
           version: latest
 
-      - name: Deploy weekly report function
+      - name: Deploy report and expense reminder functions
         run: |
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::Configure SUPABASE_ACCESS_TOKEN in GitHub Actions secrets."
@@ -58,3 +58,4 @@ jobs:
             exit 1
           fi
           supabase functions deploy weekly-report --project-ref "$SUPABASE_PROJECT_ID"
+          supabase functions deploy expense-reminders --project-ref "$SUPABASE_PROJECT_ID"

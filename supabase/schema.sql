@@ -366,19 +366,11 @@ begin
   if order_record.payment_status = 'paid' and new_payment_status = 'pending' then
     raise exception 'A completed sale cannot be changed back to pending; register a refund instead';
   end if;
-  if order_record.payment_status = 'paid'
-     and new_payment_status = 'paid'
-     and new_status = 'cancelled' then
-    raise exception 'Refund the completed sale before cancelling it';
-  end if;
   if new_payment_status = 'refunded' and order_record.payment_status <> 'paid' then
     raise exception 'Only a completed sale can be refunded';
   end if;
 
   if new_payment_status = 'paid' and order_record.payment_status <> 'paid' then
-    if new_status = 'cancelled' then
-      raise exception 'A cancelled order cannot be completed as a sale';
-    end if;
     for order_item in
       select oi.variant_id, oi.quantity, oi.unit_cost_snapshot, pv.cost
       from public.order_items oi
@@ -665,9 +657,8 @@ begin
     if not found then
       raise exception 'Order not found';
     end if;
-    if order_record.payment_status <> 'pending'
-       or order_record.status = 'cancelled' then
-      raise exception 'Only active unpaid orders can be edited';
+    if order_record.payment_status = 'paid' then
+      raise exception 'Completed sales cannot be edited; register a refund first';
     end if;
     saved_order_id := target_order_id;
     delete from public.order_items where order_id = saved_order_id;
@@ -1348,7 +1339,7 @@ begin
     'total_orders', (select count(*) from public.orders),
     'pending_orders', (
       select count(*) from public.orders
-      where payment_status = 'pending' and status <> 'cancelled'
+      where payment_status = 'pending' and status = 'confirmed'
     ),
     'completed_sales', (select count(*) from public.orders where payment_status = 'paid'),
     'sales_revenue', coalesce((
@@ -1664,6 +1655,53 @@ create table if not exists public.expenses (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.recurring_expenses (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  amount numeric(12,2) not null check (amount >= 0),
+  category text not null default 'general',
+  frequency text not null check (frequency in ('weekly', 'monthly', 'yearly')),
+  next_due_date date not null,
+  last_reminded_for date,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create or replace function public.admin_pay_recurring_expense(target_expense_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  expense_record public.recurring_expenses%rowtype;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  select * into expense_record
+  from public.recurring_expenses
+  where id = target_expense_id and active
+  for update;
+  if not found then
+    raise exception 'Recurring expense not found';
+  end if;
+
+  insert into public.expenses (name, amount, category, expense_date)
+  values (expense_record.name, expense_record.amount, expense_record.category, expense_record.next_due_date);
+
+  update public.recurring_expenses
+  set next_due_date = case frequency
+        when 'weekly' then next_due_date + 7
+        when 'monthly' then (next_due_date + interval '1 month')::date
+        when 'yearly' then (next_due_date + interval '1 year')::date
+      end,
+      last_reminded_for = null
+  where id = expense_record.id;
+end;
+$$;
+
 create table if not exists public.store_settings (
   id smallint primary key default 1 check (id = 1),
   store_name text not null default 'Perfumes SAAD',
@@ -1700,6 +1738,24 @@ alter table public.expenses add column if not exists name text not null;
 alter table public.expenses add column if not exists amount numeric(12,2) not null default 0 check (amount >= 0);
 alter table public.expenses add column if not exists category text not null default 'general';
 alter table public.expenses add column if not exists expense_date date not null default current_date;
+
+alter table public.expenses enable row level security;
+revoke all on public.expenses from public, anon;
+grant select, insert, update, delete on public.expenses to authenticated;
+
+alter table public.recurring_expenses enable row level security;
+revoke all on public.recurring_expenses from public, anon;
+grant select, insert, update, delete on public.recurring_expenses to authenticated;
+grant select, update on public.recurring_expenses to service_role;
+
+drop policy if exists "Admins can manage recurring expenses" on public.recurring_expenses;
+create policy "Admins can manage recurring expenses"
+  on public.recurring_expenses for all to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
+
+revoke all on function public.admin_pay_recurring_expense(uuid) from public, anon;
+grant execute on function public.admin_pay_recurring_expense(uuid) to authenticated;
 
 drop policy if exists "Admins can manage expenses" on public.expenses;
 create policy "Admins can manage expenses"
@@ -1828,7 +1884,7 @@ begin
   select count(*)
   into pending_orders_count
   from public.orders
-  where payment_status = 'pending' and status <> 'cancelled';
+  where payment_status = 'pending' and status = 'confirmed';
   
   -- Weekly expenses
   select coalesce(sum(amount), 0)
@@ -1888,15 +1944,80 @@ revoke all on function public.weekly_sales_report() from public;
 revoke all on function public.weekly_sales_report() from anon, authenticated;
 grant execute on function public.weekly_sales_report() to service_role;
 
+create or replace function public.daily_sales_report(target_date date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  day_start timestamptz := target_date::timestamp at time zone 'America/Bogota';
+  day_end timestamptz := (target_date + 1)::timestamp at time zone 'America/Bogota';
+  daily_sales numeric;
+  daily_orders integer;
+  daily_items integer;
+  daily_expenses numeric;
+  best_product text;
+  best_product_quantity integer;
+begin
+  if target_date is null then
+    raise exception 'Report date is required';
+  end if;
+
+  select coalesce(sum(total), 0), count(*),
+         coalesce(sum((select sum(oi.quantity) from public.order_items oi where oi.order_id = o.id)), 0)
+  into daily_sales, daily_orders, daily_items
+  from public.orders o
+  where o.payment_status = 'paid'
+    and o.paid_at >= day_start
+    and o.paid_at < day_end;
+
+  select oi.product_name_snapshot, sum(oi.quantity)
+  into best_product, best_product_quantity
+  from public.order_items oi
+  join public.orders o on o.id = oi.order_id
+  where o.payment_status = 'paid'
+    and o.paid_at >= day_start
+    and o.paid_at < day_end
+  group by oi.product_name_snapshot
+  order by sum(oi.quantity) desc, oi.product_name_snapshot
+  limit 1;
+
+  select coalesce(sum(amount), 0)
+  into daily_expenses
+  from public.expenses
+  where expense_date = target_date;
+
+  return jsonb_build_object(
+    'report_date', target_date,
+    'sales', daily_sales,
+    'orders', daily_orders,
+    'items_sold', daily_items,
+    'expenses', daily_expenses,
+    'best_product', jsonb_build_object(
+      'name', coalesce(best_product, 'N/A'),
+      'quantity', coalesce(best_product_quantity, 0)
+    )
+  );
+end;
+$$;
+
+revoke all on function public.daily_sales_report(date) from public, anon, authenticated;
+grant execute on function public.daily_sales_report(date) to service_role;
+
 -- ============================================
 -- CRON JOB: REPORTE SEMANAL (Domingos 8am Colombia = 1pm UTC)
 -- ============================================
 create extension if not exists pg_cron with schema extensions;
 
+select cron.unschedule(jobid)
+from cron.job
+where jobname = 'weekly-sales-report';
+
 select cron.schedule(
   'weekly-sales-report',
   '0 13 * * 0',
-  $$
+  $weekly$
     select net.http_post(
       url := 'https://' || current_setting('app.settings.supabase_url', true) || '/functions/v1/weekly-report',
       headers := jsonb_build_object(
@@ -1904,6 +2025,25 @@ select cron.schedule(
         'Content-Type', 'application/json'
       ),
       body := '{}'::jsonb
-    )
-  $$
+    );
+  $weekly$
+);
+
+select cron.unschedule(jobid)
+from cron.job
+where jobname = 'expense-payment-reminders';
+
+select cron.schedule(
+  'expense-payment-reminders',
+  '0 13 * * *',
+  $reminders$
+    select net.http_post(
+      url := 'https://' || current_setting('app.settings.supabase_url', true) || '/functions/v1/expense-reminders',
+      headers := jsonb_build_object(
+        'Authorization', 'Bearer ' || current_setting('app.settings.supabase_service_role_key', true),
+        'Content-Type', 'application/json'
+      ),
+      body := '{}'::jsonb
+    );
+  $reminders$
 );

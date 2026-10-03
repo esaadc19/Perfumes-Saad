@@ -13,6 +13,8 @@ function money(value: number) {
   }).format(value);
 }
 
+const productCollator = new Intl.Collator("es", { sensitivity: "base" });
+
 type ManualCustomer = {
   full_name: string;
   phone: string | null;
@@ -83,6 +85,7 @@ export default function OrderEditorModal({
     .flatMap((product) => product.variants.filter((variant) => variant.active !== false).map((variant) => ({
       ...variant,
       productName: `${product.brand} ${product.name}`,
+      productSortName: product.name,
       productId: product.id,
       promotionId: product.promotion_id ?? null,
       promotion: promotions.find((promotion) => promotion.id === product.promotion_id) ?? null,
@@ -90,6 +93,10 @@ export default function OrderEditorModal({
   const searchTerm = productSearch.trim().toLocaleLowerCase("es");
   const matchingVariants = selectableVariants.filter((variant) =>
     `${variant.productName} ${variant.size} ml`.toLocaleLowerCase("es").includes(searchTerm)
+  ).sort((left, right) =>
+    productCollator.compare(left.productSortName, right.productSortName) ||
+    productCollator.compare(left.productName, right.productName) ||
+    left.size - right.size
   );
   const orderPrice = calculatePromotionPrice(items.flatMap((item) => {
     const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
@@ -161,7 +168,7 @@ export default function OrderEditorModal({
       >
         <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
         <p className="eyebrow">GESTIÓN DE PEDIDOS</p>
-        <h2 id="order-editor-title">{order ? "Editar pedido pendiente" : "Crear pedido"}</h2>
+        <h2 id="order-editor-title">{order ? "Editar pedido" : "Crear pedido"}</h2>
         <div className="order-entry-fields">
           <div className="order-client-entry">
             <span>Cliente</span>
@@ -276,7 +283,11 @@ export default function OrderEditorModal({
           {items.map((item, index) => {
             const selectedVariant = selectableVariants.find((variant) => variant.id === item.variantId);
             const rowVariants = selectedVariant && !matchingVariants.some((variant) => variant.id === selectedVariant.id)
-              ? [selectedVariant, ...matchingVariants]
+              ? [selectedVariant, ...matchingVariants].sort((left, right) =>
+                  productCollator.compare(left.productSortName, right.productSortName) ||
+                  productCollator.compare(left.productName, right.productName) ||
+                  left.size - right.size
+                )
               : matchingVariants;
             return (
               <div className="order-editor-line" key={`${index}-${item.variantId}`}>

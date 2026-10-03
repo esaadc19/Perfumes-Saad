@@ -41,10 +41,15 @@ import {
 } from "./services/admin";
 import {
   getExpenses,
+  getRecurringExpenses,
   createExpense,
+  deleteRecurringExpense,
   deleteExpense,
+  markRecurringExpensePaid,
   EXPENSE_CATEGORIES,
   type Expense,
+  type RecurrenceFrequency,
+  type RecurringExpense,
 } from "./services/expenses";
 import AuthDialog from "./components/AuthDialog";
 import AccountDialog from "./components/AccountDialog";
@@ -165,6 +170,22 @@ const money = (value: number) =>
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(value);
+
+const getBogotaDate = () => new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Bogota",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
+
+const formatBogotaDate = (date: string) => new Date(`${date}T12:00:00-05:00`)
+  .toLocaleDateString("es-CO", { timeZone: "America/Bogota" });
+
+const getDaysUntil = (date: string) => Math.round(
+  (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${getBogotaDate()}T00:00:00Z`)) / 86_400_000
+);
+
+const productNameCollator = new Intl.Collator("es", { sensitivity: "base" });
 
 function App() {
   const [view, setView] = useState<"store" | "admin">("store");
@@ -1169,19 +1190,31 @@ function Admin({
   const [sectionError, setSectionError] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [reportDate, setReportDate] = useState(getBogotaDate);
   const [reportResult, setReportResult] = useState<{
     whatsappUrl: string;
     emailSent: boolean;
     emailError: string | null;
+    label: string;
   } | null>(null);
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [expenseForm, setExpenseForm] = useState({ name: "", amount: "", category: "General", date: new Date().toISOString().split("T")[0] });
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
+  const [expenseForm, setExpenseForm] = useState({
+    name: "",
+    amount: "",
+    category: "General",
+    date: getBogotaDate(),
+    recurring: false,
+    frequency: "monthly" as RecurrenceFrequency,
+  });
   const [savingExpense, setSavingExpense] = useState(false);
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+  const [payingRecurringExpenseId, setPayingRecurringExpenseId] = useState<string | null>(null);
+  const [deletingRecurringExpenseId, setDeletingRecurringExpenseId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editingCustomer, setEditingCustomer] = useState<AdminCustomer | null>(null);
   const [customerSaving, setCustomerSaving] = useState(false);
@@ -1219,6 +1252,9 @@ function Admin({
       (productStockFilter === "available"
         ? product.variants.some((variant) => variant.stock > 0)
         : product.variants.length > 0 && product.variants.every((variant) => variant.stock <= 0)))
+  ).sort((left, right) =>
+    productNameCollator.compare(left.name, right.name) ||
+    productNameCollator.compare(left.brand, right.brand)
   );
   const totalStock = products.reduce(
     (sum, p) => sum + (p.archived ? 0 : p.variants.reduce((s, v) => s + v.stock, 0)),
@@ -1280,8 +1316,14 @@ function Admin({
           const result = await getAdminCustomers();
           if (active) setCustomers(result);
         } else if (section === "expenses") {
-          const result = await getExpenses();
-          if (active) setExpenses(result);
+          const [expenseResult, recurringExpenseResult] = await Promise.all([
+            getExpenses(),
+            getRecurringExpenses(),
+          ]);
+          if (active) {
+            setExpenses(expenseResult);
+            setRecurringExpenses(recurringExpenseResult);
+          }
         } else {
           const result = await getAdminProfiles();
           if (active) setProfiles(result);
@@ -1323,9 +1365,13 @@ function Admin({
     }
   };
 
-  const generateWeeklyReport = async () => {
+  const generateReport = async (dailyReportDate: string | null = null) => {
     if (!supabase) {
       setReportError("Supabase no está configurado.");
+      return;
+    }
+    if (dailyReportDate && dailyReportDate > getBogotaDate()) {
+      setReportError("El reporte diario no puede usar una fecha futura.");
       return;
     }
     setReportLoading(true);
@@ -1339,6 +1385,7 @@ function Admin({
         throw new Error("Tu sesión no está activa. Cierra sesión, vuelve a entrar como administrador e inténtalo nuevamente.");
       }
       const { data, error: functionError } = await supabase.functions.invoke("weekly-report", {
+        body: dailyReportDate ? { report_date: dailyReportDate } : {},
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (functionError) throw functionError;
@@ -1352,9 +1399,10 @@ function Admin({
         whatsappUrl,
         emailSent: data.email_sent === true,
         emailError: typeof data.email_error === "string" ? data.email_error : null,
+        label: dailyReportDate ? `diario del ${dailyReportDate}` : "semanal",
       });
     } catch (reportFailure) {
-      console.error("No se pudo generar el reporte semanal:", reportFailure);
+      console.error("No se pudo generar el reporte:", reportFailure);
       setReportError(reportFailure instanceof Error
         ? reportFailure.message
         : "No se pudo generar el reporte semanal.");
@@ -1373,8 +1421,16 @@ function Admin({
         amount: Number(expenseForm.amount),
         category: expenseForm.category,
         expense_date: expenseForm.date,
+        recurrence_frequency: expenseForm.recurring ? expenseForm.frequency : null,
       });
-      setExpenseForm({ name: "", amount: "", category: "General", date: new Date().toISOString().split("T")[0] });
+      setExpenseForm({
+        name: "",
+        amount: "",
+        category: "General",
+        date: getBogotaDate(),
+        recurring: false,
+        frequency: "monthly",
+      });
       setSectionRevision((current) => current + 1);
     } catch (saveError) {
       console.error("No se pudo guardar el gasto:", saveError);
@@ -1395,6 +1451,34 @@ function Admin({
       setSectionError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el gasto.");
     } finally {
       setDeletingExpenseId(null);
+    }
+  };
+
+  const payRecurringExpense = async (expense: RecurringExpense) => {
+    setPayingRecurringExpenseId(expense.id);
+    setSectionError(null);
+    try {
+      await markRecurringExpensePaid(expense.id);
+      setSectionRevision((current) => current + 1);
+    } catch (payError) {
+      console.error("No se pudo registrar el pago recurrente:", payError);
+      setSectionError(payError instanceof Error ? payError.message : "No se pudo registrar el pago.");
+    } finally {
+      setPayingRecurringExpenseId(null);
+    }
+  };
+
+  const removeRecurringExpense = async (id: string) => {
+    setDeletingRecurringExpenseId(id);
+    setSectionError(null);
+    try {
+      await deleteRecurringExpense(id);
+      setSectionRevision((current) => current + 1);
+    } catch (deleteError) {
+      console.error("No se pudo eliminar el gasto recurrente:", deleteError);
+      setSectionError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el gasto recurrente.");
+    } finally {
+      setDeletingRecurringExpenseId(null);
     }
   };
 
@@ -1741,10 +1825,28 @@ function Admin({
         {section === "overview" && metrics && (
           <>
             <div className="report-actions">
+              <label className="report-date-field">
+                Fecha del reporte diario
+                <input
+                  type="date"
+                  value={reportDate}
+                  max={getBogotaDate()}
+                  disabled={reportLoading}
+                  onChange={(event) => setReportDate(event.target.value)}
+                />
+              </label>
               <button
                 className="secondary"
                 type="button"
-                onClick={() => void generateWeeklyReport()}
+                onClick={() => void generateReport(reportDate)}
+                disabled={reportLoading || !reportDate}
+              >
+                <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte diario"}
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                onClick={() => void generateReport()}
                 disabled={reportLoading}
               >
                 <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte semanal"}
@@ -1753,7 +1855,7 @@ function Admin({
             {reportError && <p className="form-error" role="alert">{reportError}</p>}
             {reportResult && (
               <p className="report-result" role="status">
-                Reporte generado. {reportResult.emailSent
+                Reporte {reportResult.label} generado. {reportResult.emailSent
                   ? "Correo enviado. "
                   : `${reportResult.emailError ?? "No se pudo enviar el correo."} `}
                 <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
@@ -1768,7 +1870,7 @@ function Admin({
             <div className="metrics">
               <Metric title="Productos" value={products.filter((product) => !product.archived).length.toString()} icon={<Package />} />
               <Metric title="Unidades en stock" value={totalStock.toString()} icon={<ShoppingBag />} />
-              <Metric title="Pedidos pendientes" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
+              <Metric title="Pendientes de pago" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
               <Metric title="Agotados" value={soldOut.toString()} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
             </div>
             <div className="metrics">
@@ -1809,7 +1911,7 @@ function Admin({
                     <span>Presentaciones con stock bajo</span><strong>{lowStock}</strong>
                   </button>
                   <button className="alert-link" onClick={() => setDashboardDetail("pending")}>
-                    <span>Pedidos pendientes</span><strong>{metrics.pending_orders}</strong>
+                    <span>Confirmados pendientes de pago</span><strong>{metrics.pending_orders}</strong>
                   </button>
                   {soldOut === 0 && lowStock === 0 && metrics.pending_orders === 0 && (
                     <p className="insight">No hay productos agotados, stock bajo ni pedidos pendientes.</p>
@@ -1825,7 +1927,7 @@ function Admin({
             <div className="card-title">
               <div>
                 <h2>Gastos</h2>
-                <span>Registra los gastos del negocio para incluirlos en el reporte semanal.</span>
+                <span>Registra gastos, programa recordatorios y consulta los pagos incluidos en reportes diarios y semanales.</span>
               </div>
             </div>
             <form className="expense-form" onSubmit={(event) => void saveExpense(event)}>
@@ -1842,13 +1944,85 @@ function Admin({
                   ))}
                 </select>
               </label>
-              <label>Fecha
+              <label>{expenseForm.recurring ? "Primer vencimiento" : "Fecha"}
                 <input type="date" value={expenseForm.date} onChange={(event) => setExpenseForm((current) => ({ ...current, date: event.target.value }))} required />
               </label>
+              <label className="expense-recurring-toggle">
+                <span>¿Es un gasto recurrente?</span>
+                <input
+                  type="checkbox"
+                  checked={expenseForm.recurring}
+                  onChange={(event) => setExpenseForm((current) => ({ ...current, recurring: event.target.checked }))}
+                />
+              </label>
+              {expenseForm.recurring && (
+                <label>Frecuencia
+                  <select
+                    value={expenseForm.frequency}
+                    onChange={(event) => setExpenseForm((current) => ({
+                      ...current,
+                      frequency: event.target.value as RecurrenceFrequency,
+                    }))}
+                  >
+                    <option value="weekly">Semanal</option>
+                    <option value="monthly">Mensual</option>
+                    <option value="yearly">Anual</option>
+                  </select>
+                </label>
+              )}
               <button className="primary" type="submit" disabled={savingExpense}>
-                {savingExpense ? "Guardando..." : "Agregar gasto"}
+                {savingExpense ? "Guardando..." : expenseForm.recurring ? "Crear recordatorio" : "Agregar gasto"}
               </button>
             </form>
+            {expenseForm.recurring && (
+              <p className="profile-notice">
+                La fecha indicada será el primer vencimiento. Verás los próximos pagos aquí y el correo se enviará el día del vencimiento y cada día que siga pendiente.
+              </p>
+            )}
+            {recurringExpenses.length > 0 && (
+              <div className="recurring-expenses">
+                <h3>Recordatorios de pagos recurrentes</h3>
+                {recurringExpenses.map((expense) => {
+                  const daysUntil = getDaysUntil(expense.next_due_date);
+                  const dueLabel = daysUntil < 0
+                    ? `Vencido hace ${Math.abs(daysUntil)} día(s)`
+                    : daysUntil === 0
+                      ? "Vence hoy"
+                      : `Vence en ${daysUntil} día(s)`;
+                  const frequencyLabel = expense.frequency === "weekly"
+                    ? "Semanal"
+                    : expense.frequency === "yearly" ? "Anual" : "Mensual";
+                  return (
+                    <div className="recurring-expense-row" key={expense.id}>
+                      <div>
+                        <strong>{expense.name} · {money(expense.amount)}</strong>
+                        <span>{expense.category} · {frequencyLabel} · {formatBogotaDate(expense.next_due_date)}</span>
+                        <small className={daysUntil <= 0 ? "expense-overdue" : ""}>{dueLabel}</small>
+                      </div>
+                      <div className="recurring-expense-actions">
+                        <button
+                          className="secondary"
+                          type="button"
+                          disabled={payingRecurringExpenseId === expense.id}
+                          onClick={() => void payRecurringExpense(expense)}
+                        >
+                          {payingRecurringExpenseId === expense.id ? "Guardando..." : "Registrar pago"}
+                        </button>
+                        <button
+                          className="icon-button"
+                          type="button"
+                          aria-label={`Eliminar recordatorio ${expense.name}`}
+                          disabled={deletingRecurringExpenseId === expense.id}
+                          onClick={() => void removeRecurringExpense(expense.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {expenses.length > 0 && (
               <div className="admin-table">
                 <div className="table-row expense-row header"><span>Nombre</span><span>Categoría</span><span>Monto</span><span>Fecha</span><span></span></div>
@@ -2230,7 +2404,7 @@ function Admin({
                 ))
               )}
               {dashboardDetail === "pending" && orders.filter((order) =>
-                order.payment_status === "pending" && order.status !== "cancelled"
+                order.payment_status === "pending" && order.status === "confirmed"
               ).map((order) => (
                 <div className="dashboard-detail-row" key={order.id}>
                   <strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name ?? "Cliente"}</strong>
@@ -2240,7 +2414,7 @@ function Admin({
               {((dashboardDetail === "sold-out" && soldOut === 0) ||
                 (dashboardDetail === "low-stock" && lowStock === 0) ||
                 (dashboardDetail === "pending" && orders.every((order) =>
-                  order.payment_status !== "pending" || order.status === "cancelled"
+                  order.payment_status !== "pending" || order.status !== "confirmed"
                 ))) && (
                 <p className="insight">No hay elementos para mostrar.</p>
               )}
