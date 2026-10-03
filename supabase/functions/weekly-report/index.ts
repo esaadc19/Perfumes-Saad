@@ -1,9 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendAppsScriptEmail } from "../_shared/apps-script-mail.ts";
 
-const BREVO_API_KEY = Deno.env.get("BREVO_API_KEY") ?? "";
-const BREVO_SENDER_EMAIL = Deno.env.get("BREVO_SENDER_EMAIL") ?? "noreply@brevo.com";
-const REPORT_RECIPIENT_EMAIL = Deno.env.get("REPORT_RECIPIENT_EMAIL") ?? "";
 const WHATSAPP_NUMBERS = (Deno.env.get("WHATSAPP_NUMBERS") ?? "3102318786").split(",");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -73,54 +71,25 @@ _Reporte generado el ${data.report_date}_
   `.trim();
 }
 
-async function sendBrevoEmail(
-  subject: string,
-  htmlContent: string
-): Promise<{ sent: boolean; error: string | null }> {
-  if (!BREVO_API_KEY) {
-    return { sent: false, error: "Falta configurar BREVO_API_KEY en los secretos de Supabase." };
-  }
-  if (!BREVO_SENDER_EMAIL || !REPORT_RECIPIENT_EMAIL) {
-    return {
-      sent: false,
-      error: "Configura BREVO_SENDER_EMAIL y REPORT_RECIPIENT_EMAIL en los secretos de Supabase.",
-    };
-  }
+function formatDailyReport(data: any): string {
+  const bestProduct = data.best_product;
+  return `
+📊 *REPORTE DIARIO - PERFUMES SAAD*
+📅 Fecha: ${data.report_date}
 
-  try {
-    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
-      method: "POST",
-      headers: {
-        "accept": "application/json",
-        "content-type": "application/json",
-        "api-key": BREVO_API_KEY,
-      },
-      body: JSON.stringify({
-        sender: { email: BREVO_SENDER_EMAIL, name: "Perfumes SAAD" },
-        to: [{ email: REPORT_RECIPIENT_EMAIL }],
-        subject: subject,
-        htmlContent: htmlContent,
-      }),
-    });
-    if (!response.ok) {
-      const providerError = await response.text();
-      console.error("Brevo rejected the report email:", response.status, providerError.slice(0, 1000));
-      if (response.status === 401) {
-        return {
-          sent: false,
-          error: "Brevo no autorizó la clave (HTTP 401). Actualiza BREVO_API_KEY con una API key de Brevo válida; no uses la clave SMTP.",
-        };
-      }
-      return {
-        sent: false,
-        error: `Brevo rechazó el envío (HTTP ${response.status}). Verifica el remitente y la configuración de Brevo.`,
-      };
-    }
-    return { sent: true, error: null };
-  } catch (error) {
-    console.error("Error sending Brevo email:", error);
-    return { sent: false, error: "No se pudo conectar con Brevo para enviar el correo." };
-  }
+💰 *VENTAS*
+• Total vendido: ${formatCurrency(data.sales)}
+• Pedidos completados: ${data.orders}
+• Unidades vendidas: ${data.items_sold}
+
+📦 *PRODUCTO MÁS VENDIDO*
+• ${bestProduct.name} (${bestProduct.quantity} unidades)
+
+💸 *GASTOS*
+• Gastos registrados: ${formatCurrency(data.expenses)}
+
+_Reporte generado el ${data.report_date}_
+  `.trim();
 }
 
 serve(async (req) => {
@@ -176,10 +145,33 @@ serve(async (req) => {
       }
     }
 
-    const { data, error } = await serviceClient.rpc("weekly_sales_report");
+    const requestBody = await req.json();
+    const requestedDate = requestBody?.report_date;
+    if (requestedDate !== undefined &&
+      (typeof requestedDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(requestedDate))) {
+      throw new Error("La fecha del reporte debe tener el formato AAAA-MM-DD.");
+    }
+    if (typeof requestedDate === "string") {
+      const parsedDate = new Date(`${requestedDate}T00:00:00Z`);
+      const parsedDateText = parsedDate.toISOString().slice(0, 10);
+      const today = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Bogota",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+      if (parsedDateText !== requestedDate || requestedDate > today) {
+        throw new Error("La fecha del reporte diario no es válida.");
+      }
+    }
+
+    const isDailyReport = typeof requestedDate === "string";
+    const { data, error } = isDailyReport
+      ? await serviceClient.rpc("daily_sales_report", { target_date: requestedDate })
+      : await serviceClient.rpc("weekly_sales_report");
     if (error) throw error;
 
-    const reportText = formatReport(data);
+    const reportText = isDailyReport ? formatDailyReport(data) : formatReport(data);
     const escapedReport = reportText.replace(/[&<>"']/g, (character) => ({
       "&": "&amp;",
       "<": "&lt;",
@@ -190,8 +182,10 @@ serve(async (req) => {
     const reportHtml = `<pre style="font-family: monospace; white-space: pre-wrap;">${escapedReport}</pre>`;
 
     // Send email via Brevo
-    const emailResult = await sendBrevoEmail(
-      `📊 Reporte Semanal - Semana del ${data.week_start}`,
+    const emailResult = await sendAppsScriptEmail(
+      isDailyReport
+        ? `📊 Reporte Diario - ${data.report_date}`
+        : `📊 Reporte Semanal - Semana del ${data.week_start}`,
       reportHtml
     );
 
