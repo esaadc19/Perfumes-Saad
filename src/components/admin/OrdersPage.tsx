@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BarChart3,
   Check,
+  Package,
   Pencil,
   ReceiptText,
   Search,
@@ -201,6 +202,32 @@ export default function OrdersPage({
                 </select>
               </label>
               <div className="order-actions">
+                <button
+                  className="secondary"
+                  type="button"
+                  title="Enviar link de seguimiento por WhatsApp"
+                  onClick={() => {
+                    const orderCode = order.id.slice(0, 8).toUpperCase();
+                    const trackingLink = `${window.location.origin}${window.location.pathname}?track=${orderCode}`;
+                    const message = `Hola ${order.customers?.full_name || "cliente"}, tu pedido #${orderCode} en Perfumes SAAD.\n\nPuedes rastrearlo aquí: ${trackingLink}`;
+                    const phone = order.customers?.phone?.replace(/\D/g, "") || "";
+                    if (phone) {
+                      window.open(
+                        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+                        "_blank",
+                        "noopener,noreferrer"
+                      );
+                    } else {
+                      window.open(
+                        `https://wa.me/?text=${encodeURIComponent(message)}`,
+                        "_blank",
+                        "noopener,noreferrer"
+                      );
+                    }
+                  }}
+                >
+                  <Package size={15} /> Rastrear
+                </button>
                 {order.payment_status !== "paid" ? (
                   <>
                     <button className="secondary" type="button" onClick={() => onEditOrder(order)}><Pencil size={15} /> Editar</button>

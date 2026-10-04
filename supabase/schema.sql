@@ -347,7 +347,7 @@ begin
     raise exception 'Administrator access required' using errcode = '42501';
   end if;
   if new_status is null or new_payment_status is null
-     or new_status not in ('pending_confirmation', 'confirmed', 'cancelled')
+     or new_status not in ('pending_confirmation', 'confirmed', 'shipped', 'delivered', 'cancelled')
      or new_payment_status not in ('pending', 'paid', 'refunded') then
     raise exception 'Invalid order status';
   end if;
@@ -2004,6 +2004,79 @@ $$;
 
 revoke all on function public.daily_sales_report(date) from public, anon, authenticated;
 grant execute on function public.daily_sales_report(date) to service_role;
+
+-- ============================================
+-- FUNCIÓN DE SEGUIMIENTO DE PEDIDOS (PÚBLICO)
+-- ============================================
+create or replace function public.get_order_tracking(
+  order_code text,
+  customer_phone text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  order_record public.orders%rowtype;
+  customer_record public.customers%rowtype;
+  items_json jsonb;
+  result jsonb;
+begin
+  if order_code is null or nullif(btrim(order_code), '') is null then
+    raise exception 'Ingresa el número de pedido';
+  end if;
+  if customer_phone is null or nullif(btrim(customer_phone), '') is null then
+    raise exception 'Ingresa el número de teléfono';
+  end if;
+
+  select * into order_record
+  from public.orders
+  where upper(left(id::text, 8)) = upper(btrim(order_code));
+
+  if not found then
+    raise exception 'No encontramos un pedido con esos datos';
+  end if;
+
+  select * into customer_record
+  from public.customers
+  where id = order_record.customer_id;
+
+  if not found then
+    raise exception 'No encontramos un pedido con esos datos';
+  end if;
+
+  if coalesce(customer_record.phone, '') !~ ('^[^0-9]*' || replace(btrim(customer_phone), '[^0-9]', '', 'g') || '$') then
+    raise exception 'No encontramos un pedido con esos datos';
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'name', oi.product_name_snapshot,
+    'size_ml', oi.size_ml,
+    'quantity', oi.quantity,
+    'unit_price', oi.unit_price,
+    'subtotal', oi.subtotal
+  )), '[]'::jsonb)
+  into items_json
+  from public.order_items oi
+  where oi.order_id = order_record.id;
+
+  result := jsonb_build_object(
+    'order_code', upper(left(order_record.id::text, 8)),
+    'status', order_record.status,
+    'payment_status', order_record.payment_status,
+    'created_at', order_record.created_at,
+    'paid_at', order_record.paid_at,
+    'total', order_record.total,
+    'items', items_json
+  );
+
+  return result;
+end;
+$$;
+
+revoke all on function public.get_order_tracking(text, text) from public;
+grant execute on function public.get_order_tracking(text, text) to anon, authenticated;
 
 -- ============================================
 -- CRON JOB: REPORTE SEMANAL (Domingos 8am Colombia = 1pm UTC)

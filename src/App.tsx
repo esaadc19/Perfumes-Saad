@@ -54,9 +54,11 @@ import {
 import AuthDialog from "./components/AuthDialog";
 import AccountDialog from "./components/AccountDialog";
 import ReceiptDialog from "./components/ReceiptDialog";
+import OrderTracking from "./components/OrderTracking";
 import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
 import Metric from "./components/admin/Metric";
+import { SalesTrendChart, TopProductsChart } from "./components/admin/DashboardCharts";
 import OrderEditorModal from "./components/admin/OrderEditorModal";
 import OrdersPage from "./components/admin/OrdersPage";
 import SettingsPage from "./components/admin/SettingsPage";
@@ -271,6 +273,14 @@ function App() {
   const [category, setCategory] = useState("Todos");
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showTracking, setShowTracking] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has("track");
+  });
+  const [trackingCode, setTrackingCode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("track") ?? "";
+  });
   const [adminError, setAdminError] = useState<string | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingProductEdit, setSavingProductEdit] = useState(false);
@@ -993,6 +1003,9 @@ function App() {
             <div className="footer-brand">{storeSettings.store_name}</div>
             <span>Perfumería · Barranquilla · Colombia</span>
             {storeSettings.contact_email && <a href={`mailto:${storeSettings.contact_email}`}>{storeSettings.contact_email}</a>}
+            <a href="#" onClick={(e) => { e.preventDefault(); setShowTracking(true); }}>
+              Rastrear pedido
+            </a>
             {userRole === "admin" && (
               <a href="#" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
                 Administración
@@ -1129,6 +1142,9 @@ function App() {
             setCartOpen(false);
           }}
         />
+      )}
+      {showTracking && (
+        <OrderTracking onClose={() => setShowTracking(false)} />
       )}
     </div>
   );
@@ -1692,36 +1708,31 @@ function Admin({
   const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
 
   return (
-    <div className={`admin-layout${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
-      <aside className="sidebar">
-        <div className="sidebar-heading">
-          <button className="admin-logo" onClick={onBack} aria-label={storeSettings.store_name}>
-            {storeSettings.logo_url
-              ? <img src={storeSettings.logo_url} alt="" />
-              : storeSettings.store_name}
-          </button>
-          <button
-            type="button"
-            className="sidebar-collapse"
-            aria-label={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? "Expandir menú" : "Contraer menú"}
-            onClick={() => setSidebarCollapsed((current) => !current)}
-          >
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+    <div className="admin-layout">
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-header">
+          <button className="admin-brand-mark" onClick={onBack} aria-label={storeSettings.store_name}>
+            S
           </button>
         </div>
-        <Dock
-          className="admin-dock"
-          collapsed={sidebarCollapsed}
-          items={sections.map((item) => ({
-            icon: item.icon,
-            label: item.title,
-            selected: section === item.id,
-            onClick: () => { setSection(item.id); setSearch(""); },
-          }))}
-        />
-        <button className="back-store" onClick={onBack}><ArrowLeft size={20}/><span>Ver tienda</span></button>
+        <nav className="admin-navigation">
+          {sections.map((item) => (
+            <button
+              key={item.id}
+              className={`admin-nav-item${section === item.id ? " active" : ""}`}
+              onClick={() => { setSection(item.id); setSearch(""); }}
+              data-tooltip={item.title}
+              title={item.title}
+            >
+              {item.icon}
+            </button>
+          ))}
+        </nav>
+        <div className="admin-sidebar-footer">
+          <button className="admin-store-button" onClick={onBack} title="Volver a la tienda">
+            <ArrowLeft size={18} />
+          </button>
+        </div>
       </aside>
 
       <main className="admin-main">
@@ -1875,25 +1886,12 @@ function Admin({
             </div>
             <div className="metrics">
               <Metric title="Costo de ventas registrado" value={money(Number(metrics.sales_cost))} icon={<ReceiptText />} />
-              <Metric title="Utilidad neta" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
+              <Metric title="Utilidad estimada" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
               <Metric title="Costos pendientes" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning={metrics.missing_cost_items > 0} />
               <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
             </div>
-            <section className="admin-card">
-              <div className="card-title">
-                <div><h2>Más solicitados</h2><span>Unidades incluidas en pedidos guardados, ordenadas por cantidad.</span></div>
-              </div>
-              {metrics.top_products.length ? (
-                <div className="admin-table">
-                  <div className="table-row top-product-row header"><span>Perfume</span><span>Presentación</span><span>Unidades</span><span>Vendido</span><span>Costo</span><span>Utilidad</span></div>
-                  {metrics.top_products.map((product) => (
-                    <div className="table-row top-product-row" key={`${product.name}-${product.size_ml}`}>
-                      <strong>{product.name}</strong><span>{product.size_ml} ml</span><span>{product.units}</span><span>{money(Number(product.revenue))}</span><span>{product.cost === null ? "Falta costo" : money(Number(product.cost))}</span><span>{product.profit === null ? "Incompleta" : money(Number(product.profit))}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : <p className="insight">Aún no hay pedidos registrados para generar métricas de productos.</p>}
-            </section>
+            <SalesTrendChart orders={orders} />
+            <TopProductsChart products={metrics.top_products} />
             <section className="insight-grid">
               <div className="admin-card">
                 <div className="card-title"><div><h2>Consejo</h2><span>Lectura inicial del inventario</span></div><Sparkles size={18}/></div>

@@ -217,6 +217,21 @@ export default function ReceiptDialog({
     );
   };
 
+  const trackingLink = receipt
+    ? `${window.location.origin}${window.location.pathname}?track=${receipt.orderId.slice(0, 8).toUpperCase()}`
+    : "";
+
+  const sendTrackingToWhatsApp = () => {
+    if (!receipt) return;
+    const number = whatsappNumber.replace(/\D/g, "");
+    const message = `Hola, mi pedido #${receipt.orderId.slice(0, 8).toUpperCase()} en ${storeName}.\n\nPuedes rastrearlo aquí: ${trackingLink}`;
+    window.open(
+      `https://wa.me/${number}?text=${encodeURIComponent(message)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   return (
     <div className="overlay receipt-overlay" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
@@ -362,6 +377,18 @@ export default function ReceiptDialog({
               </div>
             ) : (
               <p className="receipt-print-hint"><Printer size={15} /> Vista previa estilo recibo térmico</p>
+            )}
+            {receipt && (
+              <div className="receipt-tracking">
+                <div className="receipt-tracking-info">
+                  <strong>Rastrea tu pedido</strong>
+                  <span>#{receipt.orderId.slice(0, 8).toUpperCase()}</span>
+                  <code>{trackingLink}</code>
+                </div>
+                <button className="secondary" onClick={sendTrackingToWhatsApp}>
+                  <Send size={15} /> Enviar link por WhatsApp
+                </button>
+              </div>
             )}
           </div>
         </div>
