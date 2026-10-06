@@ -85,6 +85,21 @@ create table if not exists public.customers (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.sales_advisors (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  phone text,
+  email text,
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.orders
+  add column if not exists sales_advisor_id uuid references public.sales_advisors(id) on delete set null;
+create index if not exists orders_sales_advisor_id_idx
+  on public.orders(sales_advisor_id);
+
 do $$
 begin
   if exists (
@@ -564,7 +579,8 @@ create or replace function public.admin_save_pending_order(
   customer_data jsonb,
   items_data jsonb,
   order_date date,
-  new_delivery_cost numeric
+  new_delivery_cost numeric,
+  sales_advisor_id uuid
 )
 returns uuid
 language plpgsql
@@ -575,6 +591,8 @@ declare
   order_record public.orders%rowtype;
   item jsonb;
   item_quantity integer;
+  item_unit_price numeric;
+  item_unit_cost numeric;
   variant_record record;
   calculated_subtotal numeric(12,2) := 0;
   calculated_discount numeric(12,2) := 0;
@@ -605,6 +623,12 @@ begin
   end if;
   if new_delivery_cost is null or new_delivery_cost < 0 then
     raise exception 'Delivery cost must be zero or greater';
+  end if;
+  if sales_advisor_id is not null and not exists (
+    select 1 from public.sales_advisors
+    where id = sales_advisor_id and active = true
+  ) then
+    raise exception 'Select a valid sales advisor';
   end if;
   if jsonb_typeof(items_data) is distinct from 'array' then
     raise exception 'An order must contain at least one product';
@@ -640,7 +664,7 @@ begin
   end if;
 
   if target_order_id is null then
-    insert into public.orders (customer_id, status, payment_status, created_at, delivery_cost)
+    insert into public.orders (customer_id, status, payment_status, created_at, delivery_cost, sales_advisor_id)
     values (
       saved_customer_id,
       'pending_confirmation',
@@ -664,7 +688,8 @@ begin
     delete from public.order_items where order_id = saved_order_id;
     update public.orders
     set created_at = order_date::timestamp at time zone 'America/Bogota',
-        delivery_cost = new_delivery_cost
+        delivery_cost = new_delivery_cost,
+        sales_advisor_id = sales_advisor_id
     where id = saved_order_id;
   end if;
 
@@ -680,6 +705,14 @@ begin
     item_quantity := (item->>'quantity')::integer;
     if item_quantity < 1 then
       raise exception 'Order quantities must be positive';
+    end if;
+    item_unit_price := nullif(item->>'unit_price', '')::numeric;
+    if item_unit_price is null or item_unit_price < 0 then
+      raise exception 'Unit price must be zero or greater';
+    end if;
+    item_unit_cost := nullif(item->>'unit_cost', '')::numeric;
+    if item_unit_cost is not null and item_unit_cost < 0 then
+      raise exception 'Unit cost must be zero or greater';
     end if;
 
     select pv.id, pv.size_ml, pv.price, pv.cost, pv.stock, p.brand, p.name
@@ -702,7 +735,7 @@ begin
       from jsonb_array_elements(promotion_discounts) as entry(value)
       where entry.value->>'variant_id' = variant_record.id::text
     ), 0);
-    calculated_subtotal := calculated_subtotal + variant_record.price * item_quantity;
+    calculated_subtotal := calculated_subtotal + item_unit_price * item_quantity;
     calculated_discount := calculated_discount + line_discount;
     insert into public.order_items (
       order_id, variant_id, product_name_snapshot, size_ml, unit_price,
@@ -1517,6 +1550,7 @@ alter table public.customers enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.inventory_movements enable row level security;
+alter table public.sales_advisors enable row level security;
 
 grant select on public.products to anon, authenticated;
 grant select on public.promotions to anon, authenticated;
@@ -1529,6 +1563,7 @@ grant update (full_name, phone, email, delivery_address) on public.profiles to a
 grant select, insert, update, delete on public.products to authenticated;
 grant select on public.customers, public.orders, public.order_items, public.inventory_movements
   to authenticated;
+grant select, insert, update, delete on public.sales_advisors to authenticated;
 
 drop policy if exists "Public can read active promotions" on public.promotions;
 create policy "Public can read active promotions"
@@ -1538,6 +1573,12 @@ create policy "Public can read active promotions"
 drop policy if exists "Admins can manage promotions" on public.promotions;
 create policy "Admins can manage promotions"
   on public.promotions for all to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
+
+drop policy if exists "Admins can manage sales advisors" on public.sales_advisors;
+create policy "Admins can manage sales advisors"
+  on public.sales_advisors for all to authenticated
   using ((select public.is_admin()))
   with check ((select public.is_admin()));
 
@@ -2046,7 +2087,7 @@ begin
     raise exception 'No encontramos un pedido con esos datos';
   end if;
 
-  if coalesce(customer_record.phone, '') !~ ('^[^0-9]*' || replace(btrim(customer_phone), '[^0-9]', '', 'g') || '$') then
+  if position(regexp_replace(btrim(customer_phone), '[^0-9]', '', 'g') in coalesce(customer_record.phone, '')) = 0 then
     raise exception 'No encontramos un pedido con esos datos';
   end if;
 

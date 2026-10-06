@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Package,
   Pencil,
   ReceiptText,
   Search,
   Trash2,
   TrendingUp,
+  UserCheck,
 } from "lucide-react";
 import type { AdminOrder } from "../../services/admin";
 import Metric from "./Metric";
@@ -48,6 +51,7 @@ export default function OrdersPage({
   onStatusChange: (order: AdminOrder, status: OrderStatus, paymentStatus: PaymentStatus) => void;
 }) {
   const [filter, setFilter] = useState<"all" | PaymentStatus>(showPendingOnly ? "pending" : "all");
+  const [page, setPage] = useState(1);
   const query = search.trim().toLowerCase();
   const visibleOrders = orders.filter((order) => {
     const matchesSearch = [
@@ -63,6 +67,16 @@ export default function OrdersPage({
         : order.payment_status === filter);
     return matchesSearch && matchesStatus;
   });
+  useEffect(() => {
+    setPage(1);
+  }, [filter, query]);
+  const PAGE_SIZE = 10;
+  const pageCount = Math.max(1, Math.ceil(visibleOrders.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const paginatedOrders = visibleOrders.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE
+  );
   const completedOrders = orders.filter((order) => order.payment_status === "paid");
   const revenue = completedOrders.reduce((sum, order) => sum + Number(order.total), 0);
   const missingCostItems = completedOrders.reduce(
@@ -143,9 +157,10 @@ export default function OrdersPage({
         <div className="table-row transaction-row header">
           <span>Pedido / Cliente</span><span>Fecha del pedido</span><span>Vendido</span>
           <span>Costo productos</span><span>Domicilio</span><span>Utilidad neta</span>
+          <span>Asesor</span>
           <span>Estado del pedido</span><span>Pago</span><span>Acciones</span>
         </div>
-        {visibleOrders.map((order) => {
+        {paginatedOrders.map((order) => {
           const hasMissingCost = order.order_items.some((item) => item.unit_cost_snapshot === null);
           const orderProductCost = order.order_items.reduce(
             (sum, item) => sum + Number(item.unit_cost_snapshot ?? 0) * item.quantity,
@@ -166,6 +181,7 @@ export default function OrdersPage({
               <span>{order.payment_status !== "paid" ? "—" : hasMissingCost
                 ? "Incompleta"
                 : money(Number(order.total) - orderProductCost - Number(order.delivery_cost ?? 0))}</span>
+              <span className="advisor-cell">{order.sales_advisor_name || "—"}</span>
               <label className="mobile-select-cell">
                 <select
                   aria-label={`Estado del pedido ${order.id.slice(0, 8)}`}
@@ -244,6 +260,31 @@ export default function OrdersPage({
         })}
         {!loading && visibleOrders.length === 0 && <p className="insight">No hay pedidos que coincidan con la búsqueda.</p>}
       </div>
+      {pageCount > 1 && (
+        <div className="pagination" role="navigation" aria-label="Paginación de pedidos">
+          <button
+            className="secondary"
+            type="button"
+            disabled={currentPage === 1}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            aria-label="Página anterior"
+          >
+            <ChevronLeft size={15} /> Anterior
+          </button>
+          <span className="pagination-info">
+            Página {currentPage} de {pageCount} · {visibleOrders.length} pedido(s)
+          </span>
+          <button
+            className="secondary"
+            type="button"
+            disabled={currentPage === pageCount}
+            onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+            aria-label="Página siguiente"
+          >
+            Siguiente <ChevronRight size={15} />
+          </button>
+        </div>
+      )}
     </section>
   );
 }

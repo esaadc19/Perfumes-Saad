@@ -28,6 +28,10 @@ import {
   getAdminDashboardMetrics,
   getAdminOrders,
   getAdminProfiles,
+  getSalesAdvisors,
+  createSalesAdvisor,
+  updateSalesAdvisor,
+  deleteSalesAdvisor,
   importAdminCustomers,
   deleteAdminPendingOrder,
   saveAdminPendingOrder,
@@ -38,6 +42,7 @@ import {
   type AdminDashboardMetrics,
   type AdminOrder,
   type AdminProfile,
+  type SalesAdvisor,
 } from "./services/admin";
 import {
   getExpenses,
@@ -95,6 +100,7 @@ import {
   TrendingUp,
   Upload,
   User,
+  UserCheck,
   Users,
   X,
 } from "lucide-react";
@@ -1251,7 +1257,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "profiles" | "settings">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "profiles" | "settings">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
@@ -1269,6 +1275,17 @@ function Admin({
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
+  const [salesAdvisors, setSalesAdvisors] = useState<SalesAdvisor[]>([]);
+  const [advisorForm, setAdvisorForm] = useState({
+    full_name: "",
+    phone: "",
+    email: "",
+  });
+  const [editingAdvisor, setEditingAdvisor] = useState<SalesAdvisor | null>(null);
+  const [savingAdvisor, setSavingAdvisor] = useState(false);
+  const [deletingAdvisorId, setDeletingAdvisorId] = useState<string | null>(null);
+  const [customerPage, setCustomerPage] = useState(1);
+  const [profilePage, setProfilePage] = useState(1);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
   const [expenseForm, setExpenseForm] = useState({
@@ -1347,6 +1364,7 @@ function Admin({
     { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "expenses", title: "Gastos", icon: <Wallet size={17} /> },
+    { id: "advisors", title: "Asesores", icon: <UserCheck size={17} /> },
     { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
     { id: "settings", title: "Configuración", icon: <Settings size={17} /> },
   ] as const;
@@ -1372,14 +1390,19 @@ function Admin({
             setOrders(ordersResult);
           }
         } else if (section === "transactions") {
-          const [ordersResult, customersResult] = await Promise.all([
+          const [ordersResult, customersResult, advisorsResult] = await Promise.all([
             getAdminOrders(),
             getAdminCustomers(),
+            getSalesAdvisors(),
           ]);
           if (active) {
             setOrders(ordersResult);
             setCustomers(customersResult);
+            setSalesAdvisors(advisorsResult);
           }
+        } else if (section === "advisors") {
+          const result = await getSalesAdvisors();
+          if (active) setSalesAdvisors(result);
         } else if (section === "customers") {
           const result = await getAdminCustomers();
           if (active) setCustomers(result);
@@ -1638,6 +1661,52 @@ function Admin({
     }
   };
 
+  const saveAdvisor = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const fullName = advisorForm.full_name.trim();
+    if (!fullName) {
+      setSectionError("El nombre del asesor es obligatorio.");
+      return;
+    }
+    setSavingAdvisor(true);
+    setSectionError(null);
+    try {
+      const payload = {
+        full_name: fullName,
+        phone: advisorForm.phone.trim() || null,
+        email: advisorForm.email.trim() || null,
+      };
+      if (editingAdvisor) {
+        const updated = await updateSalesAdvisor(editingAdvisor.id, { ...payload, active: editingAdvisor.active });
+        setSalesAdvisors((current) => current.map((item) => item.id === updated.id ? updated : item));
+        setEditingAdvisor(null);
+      } else {
+        const created = await createSalesAdvisor(payload);
+        setSalesAdvisors((current) => [...current, created]);
+      }
+      setAdvisorForm({ full_name: "", phone: "", email: "" });
+    } catch (advisorError) {
+      console.error("No se pudo guardar el asesor:", advisorError);
+      setSectionError(advisorError instanceof Error ? advisorError.message : "No se pudo guardar el asesor.");
+    } finally {
+      setSavingAdvisor(false);
+    }
+  };
+
+  const removeAdvisor = async (advisor: SalesAdvisor) => {
+    setDeletingAdvisorId(advisor.id);
+    setSectionError(null);
+    try {
+      await deleteSalesAdvisor(advisor.id);
+      setSalesAdvisors((current) => current.filter((item) => item.id !== advisor.id));
+    } catch (advisorError) {
+      console.error("No se pudo eliminar el asesor:", advisorError);
+      setSectionError(advisorError instanceof Error ? advisorError.message : "No se pudo eliminar el asesor.");
+    } finally {
+      setDeletingAdvisorId(null);
+    }
+  };
+
   const submitPromotion = async (input: PromotionInput, promotionId?: string) => {
     setPromotionSaving(true);
     setSectionError(null);
@@ -1757,6 +1826,24 @@ function Admin({
   );
   const visibleProfiles = profiles.filter((profile) =>
     `${profile.full_name ?? ""} ${profile.email ?? ""} ${profile.role}`.toLowerCase().includes(query)
+  );
+  useEffect(() => {
+    setCustomerPage(1);
+    setProfilePage(1);
+  }, [query, section]);
+  const CUSTOMER_PAGE_SIZE = 10;
+  const customerPageCount = Math.max(1, Math.ceil(visibleCustomers.length / CUSTOMER_PAGE_SIZE));
+  const currentCustomerPage = Math.min(customerPage, customerPageCount);
+  const paginatedCustomers = visibleCustomers.slice(
+    (currentCustomerPage - 1) * CUSTOMER_PAGE_SIZE,
+    currentCustomerPage * CUSTOMER_PAGE_SIZE
+  );
+  const PROFILE_PAGE_SIZE = 10;
+  const profilePageCount = Math.max(1, Math.ceil(visibleProfiles.length / PROFILE_PAGE_SIZE));
+  const currentProfilePage = Math.min(profilePage, profilePageCount);
+  const paginatedProfiles = visibleProfiles.slice(
+    (currentProfilePage - 1) * PROFILE_PAGE_SIZE,
+    currentProfilePage * PROFILE_PAGE_SIZE
   );
   const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
 
@@ -2104,6 +2191,120 @@ function Admin({
           </section>
         )}
 
+        {section === "advisors" && (
+          <section className="admin-card">
+            <div className="card-title">
+              <div>
+                <h2>Asesores de venta</h2>
+                <span>Registra quién atendió cada pedido. Solo los asesores activos aparecen al crear o editar un pedido.</span>
+              </div>
+            </div>
+            <form className="advisor-form" onSubmit={saveAdvisor}>
+              <div className="advisor-form-grid">
+                <label className="auth-label">
+                  Nombre completo
+                  <input
+                    type="text"
+                    required
+                    placeholder="Nombre del asesor"
+                    value={advisorForm.full_name}
+                    disabled={savingAdvisor}
+                    onChange={(event) => setAdvisorForm((current) => ({ ...current, full_name: event.target.value }))}
+                  />
+                </label>
+                <label className="auth-label">
+                  WhatsApp
+                  <input
+                    type="tel"
+                    placeholder="Opcional"
+                    value={advisorForm.phone}
+                    disabled={savingAdvisor}
+                    onChange={(event) => setAdvisorForm((current) => ({ ...current, phone: event.target.value }))}
+                  />
+                </label>
+                <label className="auth-label">
+                  Correo
+                  <input
+                    type="email"
+                    placeholder="Opcional"
+                    value={advisorForm.email}
+                    disabled={savingAdvisor}
+                    onChange={(event) => setAdvisorForm((current) => ({ ...current, email: event.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className="advisor-form-actions">
+                <button className="primary" type="submit" disabled={savingAdvisor || !advisorForm.full_name.trim()}>
+                  {editingAdvisor ? "Guardar cambios" : "Agregar asesor"}
+                </button>
+                {editingAdvisor && (
+                  <button
+                    className="secondary"
+                    type="button"
+                    disabled={savingAdvisor}
+                    onClick={() => {
+                      setEditingAdvisor(null);
+                      setAdvisorForm({ full_name: "", phone: "", email: "" });
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                )}
+              </div>
+            </form>
+            <div className="admin-table">
+              <div className="table-row advisor-row header">
+                <span>Asesor</span><span>WhatsApp</span><span>Correo</span><span>Estado</span><span></span>
+              </div>
+              {salesAdvisors.map((advisor) => (
+                <div className="table-row advisor-row" key={advisor.id}>
+                  <strong>{advisor.full_name}</strong>
+                  <span>{advisor.phone || "—"}</span>
+                  <span>{advisor.email || "—"}</span>
+                  <span className={advisor.active ? "advisor-active" : "advisor-inactive"}>
+                    {advisor.active ? "Activo" : "Inactivo"}
+                  </span>
+                  <div className="order-actions">
+                    <button
+                      className="secondary"
+                      type="button"
+                      aria-label={`Editar ${advisor.full_name}`}
+                      disabled={savingAdvisor}
+                      onClick={() => {
+                        setEditingAdvisor(advisor);
+                        setAdvisorForm({
+                          full_name: advisor.full_name,
+                          phone: advisor.phone ?? "",
+                          email: advisor.email ?? "",
+                        });
+                      }}
+                    >
+                      <Pencil size={15} /> Editar
+                    </button>
+                    <button
+                      className="icon-button"
+                      aria-label={`Eliminar ${advisor.full_name}`}
+                      disabled={deletingAdvisorId === advisor.id}
+                      onClick={() => {
+                        onConfirm({
+                          title: "Eliminar asesor",
+                          message: `¿Eliminar al asesor "${advisor.full_name}"? Los pedidos existentes conservarán su nombre, pero no se podrá asignar a nuevos pedidos.`,
+                          onConfirm: () => void removeAdvisor(advisor),
+                        });
+                      }}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!sectionLoading && salesAdvisors.length === 0 && (
+                <p className="insight">No hay asesores registrados. Agrega el primero con el formulario.</p>
+              )}
+            </div>
+          </section>
+        )}
+
         {section === "settings" && (
           <SettingsPage
             settings={storeSettings}
@@ -2385,7 +2586,7 @@ function Admin({
               <p className="customer-import-hint">Importa CSV o Excel (.xlsx) con las columnas <code>full_name</code> y, opcionalmente, <code>phone</code>, <code>email</code> y <code>city</code>. Se omiten coincidencias por correo o teléfono.</p>
               <div className="admin-table">
                 <div className="table-row customer-row header"><span>Cliente</span><span>WhatsApp</span><span>Correo</span><span>Ciudad</span><span>Pedidos</span><span></span></div>
-                {visibleCustomers.map((customer) => (
+                {paginatedCustomers.map((customer) => (
                   <div className="table-row customer-row" key={customer.id}>
                     <strong>{customer.full_name}</strong><span>{customer.phone || "—"}</span><span>{customer.email || "—"}</span><span>{customer.city || "—"}</span><span>{customer.orders?.length ?? 0}</span>
                     <button className="icon-button" aria-label={`Editar ${customer.full_name}`} onClick={() => setEditingCustomer(customer)}><Pencil size={16}/></button>
@@ -2393,6 +2594,17 @@ function Admin({
                 ))}
                 {!sectionLoading && visibleCustomers.length === 0 && <p className="insight">No hay clientes que coincidan con la búsqueda.</p>}
               </div>
+              {customerPageCount > 1 && (
+                <div className="pagination" role="navigation" aria-label="Paginación de clientes">
+                  <button className="secondary" type="button" disabled={currentCustomerPage === 1} onClick={() => setCustomerPage((current) => Math.max(1, current - 1))} aria-label="Página anterior">
+                    <ChevronLeft size={15} /> Anterior
+                  </button>
+                  <span className="pagination-info">Página {currentCustomerPage} de {customerPageCount} · {visibleCustomers.length} cliente(s)</span>
+                  <button className="secondary" type="button" disabled={currentCustomerPage === customerPageCount} onClick={() => setCustomerPage((current) => Math.min(customerPageCount, current + 1))} aria-label="Página siguiente">
+                    Siguiente <ChevronRight size={15} />
+                  </button>
+                </div>
+              )}
               </>
             )}
             {section === "profiles" && (
@@ -2400,7 +2612,7 @@ function Admin({
                 <div className="profile-notice"><ShieldCheck size={17}/> Los usuarios se registran desde la tienda como clientes. Puedes promover una cuenta a administrador; no puedes cambiar tu propio rol.</div>
                 <div className="admin-table">
                   <div className="table-row profile-row header"><span>Perfil</span><span>WhatsApp</span><span>Alta</span><span>Permiso</span></div>
-                  {visibleProfiles.map((profile) => (
+                  {paginatedProfiles.map((profile) => (
                     <div className="table-row profile-row" key={profile.id}>
                       <div className="profile-cell"><strong>{profile.full_name || "Sin nombre"}</strong><span>{profile.email || "Sin correo"}</span></div>
                       <span>{profile.phone || "—"}</span>
@@ -2414,6 +2626,17 @@ function Admin({
                   ))}
                   {!sectionLoading && visibleProfiles.length === 0 && <p className="insight">No hay perfiles que coincidan con la búsqueda.</p>}
                 </div>
+                {profilePageCount > 1 && (
+                  <div className="pagination" role="navigation" aria-label="Paginación de perfiles">
+                    <button className="secondary" type="button" disabled={currentProfilePage === 1} onClick={() => setProfilePage((current) => Math.max(1, current - 1))} aria-label="Página anterior">
+                      <ChevronLeft size={15} /> Anterior
+                    </button>
+                    <span className="pagination-info">Página {currentProfilePage} de {profilePageCount} · {visibleProfiles.length} perfil(es)</span>
+                    <button className="secondary" type="button" disabled={currentProfilePage === profilePageCount} onClick={() => setProfilePage((current) => Math.min(profilePageCount, current + 1))} aria-label="Página siguiente">
+                      Siguiente <ChevronRight size={15} />
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </section>
@@ -2503,7 +2726,7 @@ function Admin({
           customers={customers}
           products={products}
           promotions={promotions}
-          profiles={profiles}
+          salesAdvisors={salesAdvisors}
           saving={orderSaving}
           error={sectionError}
           onClose={() => { if (!orderSaving) setOrderEditor(null); }}

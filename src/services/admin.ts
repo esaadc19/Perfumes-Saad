@@ -40,6 +40,16 @@ export interface AdminProfile {
   created_at: string;
 }
 
+export interface SalesAdvisor {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminOrder {
   id: string;
   customer_id: string | null;
@@ -50,6 +60,7 @@ export interface AdminOrder {
   paid_at: string | null;
   created_at: string;
   sales_advisor_id: string | null;
+  sales_advisor_name: string | null;
   customers: { full_name: string; phone: string | null; email: string | null } | null;
   order_items: {
     variant_id: string;
@@ -124,7 +135,7 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("orders")
-    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot)")
+    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, sales_advisor_id, sales_advisors(full_name), customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot)")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los pedidos:", error);
@@ -132,9 +143,81 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
   }
   return (data ?? []).map((order) => ({
     ...order,
+    sales_advisor_name: (order.sales_advisors as { full_name: string }[] | null)?.[0]?.full_name ?? null,
     customers: Array.isArray(order.customers) ? order.customers[0] ?? null : order.customers,
     order_items: order.order_items ?? [],
   })) as AdminOrder[];
+}
+
+export async function getSalesAdvisors(): Promise<SalesAdvisor[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("sales_advisors")
+    .select("id, full_name, phone, email, active, created_at, updated_at")
+    .order("full_name", { ascending: true });
+  if (error) {
+    console.error("No se pudieron cargar los asesores de venta:", error);
+    throw error;
+  }
+  return (data ?? []) as SalesAdvisor[];
+}
+
+export async function createSalesAdvisor(input: {
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+}): Promise<SalesAdvisor> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("sales_advisors")
+    .insert({ full_name: input.full_name, phone: input.phone, email: input.email })
+    .select("id, full_name, phone, email, active, created_at, updated_at")
+    .single();
+  if (error) {
+    console.error("No se pudo crear el asesor de venta:", error);
+    throw error;
+  }
+  return data as SalesAdvisor;
+}
+
+export async function updateSalesAdvisor(
+  advisorId: string,
+  input: {
+    full_name: string;
+    phone: string | null;
+    email: string | null;
+    active: boolean;
+  }
+): Promise<SalesAdvisor> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("sales_advisors")
+    .update({
+      full_name: input.full_name,
+      phone: input.phone,
+      email: input.email,
+      active: input.active,
+    })
+    .eq("id", advisorId)
+    .select("id, full_name, phone, email, active, created_at, updated_at")
+    .single();
+  if (error) {
+    console.error("No se pudo actualizar el asesor de venta:", error);
+    throw error;
+  }
+  return data as SalesAdvisor;
+}
+
+export async function deleteSalesAdvisor(advisorId: string): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client
+    .from("sales_advisors")
+    .delete()
+    .eq("id", advisorId);
+  if (error) {
+    console.error("No se pudo eliminar el asesor de venta:", error);
+    throw error;
+  }
 }
 
 export async function saveAdminPendingOrder(input: {

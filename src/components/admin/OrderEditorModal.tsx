@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Plus, Search, Trash2, X, User } from "lucide-react";
 import type { Promotion } from "../../services/promotions";
 import type { Product } from "../../services/products";
-import type { AdminCustomer, AdminOrder, AdminProfile } from "../../services/admin";
+import type { AdminCustomer, AdminOrder, SalesAdvisor } from "../../services/admin";
 import { calculatePromotionPrice } from "../../services/promotions";
 
 function money(value: number) {
@@ -35,7 +35,7 @@ export default function OrderEditorModal({
   customers,
   products,
   promotions,
-  profiles,
+  salesAdvisors,
   saving,
   error,
   onClose,
@@ -45,7 +45,7 @@ export default function OrderEditorModal({
   customers: AdminCustomer[];
   products: Product[];
   promotions: Promotion[];
-  profiles: AdminProfile[];
+  salesAdvisors: SalesAdvisor[];
   saving: boolean;
   error: string | null;
   onClose: () => void;
@@ -430,11 +430,11 @@ export default function OrderEditorModal({
             disabled={saving}
           >
             <option value="">Selecciona un asesor</option>
-            {profiles
-              .filter((profile) => profile.role === "admin")
-              .map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.full_name || profile.email || "Sin nombre"}
+            {salesAdvisors
+              .filter((advisor) => advisor.active !== false)
+              .map((advisor) => (
+                <option key={advisor.id} value={advisor.id}>
+                  {advisor.full_name}
                 </option>
               ))}
           </select>

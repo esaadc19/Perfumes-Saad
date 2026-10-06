@@ -496,7 +496,7 @@ footer a { color: #111; }
 .profile-cell { min-width: 0; display: grid; gap: 4px; }
 .profile-cell span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; }
 .order-row { min-width: 980px; grid-template-columns: 2.2fr .7fr .8fr 1fr 1fr; }
-.transaction-row { min-width: 1740px; grid-template-columns: 2.1fr .8fr .9fr .9fr .9fr .9fr 1fr 1.2fr 1fr; }
+.transaction-row { min-width: 1900px; grid-template-columns: 2fr .8fr .85fr .85fr .85fr .9fr .9fr 1fr 1.1fr 1fr; }
 .admin-table select { width: 100%; min-width: 110px; padding: 8px; border: 1px solid var(--border); background: white; color: var(--ink); font-size: 12px; }
 .profile-notice { display: flex; align-items: center; gap: 9px; margin-bottom: 18px; padding: 12px 14px; background: #f4f0ea; color: #65564c; font-size: 12px; line-height: 1.5; }
 .variant-cost-list { display: grid; gap: 9px; }
@@ -527,6 +527,20 @@ footer a { color: #111; }
 .order-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .order-actions button { min-height: 36px; padding: 0 8px; font-size: 11px; }
 .order-actions > span { color: var(--muted); font-size: 11px; }
+.advisor-cell { color: var(--muted); font-size: 11px; }
+.advisor-active { color: #3d7444; font-weight: 600; }
+.advisor-inactive { color: var(--muted); }
+.advisor-form { display: grid; gap: 14px; padding: 16px 0 20px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+.advisor-form-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) minmax(0, 1fr); gap: 12px; }
+.advisor-form .auth-label { display: grid; gap: 6px; font-size: 11px; font-weight: 600; }
+.advisor-form .auth-label input { width: 100%; height: 42px; padding: 0 10px; border: 1px solid var(--border); background: white; color: var(--black); font-size: 12px; }
+.advisor-form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.advisor-form-actions button { min-height: 40px; padding: 0 14px; font-size: 12px; }
+.advisor-row { min-width: 760px; grid-template-columns: 1.4fr 1fr 1.3fr .7fr 1.4fr; }
+.pagination { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 0 4px; }
+.pagination button { min-height: 38px; padding: 0 12px; font-size: 11px; }
+.pagination button:disabled { opacity: .45; cursor: not-allowed; }
+.pagination-info { color: var(--muted); font-size: 11px; }
 .order-editor-modal { width: min(760px, 100%); }
 .order-editor-modal .auth-label select, .order-editor-modal .auth-label input { width: 100%; height: 46px; margin-top: 7px; padding: 0 10px; border: 1px solid var(--border); background: white; }
 .order-entry-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, .55fr); gap: 18px; align-items: end; }
@@ -705,15 +719,21 @@ footer a { color: #111; }
   .profile-row > :nth-child(2)::before { content: "WhatsApp"; }
   .profile-row > :nth-child(3)::before { content: "Alta"; }
   .profile-row > :nth-child(4)::before { content: "Permiso"; }
+  .advisor-row > :nth-child(1)::before { content: "Asesor"; }
+  .advisor-row > :nth-child(2)::before { content: "WhatsApp"; }
+  .advisor-row > :nth-child(3)::before { content: "Correo"; }
+  .advisor-row > :nth-child(4)::before { content: "Estado"; }
+  .advisor-row > :nth-child(5)::before { content: "Acciones"; }
   .transaction-row > :nth-child(1)::before { content: "Pedido / cliente"; }
   .transaction-row > :nth-child(2)::before { content: "Fecha de pedido"; }
   .transaction-row > :nth-child(3)::before { content: "Vendido"; }
   .transaction-row > :nth-child(4)::before { content: "Costo productos"; }
   .transaction-row > :nth-child(5)::before { content: "Domicilio"; }
   .transaction-row > :nth-child(6)::before { content: "Utilidad neta"; }
-  .transaction-row > :nth-child(7)::before { content: "Estado del pedido"; }
-  .transaction-row > :nth-child(8)::before { content: "Pago"; }
-  .transaction-row > :nth-child(9)::before { content: "Acciones"; }
+  .transaction-row > :nth-child(7)::before { content: "Asesor"; }
+  .transaction-row > :nth-child(8)::before { content: "Estado del pedido"; }
+  .transaction-row > :nth-child(9)::before { content: "Pago"; }
+  .transaction-row > :nth-child(10)::before { content: "Acciones"; }
   .profile-cell { gap: 3px; }
   .profile-cell::before { margin-bottom: 4px; }
   .admin-table select { min-width: 0; }
@@ -723,6 +743,8 @@ footer a { color: #111; }
   .order-actions::before { display: block; width: 100%; content: "Acciones"; margin-bottom: 0; color: var(--muted); font-size: 10px; font-weight: 600; }
   .order-actions button { flex: 1; }
   .order-editor-line { grid-template-columns: minmax(0, 1fr) 82px 82px; gap: 6px; }
+  .advisor-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .advisor-form-actions button { flex: 1; }
   .edit-variant-row { grid-template-columns: repeat(2, minmax(0, 1fr)) 34px; gap: 9px; }
   .edit-variant-row input { padding: 0 6px; font-size: 12px; }
   .edit-variant-heading { align-items: flex-start; flex-direction: column; }
