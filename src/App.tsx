@@ -1286,6 +1286,7 @@ function Admin({
   const [deletingAdvisorId, setDeletingAdvisorId] = useState<string | null>(null);
   const [customerPage, setCustomerPage] = useState(1);
   const [profilePage, setProfilePage] = useState(1);
+  const [expensePage, setExpensePage] = useState(1);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
   const [expenseForm, setExpenseForm] = useState({
@@ -1435,16 +1436,28 @@ function Admin({
   const saveCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!editingCustomer) return;
+    const form = new FormData(event.currentTarget);
+    const fullName = String(form.get("full_name") ?? "").trim();
+    const phone = String(form.get("phone") ?? "").trim();
+    const email = String(form.get("email") ?? "").trim();
+    const city = String(form.get("city") ?? "").trim();
+    if (!fullName) {
+      setSectionError("El nombre del cliente es obligatorio.");
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setSectionError("Ingresa un correo válido o déjalo vacío.");
+      return;
+    }
     setCustomerSaving(true);
     setSectionError(null);
-    const form = new FormData(event.currentTarget);
     try {
       await updateAdminCustomer({
         customerId: editingCustomer.id,
-        fullName: String(form.get("full_name") ?? "").trim(),
-        phone: String(form.get("phone") ?? "").trim(),
-        email: String(form.get("email") ?? "").trim(),
-        city: String(form.get("city") ?? "").trim(),
+        fullName,
+        phone,
+        email,
+        city,
       });
       setEditingCustomer(null);
       setSectionRevision((current) => current + 1);
@@ -1504,12 +1517,25 @@ function Admin({
 
   const saveExpense = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const amount = Number(expenseForm.amount);
+    if (!expenseForm.name.trim()) {
+      setSectionError("El nombre del gasto es obligatorio.");
+      return;
+    }
+    if (!expenseForm.amount.trim() || !Number.isFinite(amount) || amount <= 0) {
+      setSectionError("El monto del gasto debe ser un número mayor que cero.");
+      return;
+    }
+    if (!expenseForm.date) {
+      setSectionError("Selecciona la fecha del gasto.");
+      return;
+    }
     setSavingExpense(true);
     setSectionError(null);
     try {
       await createExpense({
         name: expenseForm.name.trim(),
-        amount: Number(expenseForm.amount),
+        amount,
         category: expenseForm.category,
         expense_date: expenseForm.date,
         recurrence_frequency: expenseForm.recurring ? expenseForm.frequency : null,
@@ -1664,8 +1690,13 @@ function Admin({
   const saveAdvisor = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const fullName = advisorForm.full_name.trim();
+    const advisorEmail = advisorForm.email.trim();
     if (!fullName) {
       setSectionError("El nombre del asesor es obligatorio.");
+      return;
+    }
+    if (advisorEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(advisorEmail)) {
+      setSectionError("Ingresa un correo válido o déjalo vacío.");
       return;
     }
     setSavingAdvisor(true);
@@ -1674,7 +1705,7 @@ function Admin({
       const payload = {
         full_name: fullName,
         phone: advisorForm.phone.trim() || null,
-        email: advisorForm.email.trim() || null,
+        email: advisorEmail || null,
       };
       if (editingAdvisor) {
         const updated = await updateSalesAdvisor(editingAdvisor.id, { ...payload, active: editingAdvisor.active });
@@ -1845,6 +1876,13 @@ function Admin({
     (currentProfilePage - 1) * PROFILE_PAGE_SIZE,
     currentProfilePage * PROFILE_PAGE_SIZE
   );
+  const EXPENSE_PAGE_SIZE = 10;
+  const expensePageCount = Math.max(1, Math.ceil(expenses.length / EXPENSE_PAGE_SIZE));
+  const currentExpensePage = Math.min(expensePage, expensePageCount);
+  const paginatedExpenses = expenses.slice(
+    (currentExpensePage - 1) * EXPENSE_PAGE_SIZE,
+    currentExpensePage * EXPENSE_PAGE_SIZE
+  );
   const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
 
   return (
@@ -1971,7 +2009,12 @@ function Admin({
         )}
         {section === "promotions" && promotionFeedback && <p className="import-feedback" role="status">{promotionFeedback}</p>}
         {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
-        {sectionLoading && <p className="catalog-message" role="status">Cargando {pageTitle.toLowerCase()}...</p>}
+        {sectionLoading && (
+          <div className="loading-state" role="status" aria-live="polite">
+            <span className="loading-spinner" aria-hidden="true" />
+            <span>Cargando {pageTitle.toLowerCase()}…</span>
+          </div>
+        )}
 
         {section === "overview" && metrics && (
           <>
@@ -2161,32 +2204,53 @@ function Admin({
                 })}
               </div>
             )}
-            {expenses.length > 0 && (
-              <div className="admin-table">
-                <div className="table-row expense-row header"><span>Nombre</span><span>Categoría</span><span>Monto</span><span>Fecha</span><span></span></div>
-                {expenses.map((expense) => (
-                  <div className="table-row expense-row" key={expense.id}>
-                    <strong>{expense.name}</strong>
-                    <span>{expense.category}</span>
-                    <span>{money(expense.amount)}</span>
-                    <span>{expense.expense_date}</span>
-                    <button
-                      className="icon-button"
-                      aria-label={`Eliminar gasto ${expense.name}`}
-                      disabled={deletingExpenseId === expense.id}
-                      onClick={() => {
-                        onConfirm({
-                          title: "Eliminar gasto",
-                          message: `¿Eliminar el gasto "${expense.name}"? Esta acción no se puede deshacer.`,
-                          onConfirm: () => void removeExpense(expense.id),
-                        });
-                      }}
-                    >
-                      <Trash2 size={16} />
+            {expenses.length > 0 ? (
+              <>
+                <div className="admin-table">
+                  <div className="table-row expense-row header"><span>Nombre</span><span>Categoría</span><span>Monto</span><span>Fecha</span><span></span></div>
+                  {paginatedExpenses.map((expense) => (
+                    <div className="table-row expense-row" key={expense.id}>
+                      <strong>{expense.name}</strong>
+                      <span>{expense.category}</span>
+                      <span>{money(expense.amount)}</span>
+                      <span>{expense.expense_date}</span>
+                      <button
+                        className="icon-button"
+                        aria-label={`Eliminar gasto ${expense.name}`}
+                        disabled={deletingExpenseId === expense.id}
+                        onClick={() => {
+                          onConfirm({
+                            title: "Eliminar gasto",
+                            message: `¿Eliminar el gasto "${expense.name}"? Esta acción no se puede deshacer.`,
+                            onConfirm: () => void removeExpense(expense.id),
+                          });
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {expensePageCount > 1 && (
+                  <div className="pagination" role="navigation" aria-label="Paginación de gastos">
+                    <button className="secondary" type="button" disabled={currentExpensePage === 1} onClick={() => setExpensePage((current) => Math.max(1, current - 1))} aria-label="Página anterior">
+                      <ChevronLeft size={15} /> Anterior
+                    </button>
+                    <span className="pagination-info">Página {currentExpensePage} de {expensePageCount} · {expenses.length} gasto(s)</span>
+                    <button className="secondary" type="button" disabled={currentExpensePage === expensePageCount} onClick={() => setExpensePage((current) => Math.min(expensePageCount, current + 1))} aria-label="Página siguiente">
+                      Siguiente <ChevronRight size={15} />
                     </button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
+            ) : (
+              !sectionLoading && (
+                <p className="empty-state">
+                  <Wallet size={22} />
+                  <strong>Todavía no registras gastos</strong>
+                  <span>Usa el formulario de arriba para agregar tu primer gasto. También puedes marcarlo como recurrente para recibir recordatorios.</span>
+                </p>
+              )
             )}
           </section>
         )}

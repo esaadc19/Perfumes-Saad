@@ -541,6 +541,16 @@ footer a { color: #111; }
 .pagination button { min-height: 38px; padding: 0 12px; font-size: 11px; }
 .pagination button:disabled { opacity: .45; cursor: not-allowed; }
 .pagination-info { color: var(--muted); font-size: 11px; }
+.loading-state { display: flex; align-items: center; gap: 10px; padding: 18px 0; color: var(--muted); font-size: 12px; }
+.loading-spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--black); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .loading-spinner { animation-duration: 2.4s; }
+}
+.empty-state { display: grid; justify-items: center; gap: 6px; padding: 34px 16px; border: 1px dashed var(--border); color: var(--muted); text-align: center; }
+.empty-state svg { color: var(--dorado, #c9a96e); }
+.empty-state strong { color: var(--black); font-size: 13px; }
+.empty-state span { max-width: 420px; font-size: 12px; line-height: 1.55; }
 .order-editor-modal { width: min(760px, 100%); }
 .order-editor-modal .auth-label select, .order-editor-modal .auth-label input { width: 100%; height: 46px; margin-top: 7px; padding: 0 10px; border: 1px solid var(--border); background: white; }
 .order-entry-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, .55fr); gap: 18px; align-items: end; }
