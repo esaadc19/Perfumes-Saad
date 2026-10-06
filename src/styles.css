@@ -1030,12 +1030,24 @@ footer a { color: #111; }
   align-items: center;
 }
 
+/* Cabecera fija: el logo y el botón de retraer nunca se desplazan */
 .admin-sidebar-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 10px;
   margin-bottom: 28px;
   min-height: 40px;
+  flex: 0 0 auto;
+}
+
+/* Colapsado: logo y botón en columna para que quepan en 76px */
+.admin-layout.is-collapsed .admin-sidebar-header {
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
 }
 
 .admin-sidebar-title {
