@@ -337,7 +337,7 @@ footer { border-top: 1px solid var(--border); padding: 28px 5%; display: flex; g
 footer a { color: #111; }
 
 .admin-layout { height: 100vh; min-height: 100vh; display: flex; background: #faf9f7; font-family: 'Poppins', sans-serif; overflow: hidden; }
-.admin-sidebar { width: 72px; min-width: 72px; height: 100vh; background: #ffffff; border-right: 1px solid rgba(44,36,32,.06); display: flex; flex-direction: column; align-items: center; padding: 24px 12px; flex-shrink: 0; }
+.admin-sidebar { width: 72px; min-width: 72px; height: 100vh; background: #1a2e22; display: flex; flex-direction: column; align-items: center; padding: 24px 12px; flex-shrink: 0; }
 .sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; margin-bottom: 30px; }
 .admin-logo { border: 0; background: transparent; color: white; text-align: left; font: 600 25px "Playfair Display", serif; white-space: nowrap; }
 .admin-logo span { color: #c48a7c; }
@@ -960,8 +960,8 @@ footer a { color: #111; }
   width: 40px;
   height: 40px;
   border-radius: 12px;
-  background: #1a2e22;
-  color: #f5f0e8;
+  background: #c9a96e;
+  color: #1a2e22;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -973,7 +973,7 @@ footer a { color: #111; }
 }
 
 .admin-brand-mark:hover {
-  background: #c9a96e;
+  background: #f5f0e8;
   color: #1a2e22;
   transform: scale(1.05);
 }
@@ -1001,20 +1001,20 @@ footer a { color: #111; }
   border: 0;
   background: transparent;
   border-radius: 10px;
-  color: #8b6f5c;
+  color: rgba(245,240,232,.6);
   cursor: pointer;
   transition: all .2s ease;
   position: relative;
 }
 
 .admin-nav-item:hover {
-  background: #f5f0e8;
-  color: #1a2e22;
+  background: rgba(245,240,232,.1);
+  color: #f5f0e8;
 }
 
 .admin-nav-item.active {
-  background: #1a2e22;
-  color: #f5f0e8;
+  background: #c9a96e;
+  color: #1a2e22;
 }
 
 .admin-nav-item.active::before {
@@ -1025,7 +1025,7 @@ footer a { color: #111; }
   transform: translateY(-50%);
   width: 3px;
   height: 24px;
-  background: #1a2e22;
+  background: #c9a96e;
   border-radius: 0 3px 3px 0;
 }
 
