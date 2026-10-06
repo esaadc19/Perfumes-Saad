@@ -3,8 +3,6 @@ import {
   AlertTriangle,
   BarChart3,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Package,
   Pencil,
   ReceiptText,
@@ -15,6 +13,7 @@ import {
 } from "lucide-react";
 import type { AdminOrder } from "../../services/admin";
 import Metric from "./Metric";
+import Pagination from "./Pagination";
 
 type OrderStatus = "pending_confirmation" | "confirmed" | "cancelled";
 type PaymentStatus = "pending" | "paid" | "refunded";
@@ -260,31 +259,14 @@ export default function OrdersPage({
         })}
         {!loading && visibleOrders.length === 0 && <p className="insight">No hay pedidos que coincidan con la búsqueda.</p>}
       </div>
-      {pageCount > 1 && (
-        <div className="pagination" role="navigation" aria-label="Paginación de pedidos">
-          <button
-            className="secondary"
-            type="button"
-            disabled={currentPage === 1}
-            onClick={() => setPage((current) => Math.max(1, current - 1))}
-            aria-label="Página anterior"
-          >
-            <ChevronLeft size={15} /> Anterior
-          </button>
-          <span className="pagination-info">
-            Página {currentPage} de {pageCount} · {visibleOrders.length} pedido(s)
-          </span>
-          <button
-            className="secondary"
-            type="button"
-            disabled={currentPage === pageCount}
-            onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
-            aria-label="Página siguiente"
-          >
-            Siguiente <ChevronRight size={15} />
-          </button>
-        </div>
-      )}
+      <Pagination
+        page={currentPage}
+        pageCount={pageCount}
+        total={visibleOrders.length}
+        noun="pedido"
+        label="Paginación de pedidos"
+        onPageChange={setPage}
+      />
     </section>
   );
 }

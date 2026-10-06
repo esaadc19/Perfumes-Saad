@@ -66,6 +66,7 @@ import Metric from "./components/admin/Metric";
 import { SalesTrendChart, TopProductsChart } from "./components/admin/DashboardCharts";
 import OrderEditorModal from "./components/admin/OrderEditorModal";
 import OrdersPage from "./components/admin/OrdersPage";
+import Pagination from "./components/admin/Pagination";
 import SettingsPage from "./components/admin/SettingsPage";
 import {
   DEFAULT_STORE_SETTINGS,
@@ -2231,17 +2232,14 @@ function Admin({
                     </div>
                   ))}
                 </div>
-                {expensePageCount > 1 && (
-                  <div className="pagination" role="navigation" aria-label="Paginación de gastos">
-                    <button className="secondary" type="button" disabled={currentExpensePage === 1} onClick={() => setExpensePage((current) => Math.max(1, current - 1))} aria-label="Página anterior">
-                      <ChevronLeft size={15} /> Anterior
-                    </button>
-                    <span className="pagination-info">Página {currentExpensePage} de {expensePageCount} · {expenses.length} gasto(s)</span>
-                    <button className="secondary" type="button" disabled={currentExpensePage === expensePageCount} onClick={() => setExpensePage((current) => Math.min(expensePageCount, current + 1))} aria-label="Página siguiente">
-                      Siguiente <ChevronRight size={15} />
-                    </button>
-                  </div>
-                )}
+                <Pagination
+                  page={currentExpensePage}
+                  pageCount={expensePageCount}
+                  total={expenses.length}
+                  noun="gasto"
+                  label="Paginación de gastos"
+                  onPageChange={setExpensePage}
+                />
               </>
             ) : (
               !sectionLoading && (
@@ -2658,17 +2656,14 @@ function Admin({
                 ))}
                 {!sectionLoading && visibleCustomers.length === 0 && <p className="insight">No hay clientes que coincidan con la búsqueda.</p>}
               </div>
-              {customerPageCount > 1 && (
-                <div className="pagination" role="navigation" aria-label="Paginación de clientes">
-                  <button className="secondary" type="button" disabled={currentCustomerPage === 1} onClick={() => setCustomerPage((current) => Math.max(1, current - 1))} aria-label="Página anterior">
-                    <ChevronLeft size={15} /> Anterior
-                  </button>
-                  <span className="pagination-info">Página {currentCustomerPage} de {customerPageCount} · {visibleCustomers.length} cliente(s)</span>
-                  <button className="secondary" type="button" disabled={currentCustomerPage === customerPageCount} onClick={() => setCustomerPage((current) => Math.min(customerPageCount, current + 1))} aria-label="Página siguiente">
-                    Siguiente <ChevronRight size={15} />
-                  </button>
-                </div>
-              )}
+              <Pagination
+                page={currentCustomerPage}
+                pageCount={customerPageCount}
+                total={visibleCustomers.length}
+                noun="cliente"
+                label="Paginación de clientes"
+                onPageChange={setCustomerPage}
+              />
               </>
             )}
             {section === "profiles" && (
@@ -2690,17 +2685,14 @@ function Admin({
                   ))}
                   {!sectionLoading && visibleProfiles.length === 0 && <p className="insight">No hay perfiles que coincidan con la búsqueda.</p>}
                 </div>
-                {profilePageCount > 1 && (
-                  <div className="pagination" role="navigation" aria-label="Paginación de perfiles">
-                    <button className="secondary" type="button" disabled={currentProfilePage === 1} onClick={() => setProfilePage((current) => Math.max(1, current - 1))} aria-label="Página anterior">
-                      <ChevronLeft size={15} /> Anterior
-                    </button>
-                    <span className="pagination-info">Página {currentProfilePage} de {profilePageCount} · {visibleProfiles.length} perfil(es)</span>
-                    <button className="secondary" type="button" disabled={currentProfilePage === profilePageCount} onClick={() => setProfilePage((current) => Math.min(profilePageCount, current + 1))} aria-label="Página siguiente">
-                      Siguiente <ChevronRight size={15} />
-                    </button>
-                  </div>
-                )}
+                <Pagination
+                  page={currentProfilePage}
+                  pageCount={profilePageCount}
+                  total={visibleProfiles.length}
+                  noun="perfil"
+                  label="Paginación de perfiles"
+                  onPageChange={setProfilePage}
+                />
               </>
             )}
           </section>
