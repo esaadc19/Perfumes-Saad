@@ -81,6 +81,10 @@ create table if not exists public.customers (
   city text,
   delivery_address text,
   source text,
+  credit_enabled boolean not null default false,
+  credit_limit numeric(12,2) not null default 0 check (credit_limit >= 0),
+  credit_terms text not null default 'quincenal' check (credit_terms in ('quincenal', 'mensual')),
+  credit_blocked boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -125,6 +129,10 @@ end;
 $$;
 
 alter table public.customers add column if not exists account_id uuid references auth.users(id) on delete set null;
+alter table public.customers add column if not exists credit_enabled boolean not null default false;
+alter table public.customers add column if not exists credit_limit numeric(12,2) not null default 0 check (credit_limit >= 0);
+alter table public.customers add column if not exists credit_terms text not null default 'quincenal' check (credit_terms in ('quincenal', 'mensual'));
+alter table public.customers add column if not exists credit_blocked boolean not null default false;
 create unique index if not exists customers_account_id_unique
   on public.customers(account_id) where account_id is not null;
 
@@ -139,12 +147,18 @@ create table if not exists public.orders (
   discount numeric(12,2) not null default 0,
   total numeric(12,2) not null default 0,
   whatsapp_message text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  credit_due_date date,
+  credit_limit_snapshot numeric(12,2),
+  credit_amount numeric(12,2) not null default 0 check (credit_amount >= 0)
 );
 
 alter table public.orders
   add column if not exists delivery_cost numeric(12,2) not null default 0 check (delivery_cost >= 0);
 alter table public.orders add column if not exists paid_at timestamptz;
+alter table public.orders add column if not exists credit_due_date date;
+alter table public.orders add column if not exists credit_limit_snapshot numeric(12,2);
+alter table public.orders add column if not exists credit_amount numeric(12,2) not null default 0 check (credit_amount >= 0);
 update public.orders
 set paid_at = created_at
 where payment_status = 'paid' and paid_at is null;
@@ -177,6 +191,25 @@ create table if not exists public.inventory_movements (
   order_id uuid references public.orders(id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+create table if not exists public.customer_credit_payments (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  order_id uuid not null references public.orders(id) on delete cascade,
+  amount numeric(12,2) not null check (amount > 0),
+  paid_at timestamptz not null default now(),
+  method text not null default 'efectivo' check (method in ('efectivo', 'transferencia', 'otro')),
+  note text,
+  recorded_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists customer_credit_payments_customer_id_idx
+  on public.customer_credit_payments(customer_id);
+create index if not exists customer_credit_payments_order_id_idx
+  on public.customer_credit_payments(order_id);
+create index if not exists customer_credit_payments_paid_at_idx
+  on public.customer_credit_payments(paid_at desc);
 
 alter table public.inventory_movements
   drop constraint if exists inventory_movements_order_id_fkey;
@@ -433,6 +466,357 @@ begin
         else paid_at
       end
   where id = target_order_id;
+end;
+$$;
+
+-- ============================================
+-- CRÉDITO / FIADO: RPCs
+-- ============================================
+
+create or replace function public.admin_update_order_transaction(
+  target_order_id uuid,
+  new_status text,
+  new_payment_status text,
+  credit_due_date_param date default null,
+  credit_limit_snapshot_param numeric default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  order_record public.orders%rowtype;
+  order_item record;
+  next_status text := new_status;
+  updated_rows integer;
+  credit_due_date_val date := credit_due_date_param;
+  credit_limit_snapshot_val numeric := credit_limit_snapshot_param;
+  customer_credit_terms text;
+  customer_credit_limit numeric;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  if new_status is null or new_payment_status is null
+     or new_status not in ('pending_confirmation', 'confirmed', 'shipped', 'delivered', 'cancelled')
+     or new_payment_status not in ('pending', 'paid', 'refunded', 'credit', 'partial') then
+    raise exception 'Invalid order status';
+  end if;
+
+  select * into order_record
+  from public.orders
+  where id = target_order_id
+  for update;
+  if not found then
+    raise exception 'Order not found';
+  end if;
+  if new_payment_status = 'paid' then
+    next_status := 'confirmed';
+  end if;
+
+  if order_record.payment_status = 'paid' and new_payment_status = 'pending' then
+    raise exception 'A completed sale cannot be changed back to pending; register a refund instead';
+  end if;
+  if new_payment_status = 'refunded' and order_record.payment_status <> 'paid' then
+    raise exception 'Only a completed sale can be refunded';
+  end if;
+
+  -- Handle credit payment status transition
+  if new_payment_status in ('credit', 'partial') and order_record.payment_status not in ('credit', 'partial') then
+    -- New credit sale: need to check customer credit limit and terms
+    select c.credit_enabled, c.credit_limit, c.credit_terms, c.credit_blocked
+    into customer_credit_terms, customer_credit_limit
+    from public.customers c
+    join public.orders o on o.customer_id = c.id
+    where o.id = target_order_id;
+    if not customer_credit_terms then
+      raise exception 'Customer does not have credit enabled';
+    end if;
+    if customer_credit_limit is null then
+      raise exception 'Customer credit terms not found';
+    end if;
+  end if;
+
+  -- Descuenta stock cuando la venta se completa (pagada O despachada a crédito)
+  -- Se ejecuta solo la primera vez que pasa de no-pagado a pagado/crédito
+  if (new_payment_status in ('paid', 'credit', 'partial'))
+     and order_record.payment_status not in ('paid', 'credit', 'partial') then
+    for order_item in
+      select oi.variant_id, oi.quantity, oi.unit_cost_snapshot, pv.cost
+      from public.order_items oi
+      join public.product_variants pv on pv.id = oi.variant_id
+      where oi.order_id = target_order_id
+      order by oi.variant_id
+    loop
+      update public.order_items
+      set unit_cost_snapshot = coalesce(order_item.unit_cost_snapshot, order_item.cost)
+      where order_id = target_order_id and variant_id = order_item.variant_id;
+
+      update public.product_variants
+      set stock = stock - order_item.quantity
+      where id = order_item.variant_id and stock >= order_item.quantity;
+      get diagnostics updated_rows = row_count;
+      if updated_rows = 0 then
+        raise exception 'Insufficient stock to complete this sale';
+      end if;
+
+      insert into public.inventory_movements (variant_id, movement_type, quantity, reason, order_id)
+      values (order_item.variant_id, 'sale', -order_item.quantity,
+              case when new_payment_status in ('credit', 'partial')
+                   then 'Completed credit sale' else 'Completed paid order' end,
+              target_order_id);
+    end loop;
+  elsif new_payment_status = 'refunded' and order_record.payment_status in ('paid', 'credit', 'partial') then
+    for order_item in
+      select variant_id, quantity
+      from public.order_items
+      where order_id = target_order_id
+      order by variant_id
+    loop
+      update public.product_variants
+      set stock = stock + order_item.quantity
+      where id = order_item.variant_id;
+
+      insert into public.inventory_movements (variant_id, movement_type, quantity, reason, order_id)
+      values (order_item.variant_id, 'refund', order_item.quantity, 'Refunded completed order', target_order_id);
+    end loop;
+  end if;
+
+  -- Calcular fecha de compromiso si es crédito nuevo y no se proporcionó
+  if new_payment_status = 'credit' and order_record.payment_status <> 'credit' then
+    if credit_due_date_val is null then
+      select c.credit_terms
+      into customer_credit_terms
+      from public.customers c
+      join public.orders o on o.customer_id = c.id
+      where o.id = target_order_id;
+      if customer_credit_terms = 'quincenal' then
+        credit_due_date_val := current_date + interval '15 days';
+      elsif customer_credit_terms = 'mensual' then
+        credit_due_date_val := current_date + interval '30 days';
+      else
+        credit_due_date_val := current_date + interval '15 days';
+      end if;
+    end if;
+    if credit_limit_snapshot_val is null then
+      select c.credit_limit
+      into credit_limit_snapshot_val
+      from public.customers c
+      join public.orders o on o.customer_id = c.id
+      where o.id = target_order_id;
+    end if;
+  end if;
+
+  update public.orders
+  set status = next_status,
+      payment_status = new_payment_status,
+      credit_due_date = credit_due_date_val,
+      credit_limit_snapshot = credit_limit_snapshot_val,
+      credit_amount = case
+        when new_payment_status in ('credit', 'partial') then order_record.total
+        when new_payment_status = 'paid' and order_record.payment_status in ('credit', 'partial') then 0
+        else order_record.credit_amount
+      end,
+      paid_at = case
+        when new_payment_status = 'paid' and order_record.payment_status <> 'paid' then now()
+        when new_payment_status = 'paid' then coalesce(paid_at, now())
+        else paid_at
+      end
+  where id = target_order_id;
+end;
+$$;
+
+create or replace function public.admin_record_credit_payment(
+  target_order_id uuid,
+  payment_amount numeric,
+  payment_method text default 'efectivo',
+  payment_note text default null,
+  payment_date timestamptz default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  order_record public.orders%rowtype;
+  current_credit_amount numeric;
+  new_credit_amount numeric;
+  new_payment_status text;
+  customer_id uuid;
+  recorded_by_user uuid := auth.uid();
+  payment_date_val timestamptz := coalesce(payment_date, now());
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  if payment_amount is null or payment_amount <= 0 then
+    raise exception 'Payment amount must be greater than zero';
+  end if;
+  if payment_method not in ('efectivo', 'transferencia', 'otro') then
+    raise exception 'Invalid payment method';
+  end if;
+
+  select * into order_record
+  from public.orders
+  where id = target_order_id
+  for update;
+  if not found then
+    raise exception 'Order not found';
+  end if;
+
+  if order_record.payment_status not in ('credit', 'partial') then
+    raise exception 'This order does not have a credit balance';
+  end if;
+
+  current_credit_amount := coalesce(order_record.credit_amount, 0);
+  if payment_amount > current_credit_amount then
+    raise exception 'Payment amount exceeds credit balance: $% over $%', payment_amount, current_credit_amount;
+  end if;
+
+  new_credit_amount := current_credit_amount - payment_amount;
+
+  if new_credit_amount = 0 then
+    new_payment_status := 'paid';
+  else
+    new_payment_status := 'partial';
+  end if;
+
+  insert into public.customer_credit_payments (
+    customer_id, order_id, amount, paid_at, method, note, recorded_by
+  )
+  select order_record.customer_id, target_order_id, payment_amount, payment_date_val,
+         payment_method, payment_note, recorded_by_user;
+
+  update public.orders
+  set payment_status = new_payment_status,
+      credit_amount = new_credit_amount,
+      paid_at = case when new_payment_status = 'paid' then now() else paid_at end
+  where id = target_order_id;
+
+  return jsonb_build_object(
+    'order_id', target_order_id,
+    'payment_amount', payment_amount,
+    'remaining_balance', new_credit_amount,
+    'new_payment_status', new_payment_status
+  );
+end;
+$$;
+
+create or replace function public.admin_check_credit_limit(
+  target_customer_id uuid,
+  order_total numeric
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  customer_record public.customers%rowtype;
+  current_credit_balance numeric;
+  available_credit numeric;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  select * into customer_record
+  from public.customers
+  where id = target_customer_id;
+  if not found then
+    raise exception 'Customer not found';
+  end if;
+
+  if not customer_record.credit_enabled then
+    return jsonb_build_object(
+      'allowed', false,
+      'reason', 'Customer does not have credit enabled'
+    );
+  end if;
+
+  if customer_record.credit_blocked then
+    return jsonb_build_object(
+      'allowed', false,
+      'reason', 'Customer credit is blocked'
+    );
+  end if;
+
+  select coalesce(sum(o.credit_amount), 0)
+  into current_credit_balance
+  from public.orders o
+  where o.customer_id = target_customer_id
+    and o.payment_status in ('credit', 'partial');
+
+  available_credit := customer_record.credit_limit - current_credit_balance;
+
+  if available_credit < order_total then
+    return jsonb_build_object(
+      'allowed', false,
+      'reason', format('Credit limit exceeded. Available: $%, Order: $%', available_credit, order_total),
+      'available_credit', available_credit,
+      'current_balance', current_credit_balance,
+      'credit_limit', customer_record.credit_limit
+    );
+  end if;
+
+  return jsonb_build_object(
+    'allowed', true,
+    'available_credit', available_credit,
+    'current_balance', current_credit_balance,
+    'credit_limit', customer_record.credit_limit
+  );
+end;
+$$;
+
+create or replace function public.admin_set_credit_block(
+  target_customer_id uuid,
+  blocked boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  update public.customers
+  set credit_blocked = blocked
+  where id = target_customer_id;
+  if not found then
+    raise exception 'Customer not found';
+  end if;
+end;
+$$;
+
+create or replace function public.admin_set_credit_terms(
+  target_customer_id uuid,
+  new_terms text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  if new_terms not in ('quincenal', 'mensual') then
+    raise exception 'Invalid credit terms. Must be quincenal or mensual';
+  end if;
+
+  update public.customers
+  set credit_terms = new_terms
+  where id = target_customer_id;
+  if not found then
+    raise exception 'Customer not found';
+  end if;
 end;
 $$;
 
@@ -1401,6 +1785,38 @@ begin
     ), 0) - coalesce((
       select sum(delivery_cost) from public.orders where payment_status = 'paid'
     ), 0),
+    -- Credit / fiado metrics
+    'credit_sales', (select count(*) from public.orders where payment_status in ('credit', 'partial')),
+    'credit_revenue', coalesce((
+      select sum(total) from public.orders where payment_status in ('credit', 'partial')
+    ), 0),
+    'credit_cost', coalesce((
+      select sum(oi.unit_cost_snapshot * oi.quantity)
+      from public.orders o
+      join public.order_items oi on oi.order_id = o.id
+      where o.payment_status in ('credit', 'partial') and oi.unit_cost_snapshot is not null
+    ), 0),
+    'credit_profit', coalesce((
+      select sum(oi.subtotal - oi.unit_cost_snapshot * oi.quantity)
+      from public.orders o
+      join public.order_items oi on oi.order_id = o.id
+      where o.payment_status in ('credit', 'partial') and oi.unit_cost_snapshot is not null
+    ), 0) - coalesce((
+      select sum(delivery_cost) from public.orders where payment_status in ('credit', 'partial')
+    ), 0),
+    'credit_outstanding_balance', coalesce((
+      select sum(credit_amount) from public.orders where payment_status in ('credit', 'partial')
+    ), 0),
+    'credit_overdue_balance', coalesce((
+      select sum(credit_amount) from public.orders
+      where payment_status in ('credit', 'partial')
+        and credit_due_date < current_date
+    ), 0),
+    'credit_customers_with_overdue', (
+      select count(distinct o.customer_id) from public.orders o
+      where o.payment_status in ('credit', 'partial')
+        and o.credit_due_date < current_date
+    ),
     'missing_cost_items', coalesce((
       select sum(oi.quantity)
       from public.orders o
@@ -1534,19 +1950,27 @@ revoke all on function public.admin_update_customer(uuid, jsonb) from public, an
 revoke all on function public.admin_set_profile_role(uuid, text) from public, anon;
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
 revoke all on function public.admin_get_products() from public, anon;
-revoke all on function public.admin_update_order_transaction(uuid, text, text) from public, anon;
+revoke all on function public.admin_update_order_transaction(uuid, text, text, date, numeric) from public, anon;
 revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid) from public, anon;
 revoke all on function public.admin_delete_pending_order(uuid) from public, anon;
 revoke all on function public.admin_update_variant_stock(uuid, integer) from public, anon;
+revoke all on function public.admin_record_credit_payment(uuid, numeric, text, text, timestamptz) from public, anon;
+revoke all on function public.admin_check_credit_limit(uuid, numeric) from public, anon;
+revoke all on function public.admin_set_credit_block(uuid, boolean) from public, anon;
+revoke all on function public.admin_set_credit_terms(uuid, text) from public, anon;
 grant execute on function public.admin_dashboard_metrics() to authenticated;
 grant execute on function public.admin_update_customer(uuid, jsonb) to authenticated;
 grant execute on function public.admin_set_profile_role(uuid, text) to authenticated;
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
 grant execute on function public.admin_get_products() to authenticated;
-grant execute on function public.admin_update_order_transaction(uuid, text, text) to authenticated;
+grant execute on function public.admin_update_order_transaction(uuid, text, text, date, numeric) to authenticated;
 grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid) to authenticated;
 grant execute on function public.admin_delete_pending_order(uuid) to authenticated;
 grant execute on function public.admin_update_variant_stock(uuid, integer) to authenticated;
+grant execute on function public.admin_record_credit_payment(uuid, numeric, text, text, timestamptz) to authenticated;
+grant execute on function public.admin_check_credit_limit(uuid, numeric) to authenticated;
+grant execute on function public.admin_set_credit_block(uuid, boolean) to authenticated;
+grant execute on function public.admin_set_credit_terms(uuid, text) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.promotions enable row level security;
@@ -1557,6 +1981,8 @@ alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.inventory_movements enable row level security;
 alter table public.sales_advisors enable row level security;
+alter table public.expenses enable row level security;
+alter table public.customer_credit_payments enable row level security;
 
 grant select on public.products to anon, authenticated;
 grant select on public.promotions to anon, authenticated;
@@ -1567,7 +1993,7 @@ grant select (id, product_id, size_ml, price, stock, active, created_at)
 grant select on public.profiles to authenticated;
 grant update (full_name, phone, email, delivery_address) on public.profiles to authenticated;
 grant select, insert, update, delete on public.products to authenticated;
-grant select on public.customers, public.orders, public.order_items, public.inventory_movements
+grant select on public.customers, public.orders, public.order_items, public.inventory_movements, public.customer_credit_payments
   to authenticated;
 grant select, insert, update, delete on public.sales_advisors to authenticated;
 
@@ -1653,6 +2079,12 @@ create policy "Admins can manage order items"
 drop policy if exists "Admins can manage inventory movements" on public.inventory_movements;
 create policy "Admins can manage inventory movements"
   on public.inventory_movements for all to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
+
+drop policy if exists "Admins can manage credit payments" on public.customer_credit_payments;
+create policy "Admins can manage credit payments"
+  on public.customer_credit_payments for all to authenticated
   using ((select public.is_admin()))
   with check ((select public.is_admin()));
 
@@ -1862,6 +2294,14 @@ declare
   -- Average order value
   avg_order_value numeric;
   
+  -- Credit / fiado metrics
+  credit_week_sales numeric;
+  credit_week_orders integer;
+  credit_week_collected numeric;
+  credit_outstanding_balance numeric;
+  credit_overdue_balance numeric;
+  credit_customers_overdue integer;
+  
   result jsonb;
 begin
   -- The report compares the last two completed weeks using the local business timezone.
@@ -1945,6 +2385,44 @@ begin
   from public.expenses
   where expense_date >= this_month_start and expense_date < (this_month_start + interval '1 month')::date;
   
+  -- Credit / fiado metrics
+  -- Credit sales this week (new credit orders confirmed this week)
+  select coalesce(sum(total), 0), count(*)
+  into credit_week_sales, credit_week_orders
+  from public.orders o
+  where o.payment_status in ('credit', 'partial')
+    and o.status in ('confirmed', 'shipped', 'delivered')
+    and o.created_at >= report_week_start::timestamp at time zone 'America/Bogota'
+    and o.created_at < this_week_start::timestamp at time zone 'America/Bogota';
+  
+  -- Credit collected this week (payments received on credit orders)
+  select coalesce(sum(cp.amount), 0)
+  into credit_week_collected
+  from public.customer_credit_payments cp
+  join public.orders o on o.id = cp.order_id
+  where cp.paid_at >= report_week_start::timestamp at time zone 'America/Bogota'
+    and cp.paid_at < this_week_start::timestamp at time zone 'America/Bogota';
+  
+  -- Total outstanding credit balance
+  select coalesce(sum(credit_amount), 0)
+  into credit_outstanding_balance
+  from public.orders
+  where payment_status in ('credit', 'partial');
+  
+  -- Overdue credit balance
+  select coalesce(sum(credit_amount), 0)
+  into credit_overdue_balance
+  from public.orders
+  where payment_status in ('credit', 'partial')
+    and credit_due_date < current_date;
+  
+  -- Customers with overdue credit
+  select count(distinct customer_id)
+  into credit_customers_overdue
+  from public.orders
+  where payment_status in ('credit', 'partial')
+    and credit_due_date < current_date;
+  
   -- Average order value
   avg_order_value := case when current_week_orders > 0 then current_week_sales / current_week_orders else 0 end;
   
@@ -1980,6 +2458,14 @@ begin
     'expenses', jsonb_build_object(
       'weekly', weekly_expenses,
       'monthly', monthly_expenses
+    ),
+    'credit', jsonb_build_object(
+      'week_sales', credit_week_sales,
+      'week_orders', credit_week_orders,
+      'week_collected', credit_week_collected,
+      'outstanding_balance', credit_outstanding_balance,
+      'overdue_balance', credit_overdue_balance,
+      'customers_overdue', credit_customers_overdue
     )
   );
   
@@ -1989,7 +2475,7 @@ $$;
 
 revoke all on function public.weekly_sales_report() from public;
 revoke all on function public.weekly_sales_report() from anon, authenticated;
-grant execute on function public.weekly_sales_report() to service_role;
+grant execute on function public.weekly_sales_report() to authenticated, service_role;
 
 create or replace function public.daily_sales_report(target_date date)
 returns jsonb
