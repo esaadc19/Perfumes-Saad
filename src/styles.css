@@ -538,7 +538,9 @@ footer a { color: #111; }
 .order-manual-customer input { width: 100%; min-height: 42px; margin-top: 7px; padding: 0 10px; border: 1px solid var(--border); background: white; }
 .order-editor-lines { margin-top: 22px; }
 .order-editor-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; }
-.order-editor-line { display: grid; grid-template-columns: minmax(0, 1fr) 110px 36px; gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid var(--border); }
+.order-editor-line { display: grid; grid-template-columns: minmax(0, 1fr) 110px 110px; gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid var(--border); }
+.order-editor-product-group { display: grid; gap: 6px; }
+.order-editor-product-group label { display: grid; gap: 6px; min-width: 0; font-size: 11px; font-weight: 600; }
 .order-editor-line label { display: grid; gap: 6px; min-width: 0; font-size: 11px; font-weight: 600; }
 .order-editor-line select, .order-editor-line input { width: 100%; min-width: 0; height: 42px; padding: 0 9px; border: 1px solid var(--border); background: white; color: var(--black); font-size: 12px; }
 .order-editor-note { color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -720,7 +722,7 @@ footer a { color: #111; }
   .order-actions { grid-column: 1 / -1; }
   .order-actions::before { display: block; width: 100%; content: "Acciones"; margin-bottom: 0; color: var(--muted); font-size: 10px; font-weight: 600; }
   .order-actions button { flex: 1; }
-  .order-editor-line { grid-template-columns: minmax(0, 1fr) 82px 32px; gap: 6px; }
+  .order-editor-line { grid-template-columns: minmax(0, 1fr) 82px 82px; gap: 6px; }
   .edit-variant-row { grid-template-columns: repeat(2, minmax(0, 1fr)) 34px; gap: 9px; }
   .edit-variant-row input { padding: 0 6px; font-size: 12px; }
   .edit-variant-heading { align-items: flex-start; flex-direction: column; }

@@ -320,38 +320,55 @@ export default function OrderEditorModal({
               : matchingVariants;
             return (
               <div className="order-editor-line" key={`${index}-${item.variantId}`}>
-                <label>
-                  Producto y presentación
-                  <select
-                    value={item.variantId}
-                    disabled={saving}
-                    onChange={(event) => setItems((current) => current.map((line, lineIndex) => {
-                      if (lineIndex !== index) return line;
-                      const newVariant = selectableVariants.find((v) => v.id === event.target.value);
-                      return {
-                        ...line,
-                        variantId: event.target.value,
-                        unitPrice: String(newVariant?.price ?? line.unitPrice),
-                        unitCost: String(newVariant?.cost ?? line.unitCost),
-                      };
-                    }))}
-                    required
-                  >
-                    {!item.variantId && <option value="">Selecciona una presentación</option>}
-                    {rowVariants.map((variant) => (
-                      <option
-                        key={variant.id}
-                        value={variant.id}
-                        disabled={
-                          (variant.stock <= 0 && variant.id !== item.variantId) ||
-                          items.some((other, otherIndex) => otherIndex !== index && other.variantId === variant.id)
-                        }
-                      >
-                        {variant.productName} · {variant.size} ml · {money(variant.price)} · stock {variant.stock}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="order-editor-product-group">
+                  <label>
+                    Producto y presentación
+                    <select
+                      value={item.variantId}
+                      disabled={saving}
+                      onChange={(event) => setItems((current) => current.map((line, lineIndex) => {
+                        if (lineIndex !== index) return line;
+                        const newVariant = selectableVariants.find((v) => v.id === event.target.value);
+                        return {
+                          ...line,
+                          variantId: event.target.value,
+                          unitPrice: String(newVariant?.price ?? line.unitPrice),
+                          unitCost: String(newVariant?.cost ?? line.unitCost),
+                        };
+                      }))}
+                      required
+                    >
+                      {!item.variantId && <option value="">Selecciona una presentación</option>}
+                      {rowVariants.map((variant) => (
+                        <option
+                          key={variant.id}
+                          value={variant.id}
+                          disabled={
+                            (variant.stock <= 0 && variant.id !== item.variantId) ||
+                            items.some((other, otherIndex) => otherIndex !== index && other.variantId === variant.id)
+                          }
+                        >
+                          {variant.productName} · {variant.size} ml · {money(variant.price)} · stock {variant.stock}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Precio unitario
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      inputMode="numeric"
+                      value={item.unitPrice}
+                      disabled={saving}
+                      onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
+                        lineIndex === index ? { ...line, unitPrice: event.target.value } : line
+                      ))}
+                      required
+                    />
+                  </label>
+                </div>
                 <label>
                   Cantidad
                   <input
@@ -364,21 +381,6 @@ export default function OrderEditorModal({
                     disabled={saving}
                     onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
                       lineIndex === index ? { ...line, quantity: event.target.value } : line
-                    ))}
-                    required
-                  />
-                </label>
-                <label>
-                  Precio unitario
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    inputMode="numeric"
-                    value={item.unitPrice}
-                    disabled={saving}
-                    onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
-                      lineIndex === index ? { ...line, unitPrice: event.target.value } : line
                     ))}
                     required
                   />
