@@ -944,8 +944,7 @@ footer a { color: #111; }
   left: 0;
   top: 0;
   z-index: 100;
-  background: #ffffff;
-  border-right: 1px solid rgba(44,36,32,.06);
+  background: #1a2e22;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1001,14 +1000,24 @@ footer a { color: #111; }
   border: 0;
   background: transparent;
   border-radius: 10px;
-  color: rgba(245,240,232,.6);
+  color: rgba(245,240,232,.7);
   cursor: pointer;
   transition: all .2s ease;
   position: relative;
 }
 
+.admin-nav-item svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .admin-nav-item:hover {
-  background: rgba(245,240,232,.1);
+  background: rgba(245,240,232,.12);
   color: #f5f0e8;
 }
 
