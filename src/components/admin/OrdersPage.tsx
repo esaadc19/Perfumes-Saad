@@ -103,7 +103,7 @@ export default function OrdersPage({
   const normalizeOrderStatus = (status: string): OrderStatus =>
     status === "confirmed" || status === "cancelled" ? status : "pending_confirmation";
   const normalizePaymentStatus = (status: string): PaymentStatus =>
-    status === "paid" || status === "refunded" ? status : "pending";
+    status === "paid" || status === "refunded" || status === "credit" || status === "partial" ? status : "pending";
 
   return (
     <section className="admin-card">
@@ -220,7 +220,7 @@ export default function OrdersPage({
                   {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
                   {order.payment_status !== "paid" && order.payment_status !== "refunded" && order.payment_status !== "credit" && order.payment_status !== "partial" && (
                     <>
-                      <option value="credit">Fiado (crédito)</option>
+                      <option value="credit">Crédito</option>
                       <option value="partial">Pago parcial</option>
                     </>
                   )}

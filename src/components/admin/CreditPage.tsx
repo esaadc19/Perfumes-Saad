@@ -143,7 +143,7 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
     <section className="admin-card">
       <div className="card-title">
         <div>
-          <h2>Cartera / Fiado</h2>
+          <h2>Cartera / Crédito</h2>
           <span>Pedidos vendidos a crédito y seguimiento de abonos.</span>
         </div>
       </div>

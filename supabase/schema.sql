@@ -1785,7 +1785,7 @@ begin
     ), 0) - coalesce((
       select sum(delivery_cost) from public.orders where payment_status = 'paid'
     ), 0),
-    -- Credit / fiado metrics
+    -- Credit metrics
     'credit_sales', (select count(*) from public.orders where payment_status in ('credit', 'partial')),
     'credit_revenue', coalesce((
       select sum(total) from public.orders where payment_status in ('credit', 'partial')
@@ -2294,7 +2294,7 @@ declare
   -- Average order value
   avg_order_value numeric;
   
-  -- Credit / fiado metrics
+  -- Credit metrics
   credit_week_sales numeric;
   credit_week_orders integer;
   credit_week_collected numeric;
@@ -2385,7 +2385,7 @@ begin
   from public.expenses
   where expense_date >= this_month_start and expense_date < (this_month_start + interval '1 month')::date;
   
-  -- Credit / fiado metrics
+  -- Credit metrics
   -- Credit sales this week (new credit orders confirmed this week)
   select coalesce(sum(total), 0), count(*)
   into credit_week_sales, credit_week_orders

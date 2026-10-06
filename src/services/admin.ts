@@ -333,7 +333,7 @@ export async function updateAdminProfileRole(
   }
 }
 
-// Crédito / Fiado
+// Crédito
 export async function updateAdminOrderWithCredit(
   orderId: string,
   status: "pending_confirmation" | "confirmed" | "cancelled",
