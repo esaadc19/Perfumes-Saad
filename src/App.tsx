@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, User as AuthUser } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import {
@@ -63,11 +63,15 @@ import OrderTracking from "./components/OrderTracking";
 import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
 import Metric from "./components/admin/Metric";
-import { SalesTrendChart, TopProductsChart } from "./components/admin/DashboardCharts";
-import OrderEditorModal from "./components/admin/OrderEditorModal";
-import OrdersPage from "./components/admin/OrdersPage";
 import Pagination from "./components/admin/Pagination";
-import SettingsPage from "./components/admin/SettingsPage";
+import { Toaster, useToasts } from "./components/Toast";
+
+// Solo el panel de administración necesita estos módulos: se cargan bajo demanda
+// para que los visitantes de la tienda descarguen un bundle inicial más pequeño.
+const Charts = lazy(() => import("./components/admin/Charts"));
+const OrderEditorModal = lazy(() => import("./components/admin/OrderEditorModal"));
+const OrdersPage = lazy(() => import("./components/admin/OrdersPage"));
+const SettingsPage = lazy(() => import("./components/admin/SettingsPage"));
 import {
   DEFAULT_STORE_SETTINGS,
   getStoreSettings,
@@ -1263,6 +1267,7 @@ function Admin({
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
+  const { toasts, dismiss: dismissToast, notifySuccess, notifyError } = useToasts();
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportDate, setReportDate] = useState(getBogotaDate);
@@ -1550,9 +1555,11 @@ function Admin({
         frequency: "monthly",
       });
       setSectionRevision((current) => current + 1);
+      notifySuccess(expenseForm.recurring ? "Recordatorio de pago creado." : "Gasto agregado.");
     } catch (saveError) {
       console.error("No se pudo guardar el gasto:", saveError);
       setSectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar el gasto.");
+      notifyError("No se pudo guardar el gasto.");
     } finally {
       setSavingExpense(false);
     }
@@ -1651,9 +1658,11 @@ function Admin({
       await saveAdminPendingOrder({ orderId, customerId, customer, items, orderDate, deliveryCost, salesAdvisorId });
       setOrderEditor(null);
       setSectionRevision((current) => current + 1);
+      notifySuccess(orderId ? "Pedido actualizado correctamente." : "Pedido creado correctamente.");
     } catch (saveError) {
       console.error("No se pudo guardar el pedido administrativo:", saveError);
       setSectionError(saveError instanceof Error ? saveError.message : "No se pudo guardar el pedido.");
+      notifyError("No se pudo guardar el pedido.");
     } finally {
       setOrderSaving(false);
     }
@@ -1666,9 +1675,11 @@ function Admin({
     try {
       await deleteAdminPendingOrder(order.id);
       setSectionRevision((current) => current + 1);
+      notifySuccess(`Pedido #${order.id.slice(0, 8).toUpperCase()} eliminado.`);
     } catch (deleteError) {
       console.error("No se pudo eliminar el pedido:", deleteError);
       setSectionError(deleteError instanceof Error ? deleteError.message : "No se pudo eliminar el pedido.");
+      notifyError("No se pudo eliminar el pedido.");
     } finally {
       setDeletingOrderId(null);
     }
@@ -1717,9 +1728,11 @@ function Admin({
         setSalesAdvisors((current) => [...current, created]);
       }
       setAdvisorForm({ full_name: "", phone: "", email: "" });
+      notifySuccess(editingAdvisor ? "Asesor actualizado correctamente." : "Asesor agregado.");
     } catch (advisorError) {
       console.error("No se pudo guardar el asesor:", advisorError);
       setSectionError(advisorError instanceof Error ? advisorError.message : "No se pudo guardar el asesor.");
+      notifyError("No se pudo guardar el asesor.");
     } finally {
       setSavingAdvisor(false);
     }
@@ -1731,9 +1744,11 @@ function Admin({
     try {
       await deleteSalesAdvisor(advisor.id);
       setSalesAdvisors((current) => current.filter((item) => item.id !== advisor.id));
+      notifySuccess("Asesor eliminado.");
     } catch (advisorError) {
       console.error("No se pudo eliminar el asesor:", advisorError);
       setSectionError(advisorError instanceof Error ? advisorError.message : "No se pudo eliminar el asesor.");
+      notifyError("No se pudo eliminar el asesor.");
     } finally {
       setDeletingAdvisorId(null);
     }
@@ -1748,11 +1763,13 @@ function Admin({
       onPromotionsChange(await getPromotions(true));
       setPromotionEditor(null);
       setPromotionFeedback("La promoción se guardó correctamente.");
+      notifySuccess("La promoción se guardó correctamente.");
     } catch (saveError) {
       console.error("No se pudo guardar la promoción:", saveError);
       setSectionError(saveError instanceof Error
         ? saveError.message
         : "No se pudo guardar la promoción. Verifica tus permisos.");
+      notifyError("No se pudo guardar la promoción.");
     } finally {
       setPromotionSaving(false);
     }
@@ -1773,12 +1790,16 @@ function Admin({
         console.error("La promoción se eliminó, pero no se pudieron recargar los productos:", refreshError);
         setSectionError("La promoción se eliminó, pero no se pudo actualizar la lista de productos. Recarga el panel.");
       }
-      if (productsRefreshed) setPromotionFeedback("La promoción se eliminó correctamente.");
+      if (productsRefreshed) {
+        setPromotionFeedback("La promoción se eliminó correctamente.");
+        notifySuccess("La promoción se eliminó correctamente.");
+      }
     } catch (deleteError) {
       console.error("No se pudo eliminar la promoción:", deleteError);
       setSectionError(deleteError instanceof Error
         ? deleteError.message
         : "No se pudo eliminar la promoción.");
+      notifyError("No se pudo eliminar la promoción.");
     }
   };
 
@@ -2074,8 +2095,9 @@ function Admin({
               <Metric title="Costos pendientes" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning={metrics.missing_cost_items > 0} />
               <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
             </div>
-            <SalesTrendChart orders={orders} />
-            <TopProductsChart products={metrics.top_products} />
+            <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
+              <Charts orders={orders} products={metrics.top_products} />
+            </Suspense>
             <section className="insight-grid">
               <div className="admin-card">
                 <div className="card-title"><div><h2>Consejo</h2><span>Lectura inicial del inventario</span></div><Sparkles size={18}/></div>
@@ -2368,11 +2390,13 @@ function Admin({
         )}
 
         {section === "settings" && (
-          <SettingsPage
-            settings={storeSettings}
-            loadError={storeSettingsError}
-            onSaved={onStoreSettingsSaved}
-          />
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando configuración…</span></div>}>
+            <SettingsPage
+              settings={storeSettings}
+              loadError={storeSettingsError}
+              onSaved={onStoreSettingsSaved}
+            />
+          </Suspense>
         )}
 
         {section === "products" && <section className="admin-card">
@@ -2698,6 +2722,7 @@ function Admin({
           </section>
         )}
         {section === "transactions" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando pedidos…</span></div>}>
           <OrdersPage
             orders={orders}
             loading={sectionLoading}
@@ -2716,6 +2741,7 @@ function Admin({
             }}
             onStatusChange={(order, status, paymentStatus) => void saveOrderStatus(order, status, paymentStatus)}
           />
+          </Suspense>
         )}
       </main>
       {dashboardDetail && (
@@ -2777,6 +2803,7 @@ function Admin({
         </div>
       )}
       {orderEditor && (
+        <Suspense fallback={null}>
         <OrderEditorModal
           order={orderEditor.order}
           customers={customers}
@@ -2790,6 +2817,7 @@ function Admin({
             void savePendingOrder(customerId, customer, items, orderEditor.order?.id ?? null, orderDate, deliveryCost, salesAdvisorId)
           }
         />
+        </Suspense>
       )}
       {editingProduct && (
         <EditProductModal
@@ -2828,6 +2856,7 @@ function Admin({
           </form>
         </div>
       )}
+      <Toaster toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }
