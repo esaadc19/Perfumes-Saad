@@ -107,32 +107,37 @@ export default function SettingsPage({
             <strong>Logo</strong>
             <span>JPG, PNG, WebP o AVIF · máximo 5 MB</span>
           </div>
-          <label className="secondary image-file-button">
+          {logoUrl
+            ? <img src={logoUrl} alt="Vista previa del logo de la tienda" />
+            : <div className="store-settings-logo-placeholder">Sin logo</div>}
+          <button
+            className="secondary image-file-button"
+            type="button"
+            disabled={saving}
+            onClick={() => document.getElementById("logo-file-input")?.click()}
+          >
             <Upload size={15} /> {logoFile ? "Cambiar archivo" : "Subir logo"}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/avif"
-              disabled={saving}
-              onChange={(event) => {
-                const file = event.currentTarget.files?.[0] ?? null;
-                event.currentTarget.value = "";
-                setLogoFile(file);
-                if (file) setRemoveLogo(false);
-              }}
-            />
-          </label>
-          {logoUrl && (
-            <div className="store-settings-logo-preview">
-              <img src={logoUrl} alt="Vista previa del logo de la tienda" />
-              {(draft.logo_url || logoFile) && (
-                <button className="text-button" type="button" disabled={saving} onClick={() => {
-                  setLogoFile(null);
-                  setRemoveLogo(true);
-                }}>
-                  Quitar logo
-                </button>
-              )}
-            </div>
+          </button>
+          <input
+            id="logo-file-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/avif"
+            disabled={saving}
+            style={{ display: "none" }}
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0] ?? null;
+              event.currentTarget.value = "";
+              setLogoFile(file);
+              if (file) setRemoveLogo(false);
+            }}
+          />
+          {(draft.logo_url || logoFile) && (
+            <button className="text-button" type="button" disabled={saving} onClick={() => {
+              setLogoFile(null);
+              setRemoveLogo(true);
+            }}>
+              Quitar logo
+            </button>
           )}
         </section>
 
