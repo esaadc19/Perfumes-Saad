@@ -1,0 +1,3 @@
+[submodule "coucou"]
+	path = coucou
+	url = https://github.com/esaadc19/coucou.git
