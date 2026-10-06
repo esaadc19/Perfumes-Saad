@@ -49,6 +49,7 @@ export interface AdminOrder {
   delivery_cost: number;
   paid_at: string | null;
   created_at: string;
+  sales_advisor_id: string | null;
   customers: { full_name: string; phone: string | null; email: string | null } | null;
   order_items: {
     variant_id: string;
@@ -146,9 +147,10 @@ export async function saveAdminPendingOrder(input: {
     city: string | null;
     delivery_address: string | null;
   } | null;
-  items: { variant_id: string; quantity: number }[];
+  items: { variant_id: string; quantity: number; unit_price: number; unit_cost: number | null }[];
   orderDate: string;
   deliveryCost: number;
+  salesAdvisorId: string | null;
 }): Promise<string> {
   const client = requireSupabase();
   const { data, error } = await client.rpc("admin_save_pending_order", {
@@ -158,6 +160,7 @@ export async function saveAdminPendingOrder(input: {
     items_data: input.items,
     order_date: input.orderDate,
     new_delivery_cost: input.deliveryCost,
+    sales_advisor_id: input.salesAdvisorId,
   });
   if (error) {
     console.error("No se pudo guardar el pedido:", error);

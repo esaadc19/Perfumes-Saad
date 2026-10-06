@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Plus, Search, Trash2, X } from "lucide-react";
+import { Plus, Search, Trash2, X, User } from "lucide-react";
 import type { Promotion } from "../../services/promotions";
 import type { Product } from "../../services/products";
-import type { AdminCustomer, AdminOrder } from "../../services/admin";
+import type { AdminCustomer, AdminOrder, AdminProfile } from "../../services/admin";
 import { calculatePromotionPrice } from "../../services/promotions";
 
 function money(value: number) {
@@ -23,11 +23,19 @@ type ManualCustomer = {
   delivery_address: string | null;
 };
 
+type OrderItem = {
+  variantId: string;
+  quantity: string;
+  unitPrice: string;
+  unitCost: string;
+};
+
 export default function OrderEditorModal({
   order,
   customers,
   products,
   promotions,
+  profiles,
   saving,
   error,
   onClose,
@@ -37,15 +45,17 @@ export default function OrderEditorModal({
   customers: AdminCustomer[];
   products: Product[];
   promotions: Promotion[];
+  profiles: AdminProfile[];
   saving: boolean;
   error: string | null;
   onClose: () => void;
   onSave: (
     customerId: string | null,
     customer: ManualCustomer | null,
-    items: { variant_id: string; quantity: number }[],
+    items: { variant_id: string; quantity: number; unit_price: number; unit_cost: number | null }[],
     orderDate: string,
-    deliveryCost: number
+    deliveryCost: number,
+    salesAdvisorId: string | null
   ) => void;
 }) {
   const [customerId, setCustomerId] = useState(order?.customer_id ?? "");
@@ -76,9 +86,15 @@ export default function OrderEditorModal({
       : localToday
   );
   const [deliveryCost, setDeliveryCost] = useState(String(order?.delivery_cost ?? 0));
+  const [salesAdvisorId, setSalesAdvisorId] = useState(order?.sales_advisor_id ?? "");
   const [productSearch, setProductSearch] = useState("");
-  const [items, setItems] = useState(
-    order?.order_items.map((item) => ({ variantId: item.variant_id, quantity: String(item.quantity) })) ?? []
+  const [items, setItems] = useState<OrderItem[]>(
+    order?.order_items.map((item) => ({
+      variantId: item.variant_id,
+      quantity: String(item.quantity),
+      unitPrice: String(item.unit_price),
+      unitCost: String(item.unit_cost_snapshot ?? ""),
+    })) ?? []
   );
   const selectableVariants = products
     .filter((product) => product.active !== false)
@@ -89,25 +105,27 @@ export default function OrderEditorModal({
       productId: product.id,
       promotionId: product.promotion_id ?? null,
       promotion: promotions.find((promotion) => promotion.id === product.promotion_id) ?? null,
-    })));
+    })))
+    .sort((left, right) =>
+      productCollator.compare(left.productSortName, right.productSortName) ||
+      productCollator.compare(left.productName, right.productName) ||
+      left.size - right.size
+    );
   const searchTerm = productSearch.trim().toLocaleLowerCase("es");
   const matchingVariants = selectableVariants.filter((variant) =>
     `${variant.productName} ${variant.size} ml`.toLocaleLowerCase("es").includes(searchTerm)
-  ).sort((left, right) =>
-    productCollator.compare(left.productSortName, right.productSortName) ||
-    productCollator.compare(left.productName, right.productName) ||
-    left.size - right.size
   );
   const orderPrice = calculatePromotionPrice(items.flatMap((item) => {
     const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
     const quantity = Number(item.quantity);
+    const unitPrice = Number(item.unitPrice) || variant?.price || 0;
     return variant && Number.isInteger(quantity) && quantity > 0
       ? [{
           productId: variant.productId,
           promotionId: variant.promotionId,
           promotion: variant.promotion,
           variantId: variant.id,
-          unitPrice: variant.price,
+          unitPrice,
           quantity,
         }]
       : [];
@@ -115,11 +133,14 @@ export default function OrderEditorModal({
   const validItems = items.length > 0 && items.every((item, index) => {
     const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
     const quantity = Number(item.quantity);
+    const unitPrice = Number(item.unitPrice);
     return Boolean(
       variant &&
       Number.isInteger(quantity) &&
       quantity > 0 &&
       quantity <= variant.stock &&
+      Number.isFinite(unitPrice) &&
+      unitPrice >= 0 &&
       items.findIndex((other) => other.variantId === item.variantId) === index
     );
   });
@@ -133,7 +154,12 @@ export default function OrderEditorModal({
       candidate.stock > 0 && !items.some((item) => item.variantId === candidate.id)
     );
     if (!variant) return;
-    setItems((current) => [...current, { variantId: variant.id, quantity: "1" }]);
+    setItems((current) => [...current, {
+      variantId: variant.id,
+      quantity: "1",
+      unitPrice: String(variant.price),
+      unitCost: String(variant.cost ?? ""),
+    }]);
   };
 
   return (
@@ -160,9 +186,12 @@ export default function OrderEditorModal({
             items.map((item) => ({
               variant_id: item.variantId,
               quantity: Number(item.quantity),
+              unit_price: Number(item.unitPrice),
+              unit_cost: Number(item.unitCost) || null,
             })),
             orderDate,
-            parsedDeliveryCost
+            parsedDeliveryCost,
+            salesAdvisorId || null
           );
         }}
       >
@@ -296,9 +325,16 @@ export default function OrderEditorModal({
                   <select
                     value={item.variantId}
                     disabled={saving}
-                    onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
-                      lineIndex === index ? { ...line, variantId: event.target.value } : line
-                    ))}
+                    onChange={(event) => setItems((current) => current.map((line, lineIndex) => {
+                      if (lineIndex !== index) return line;
+                      const newVariant = selectableVariants.find((v) => v.id === event.target.value);
+                      return {
+                        ...line,
+                        variantId: event.target.value,
+                        unitPrice: String(newVariant?.price ?? line.unitPrice),
+                        unitCost: String(newVariant?.cost ?? line.unitCost),
+                      };
+                    }))}
                     required
                   >
                     {!item.variantId && <option value="">Selecciona una presentación</option>}
@@ -332,6 +368,35 @@ export default function OrderEditorModal({
                     required
                   />
                 </label>
+                <label>
+                  Precio unitario
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    value={item.unitPrice}
+                    disabled={saving}
+                    onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
+                      lineIndex === index ? { ...line, unitPrice: event.target.value } : line
+                    ))}
+                    required
+                  />
+                </label>
+                <label>
+                  Costo unitario
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    inputMode="numeric"
+                    value={item.unitCost}
+                    disabled={saving}
+                    onChange={(event) => setItems((current) => current.map((line, lineIndex) =>
+                      lineIndex === index ? { ...line, unitCost: event.target.value } : line
+                    ))}
+                  />
+                </label>
                 <button type="button" className="icon-button" aria-label="Quitar producto" disabled={saving} onClick={() => setItems((current) => current.filter((_, lineIndex) => lineIndex !== index))}>
                   <Trash2 size={17} />
                 </button>
@@ -354,6 +419,23 @@ export default function OrderEditorModal({
             required
           />
           <small>Es el costo asumido por la tienda; se descontará de la ganancia al completar la venta.</small>
+        </label>
+        <label className="auth-label">
+          Asesor de venta
+          <select
+            value={salesAdvisorId}
+            onChange={(event) => setSalesAdvisorId(event.target.value)}
+            disabled={saving}
+          >
+            <option value="">Selecciona un asesor</option>
+            {profiles
+              .filter((profile) => profile.role === "admin")
+              .map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.full_name || profile.email || "Sin nombre"}
+                </option>
+              ))}
+          </select>
         </label>
         <p className="order-editor-note">El total cobrado y el costo de domicilio se registran por separado. El inventario se descuenta cuando marques el pedido como pagado.</p>
         {orderPrice.discount > 0 && <p className="cart-discount">Ahorro en promociones: -{money(orderPrice.discount)}</p>}

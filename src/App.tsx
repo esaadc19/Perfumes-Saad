@@ -261,11 +261,28 @@ function App() {
   useEffect(() => {
     document.title = storeSettings.store_name;
   }, [storeSettings.store_name]);
+
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [catalogVariantIds, setCatalogVariantIds] = useState<Record<string, string>>({});
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem("perfumes-saad-cart");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("perfumes-saad-cart", JSON.stringify(cart));
+    } catch {
+      // localStorage no disponible o lleno
+    }
+  }, [cart]);
+
   const [cartOpen, setCartOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -285,6 +302,11 @@ function App() {
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingProductEdit, setSavingProductEdit] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [updatingProductId, setUpdatingProductId] = useState<string | null>(null);
   const [savingCostVariantId, setSavingCostVariantId] = useState<string | null>(null);
   const [savingStockVariantId, setSavingStockVariantId] = useState<string | null>(null);
@@ -966,9 +988,14 @@ function App() {
                           </div>
                           <button
                             onClick={() =>
-                              setCart((current) =>
-                                current.filter((x) => x.variant.id !== item.variant.id)
-                              )
+                              setConfirmDialog({
+                                title: "Eliminar del carrito",
+                                message: `¿Eliminar "${item.product.name}" del carrito?`,
+                                onConfirm: () =>
+                                  setCart((current) =>
+                                    current.filter((x) => x.variant.id !== item.variant.id)
+                                  ),
+                              })
                             }
                           >
                             <Trash2 size={16} />
@@ -1063,6 +1090,7 @@ function App() {
               setError("No se pudo actualizar el catálogo. Recarga la página e inténtalo de nuevo.");
             });
           }}
+          onConfirm={setConfirmDialog}
         />
       ) : (
         <main className="access-required">
@@ -1146,6 +1174,28 @@ function App() {
       {showTracking && (
         <OrderTracking onClose={() => setShowTracking(false)} />
       )}
+      {confirmDialog && (
+        <div className="overlay" onClick={() => setConfirmDialog(null)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>{confirmDialog.title}</h3>
+            <p>{confirmDialog.message}</p>
+            <div className="confirm-dialog-actions">
+              <button className="secondary" onClick={() => setConfirmDialog(null)}>
+                Cancelar
+              </button>
+              <button
+                className="primary"
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1172,6 +1222,7 @@ function Admin({
   onAdd,
   onProductActiveChange,
   updatingProductId,
+  onConfirm,
   error,
   onSignOut,
 }: {
@@ -1196,6 +1247,7 @@ function Admin({
   onAdd: () => void;
   onProductActiveChange: (product: Product) => void;
   updatingProductId: string | null;
+  onConfirm: (config: { title: string; message: string; onConfirm: () => void }) => void;
   error: string | null;
   onSignOut: () => void;
 }) {
@@ -1537,15 +1589,16 @@ function Admin({
       city: string | null;
       delivery_address: string | null;
     } | null,
-    items: { variant_id: string; quantity: number }[],
+    items: { variant_id: string; quantity: number; unit_price: number; unit_cost: number | null }[],
     orderId: string | null,
     orderDate: string,
-    deliveryCost: number
+    deliveryCost: number,
+    salesAdvisorId: string | null
   ) => {
     setOrderSaving(true);
     setSectionError(null);
     try {
-      await saveAdminPendingOrder({ orderId, customerId, customer, items, orderDate, deliveryCost });
+      await saveAdminPendingOrder({ orderId, customerId, customer, items, orderDate, deliveryCost, salesAdvisorId });
       setOrderEditor(null);
       setSectionRevision((current) => current + 1);
     } catch (saveError) {
@@ -2034,7 +2087,13 @@ function Admin({
                       className="icon-button"
                       aria-label={`Eliminar gasto ${expense.name}`}
                       disabled={deletingExpenseId === expense.id}
-                      onClick={() => void removeExpense(expense.id)}
+                      onClick={() => {
+                        onConfirm({
+                          title: "Eliminar gasto",
+                          message: `¿Eliminar el gasto "${expense.name}"? Esta acción no se puede deshacer.`,
+                          onConfirm: () => void removeExpense(expense.id),
+                        });
+                      }}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -2369,7 +2428,13 @@ function Admin({
             savingOrderId={savingOrderId}
             deletingOrderId={deletingOrderId}
             onEditOrder={(order) => setOrderEditor({ order })}
-            onDeleteOrder={(order) => void removePendingOrder(order)}
+            onDeleteOrder={(order) => {
+              onConfirm({
+                title: "Eliminar pedido",
+                message: `¿Eliminar el pedido #${order.id.slice(0, 8).toUpperCase()}? Esta acción no se puede deshacer.`,
+                onConfirm: () => void removePendingOrder(order),
+              });
+            }}
             onStatusChange={(order, status, paymentStatus) => void saveOrderStatus(order, status, paymentStatus)}
           />
         )}
@@ -2438,11 +2503,12 @@ function Admin({
           customers={customers}
           products={products}
           promotions={promotions}
+          profiles={profiles}
           saving={orderSaving}
           error={sectionError}
           onClose={() => { if (!orderSaving) setOrderEditor(null); }}
-          onSave={(customerId, customer, items, orderDate, deliveryCost) =>
-            void savePendingOrder(customerId, customer, items, orderEditor.order?.id ?? null, orderDate, deliveryCost)
+          onSave={(customerId, customer, items, orderDate, deliveryCost, salesAdvisorId) =>
+            void savePendingOrder(customerId, customer, items, orderEditor.order?.id ?? null, orderDate, deliveryCost, salesAdvisorId)
           }
         />
       )}
