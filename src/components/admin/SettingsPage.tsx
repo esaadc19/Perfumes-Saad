@@ -107,9 +107,6 @@ export default function SettingsPage({
             <strong>Logo</strong>
             <span>JPG, PNG, WebP o AVIF · máximo 5 MB</span>
           </div>
-          {logoUrl
-            ? <img src={logoUrl} alt="Vista previa del logo de la tienda" />
-            : <div className="store-settings-logo-placeholder">Sin logo</div>}
           <label className="secondary image-file-button">
             <Upload size={15} /> {logoFile ? "Cambiar archivo" : "Subir logo"}
             <input
@@ -124,13 +121,18 @@ export default function SettingsPage({
               }}
             />
           </label>
-          {(draft.logo_url || logoFile) && (
-            <button className="text-button" type="button" disabled={saving} onClick={() => {
-              setLogoFile(null);
-              setRemoveLogo(true);
-            }}>
-              Quitar logo
-            </button>
+          {logoUrl && (
+            <div className="store-settings-logo-preview">
+              <img src={logoUrl} alt="Vista previa del logo de la tienda" />
+              {(draft.logo_url || logoFile) && (
+                <button className="text-button" type="button" disabled={saving} onClick={() => {
+                  setLogoFile(null);
+                  setRemoveLogo(true);
+                }}>
+                  Quitar logo
+                </button>
+              )}
+            </div>
           )}
         </section>
 
