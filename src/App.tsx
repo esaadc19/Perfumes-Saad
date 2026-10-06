@@ -36,6 +36,8 @@ import {
   deleteAdminPendingOrder,
   saveAdminPendingOrder,
   updateAdminCustomer,
+  updateAdminCustomerCredit,
+  updateAdminOrderWithCredit,
   updateAdminOrderStatus,
   updateAdminProfileRole,
   type AdminCustomer,
@@ -69,6 +71,7 @@ import { Toaster, useToasts } from "./components/Toast";
 // Solo el panel de administración necesita estos módulos: se cargan bajo demanda
 // para que los visitantes de la tienda descarguen un bundle inicial más pequeño.
 const Charts = lazy(() => import("./components/admin/Charts"));
+const CreditPage = lazy(() => import("./components/admin/CreditPage"));
 const OrderEditorModal = lazy(() => import("./components/admin/OrderEditorModal"));
 const OrdersPage = lazy(() => import("./components/admin/OrdersPage"));
 const SettingsPage = lazy(() => import("./components/admin/SettingsPage"));
@@ -92,6 +95,7 @@ import {
   Package,
   Pencil,
   Plus,
+  DollarSign,
   RefreshCw,
   Search,
   ReceiptText,
@@ -1262,7 +1266,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "profiles" | "settings">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "profiles" | "settings" | "credit">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem("saad-admin-sidebar") === "collapsed"
   );
@@ -1375,6 +1379,7 @@ function Admin({
     { id: "products", title: "Productos", icon: <Package size={17} /> },
     { id: "promotions", title: "Promociones", icon: <Tag size={17} /> },
     { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
+    { id: "credit", title: "Cartera", icon: <DollarSign size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "expenses", title: "Gastos", icon: <Wallet size={17} /> },
     { id: "advisors", title: "Asesores", icon: <UserCheck size={17} /> },
@@ -1428,6 +1433,8 @@ function Admin({
             setExpenses(expenseResult);
             setRecurringExpenses(recurringExpenseResult);
           }
+        } else if (section === "credit") {
+          // CreditPage loads its own data
         } else {
           const result = await getAdminProfiles();
           if (active) setProfiles(result);
@@ -1453,6 +1460,10 @@ function Admin({
     const phone = String(form.get("phone") ?? "").trim();
     const email = String(form.get("email") ?? "").trim();
     const city = String(form.get("city") ?? "").trim();
+    const credit_enabled = form.get("credit_enabled") === "on";
+    const credit_limit = Number(form.get("credit_limit") ?? 0);
+    const credit_terms = String(form.get("credit_terms") ?? "quincenal") as "quincenal" | "mensual";
+    const credit_blocked = form.get("credit_blocked") === "on";
     if (!fullName) {
       setSectionError("El nombre del cliente es obligatorio.");
       return;
@@ -1461,9 +1472,19 @@ function Admin({
       setSectionError("Ingresa un correo válido o déjalo vacío.");
       return;
     }
+    if (credit_limit < 0) {
+      setSectionError("El límite de crédito no puede ser negativo.");
+      return;
+    }
     setCustomerSaving(true);
     setSectionError(null);
     try {
+      await updateAdminCustomerCredit(editingCustomer.id, {
+        credit_enabled,
+        credit_limit,
+        credit_terms,
+        credit_blocked,
+      });
       await updateAdminCustomer({
         customerId: editingCustomer.id,
         fullName,
@@ -1616,12 +1637,31 @@ function Admin({
   const saveOrderStatus = async (
     order: AdminOrder,
     status: "pending_confirmation" | "confirmed" | "cancelled",
-    paymentStatus: "pending" | "paid" | "refunded"
+    paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial"
   ) => {
     setSavingOrderId(order.id);
     setSectionError(null);
     try {
-      await updateAdminOrderStatus(order.id, status, paymentStatus);
+      // Calcular fecha de compromiso si se marca como crédito
+      let creditDueDate: string | undefined;
+      let creditLimitSnapshot: number | undefined;
+
+      if (paymentStatus === "credit" && order.payment_status !== "credit") {
+        // Obtener términos del cliente
+        const customer = await getAdminCustomers().then(customers =>
+          customers.find(c => c.id === order.customer_id)
+        );
+        if (customer?.credit_terms) {
+          const days = customer.credit_terms === "quincenal" ? 15 : 30;
+          const due = new Date();
+          due.setDate(due.getDate() + days);
+          creditDueDate = due.toISOString().split("T")[0];
+        }
+        creditLimitSnapshot = customer?.credit_limit ?? 0;
+      }
+
+      await updateAdminOrderWithCredit(order.id, status, paymentStatus, creditDueDate, creditLimitSnapshot);
+      
       const finalStatus = paymentStatus === "paid" ? "confirmed" : status;
       setOrders((current) => current.map((item) => item.id === order.id
         ? {
@@ -1629,6 +1669,9 @@ function Admin({
             status: finalStatus,
             payment_status: paymentStatus,
             paid_at: paymentStatus === "paid" ? item.paid_at ?? new Date().toISOString() : item.paid_at,
+            credit_due_date: creditDueDate ?? item.credit_due_date,
+            credit_limit_snapshot: creditLimitSnapshot ?? item.credit_limit_snapshot,
+            credit_amount: paymentStatus === "credit" ? item.total : paymentStatus === "partial" ? item.credit_amount : 0,
           }
         : item
       ));
@@ -2115,6 +2158,16 @@ function Admin({
               <Metric title="Costos pendientes" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning={metrics.missing_cost_items > 0} />
               <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
             </div>
+            <div className="metrics">
+              <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} icon={<DollarSign />} />
+              <Metric title="Total a crédito" value={money(Number(metrics.credit_revenue))} icon={<BarChart3 />} />
+              <Metric title="Utilidad a crédito" value={metrics.credit_profit === null ? "Incompleta" : money(Number(metrics.credit_profit))} icon={<TrendingUp />} warning={metrics.credit_profit !== null && metrics.credit_profit < 0} />
+              <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} icon={<AlertTriangle />} warning />
+            </div>
+            <div className="metrics">
+              <Metric title="Vencido" value={money(Number(metrics.credit_overdue_balance))} icon={<AlertTriangle />} warning />
+              <Metric title="Clientes vencidos" value={String(metrics.credit_customers_with_overdue)} icon={<Users />} warning />
+            </div>
             <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
               <Charts orders={orders} products={metrics.top_products} />
             </Suspense>
@@ -2144,6 +2197,12 @@ function Admin({
               </div>
             </section>
           </>
+        )}
+
+        {section === "credit" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando cartera…</span></div>}>
+            <CreditPage sectionRevision={sectionRevision} />
+          </Suspense>
         )}
 
         {section === "expenses" && (
@@ -2871,6 +2930,37 @@ function Admin({
             <label className="auth-label">WhatsApp<input name="phone" type="tel" defaultValue={editingCustomer.phone ?? ""}/></label>
             <label className="auth-label">Correo<input name="email" type="email" defaultValue={editingCustomer.email ?? ""}/></label>
             <label className="auth-label">Ciudad<input name="city" defaultValue={editingCustomer.city ?? ""}/></label>
+            <hr style={{margin: "16px 0", borderColor: "var(--border)"}} />
+            <h3 style={{marginBottom: "12px", fontSize: "14px", color: "var(--muted)"}}>Configuración de crédito</h3>
+            <label className="auth-label credit-checkbox">
+              <input
+                type="checkbox"
+                name="credit_enabled"
+                defaultChecked={editingCustomer.credit_enabled}
+                onChange={(e) => setEditingCustomer({...editingCustomer, credit_enabled: e.target.checked})}
+              />
+              <span>Habilitar crédito para este cliente</span>
+            </label>
+            <label className="auth-label">
+              Límite de crédito
+              <input type="number" min="0" step="1000" name="credit_limit" defaultValue={editingCustomer.credit_limit} placeholder="0" />
+            </label>
+            <label className="auth-label">
+              Plazo
+              <select name="credit_terms" defaultValue={editingCustomer.credit_terms}>
+                <option value="quincenal">Quincenal (15 días)</option>
+                <option value="mensual">Mensual (30 días)</option>
+              </select>
+            </label>
+            <label className="auth-label credit-checkbox">
+              <input
+                type="checkbox"
+                name="credit_blocked"
+                defaultChecked={editingCustomer.credit_blocked}
+                onChange={(e) => setEditingCustomer({...editingCustomer, credit_blocked: e.target.checked})}
+              />
+              <span>Bloquear crédito (no puede hacer pedidos nuevos)</span>
+            </label>
             {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
             <button className="primary full" type="submit" disabled={customerSaving}>{customerSaving ? "Guardando..." : "Guardar cliente"}</button>
           </form>

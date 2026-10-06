@@ -16,7 +16,7 @@ import Metric from "./Metric";
 import Pagination from "./Pagination";
 
 type OrderStatus = "pending_confirmation" | "confirmed" | "cancelled";
-type PaymentStatus = "pending" | "paid" | "refunded";
+type PaymentStatus = "pending" | "paid" | "refunded" | "credit" | "partial";
 
 function money(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -63,6 +63,10 @@ export default function OrdersPage({
     const matchesStatus = filter === "all" ||
       (filter === "pending"
         ? order.payment_status === "pending" && order.status === "confirmed"
+        : filter === "credit"
+        ? order.payment_status === "credit"
+        : filter === "partial"
+        ? order.payment_status === "partial"
         : order.payment_status === filter);
     return matchesSearch && matchesStatus;
   });
@@ -214,6 +218,18 @@ export default function OrdersPage({
                   {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
                   {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
                   {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
+                  {order.payment_status !== "paid" && order.payment_status !== "refunded" && order.payment_status !== "credit" && order.payment_status !== "partial" && (
+                    <>
+                      <option value="credit">Fiado (crédito)</option>
+                      <option value="partial">Pago parcial</option>
+                    </>
+                  )}
+                  {(order.payment_status === "credit" || order.payment_status === "partial") && (
+                    <>
+                      <option value="partial">Pago parcial</option>
+                      <option value="paid">Marcar pagado</option>
+                    </>
+                  )}
                 </select>
               </label>
               <div className="order-actions">

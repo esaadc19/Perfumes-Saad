@@ -8,6 +8,13 @@ export interface AdminDashboardMetrics {
   sales_cost: number;
   sales_delivery_cost: number;
   sales_profit: number;
+  credit_sales: number;
+  credit_revenue: number;
+  credit_cost: number;
+  credit_profit: number;
+  credit_outstanding_balance: number;
+  credit_overdue_balance: number;
+  credit_customers_with_overdue: number;
   missing_cost_items: number;
   customer_count: number;
   low_stock_variants: number;
@@ -27,6 +34,10 @@ export interface AdminCustomer {
   phone: string | null;
   email: string | null;
   city: string | null;
+  credit_enabled: boolean;
+  credit_limit: number;
+  credit_terms: "quincenal" | "mensual";
+  credit_blocked: boolean;
   created_at: string;
   orders: { total: number; status: string; created_at: string }[];
 }
@@ -71,6 +82,9 @@ export interface AdminOrder {
     subtotal: number;
     unit_cost_snapshot: number | null;
   }[];
+  credit_due_date: string | null;
+  credit_amount: number;
+  credit_limit_snapshot: number | null;
 }
 
 function requireSupabase() {
@@ -92,7 +106,7 @@ export async function getAdminCustomers(): Promise<AdminCustomer[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("customers")
-    .select("id, full_name, phone, email, city, created_at, orders(total, status, created_at)")
+    .select("id, full_name, phone, email, city, credit_enabled, credit_limit, credit_terms, credit_blocked, created_at, orders(total, status, created_at)")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los clientes:", error);
@@ -135,7 +149,7 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("orders")
-    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, sales_advisor_id, sales_advisors(full_name), customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot)")
+    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, sales_advisor_id, sales_advisors(full_name), customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot), credit_due_date, credit_amount, credit_limit_snapshot")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los pedidos:", error);
@@ -315,6 +329,115 @@ export async function updateAdminProfileRole(
   });
   if (error) {
     console.error("No se pudo actualizar el rol:", error);
+    throw error;
+  }
+}
+
+// Crédito / Fiado
+export async function updateAdminOrderWithCredit(
+  orderId: string,
+  status: "pending_confirmation" | "confirmed" | "cancelled",
+  paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial",
+  creditDueDate?: string,
+  creditLimitSnapshot?: number
+): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.rpc("admin_update_order_transaction", {
+    target_order_id: orderId,
+    new_status: status,
+    new_payment_status: paymentStatus,
+    credit_due_date_param: creditDueDate ?? null,
+    credit_limit_snapshot_param: creditLimitSnapshot ?? null,
+  });
+  if (error) {
+    console.error("No se pudo actualizar el pedido:", error);
+    throw error;
+  }
+}
+
+export async function updateAdminCustomerCredit(
+  customerId: string,
+  input: {
+    credit_enabled?: boolean;
+    credit_limit?: number;
+    credit_terms?: "quincenal" | "mensual";
+    credit_blocked?: boolean;
+  }
+): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.rpc("admin_update_customer", {
+    customer_id: customerId,
+    customer_data: {
+      credit_enabled: input.credit_enabled,
+      credit_limit: input.credit_limit,
+      credit_terms: input.credit_terms,
+      credit_blocked: input.credit_blocked,
+    },
+  });
+  if (error) {
+    console.error("No se pudo actualizar el crédito del cliente:", error);
+    throw error;
+  }
+}
+
+export async function recordCreditPayment(input: {
+  orderId: string;
+  amount: number;
+  method?: "efectivo" | "transferencia" | "otro";
+  note?: string;
+  paidAt?: string;
+}): Promise<{ order_id: string; payment_amount: number; remaining_balance: number; new_payment_status: string }> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc("admin_record_credit_payment", {
+    target_order_id: input.orderId,
+    payment_amount: input.amount,
+    payment_method: input.method ?? "efectivo",
+    payment_note: input.note ?? null,
+    payment_date: input.paidAt ?? null,
+  });
+  if (error) {
+    console.error("No se pudo registrar el abono:", error);
+    throw error;
+  }
+  return data[0];
+}
+
+export async function checkCreditLimit(
+  customerId: string,
+  orderTotal: number
+): Promise<{ allowed: boolean; reason?: string; available_credit?: number; current_balance?: number; credit_limit?: number }> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc("admin_check_credit_limit", {
+    target_customer_id: customerId,
+    order_total: orderTotal,
+  });
+  if (error) {
+    console.error("Error verificando límite de crédito:", error);
+    throw error;
+  }
+  return data[0];
+}
+
+export async function setCreditBlock(customerId: string, blocked: boolean): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.rpc("admin_set_credit_block", {
+    target_customer_id: customerId,
+    blocked,
+  });
+  if (error) {
+    console.error("Error cambiando bloqueo de crédito:", error);
+    throw error;
+  }
+}
+
+export async function setCreditTerms(customerId: string, terms: "quincenal" | "mensual"): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.rpc("admin_set_credit_terms", {
+    target_customer_id: customerId,
+    new_terms: terms,
+  });
+  if (error) {
+    console.error("Error cambiando términos de crédito:", error);
     throw error;
   }
 }
