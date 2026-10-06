@@ -600,7 +600,11 @@ declare
   promotion_discounts jsonb;
   saved_order_id uuid;
   saved_customer_id uuid;
+  -- Copia local del parámetro: dentro de un UPDATE, "sales_advisor_id = sales_advisor_id"
+  -- leería la columna existente (no-op), así que se referencia esta variable.
+  saved_sales_advisor_id uuid;
 begin
+  saved_sales_advisor_id := sales_advisor_id;
   if not public.is_admin() then
     raise exception 'Administrator access required' using errcode = '42501';
   end if;
@@ -670,7 +674,8 @@ begin
       'pending_confirmation',
       'pending',
       order_date::timestamp at time zone 'America/Bogota',
-      new_delivery_cost
+      new_delivery_cost,
+      saved_sales_advisor_id
     )
     returning id into saved_order_id;
   else
@@ -689,7 +694,7 @@ begin
     update public.orders
     set created_at = order_date::timestamp at time zone 'America/Bogota',
         delivery_cost = new_delivery_cost,
-        sales_advisor_id = sales_advisor_id
+        sales_advisor_id = saved_sales_advisor_id
     where id = saved_order_id;
   end if;
 
@@ -746,10 +751,10 @@ begin
       variant_record.id,
       trim(variant_record.brand || ' ' || variant_record.name),
       variant_record.size_ml,
-      variant_record.price,
-      variant_record.cost,
+      item_unit_price,
+      coalesce(item_unit_cost, variant_record.cost),
       item_quantity,
-      variant_record.price * item_quantity - line_discount,
+      item_unit_price * item_quantity - line_discount,
       line_discount
     );
   end loop;
@@ -757,8 +762,9 @@ begin
   update public.orders
   set customer_id = saved_customer_id,
       subtotal = calculated_subtotal,
-  discount = calculated_discount,
-  total = calculated_subtotal + shipping - calculated_discount,
+      discount = calculated_discount,
+      total = calculated_subtotal + shipping - calculated_discount,
+      sales_advisor_id = saved_sales_advisor_id,
       status = case
         when status = 'draft' then 'pending_confirmation'
         else status
@@ -1529,7 +1535,7 @@ revoke all on function public.admin_set_profile_role(uuid, text) from public, an
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
 revoke all on function public.admin_get_products() from public, anon;
 revoke all on function public.admin_update_order_transaction(uuid, text, text) from public, anon;
-revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric) from public, anon;
+revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid) from public, anon;
 revoke all on function public.admin_delete_pending_order(uuid) from public, anon;
 revoke all on function public.admin_update_variant_stock(uuid, integer) from public, anon;
 grant execute on function public.admin_dashboard_metrics() to authenticated;
@@ -1538,7 +1544,7 @@ grant execute on function public.admin_set_profile_role(uuid, text) to authentic
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
 grant execute on function public.admin_get_products() to authenticated;
 grant execute on function public.admin_update_order_transaction(uuid, text, text) to authenticated;
-grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric) to authenticated;
+grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid) to authenticated;
 grant execute on function public.admin_delete_pending_order(uuid) to authenticated;
 grant execute on function public.admin_update_variant_stock(uuid, integer) to authenticated;
 

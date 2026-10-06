@@ -1,50 +1,14 @@
--- Migration: Add sales_advisors table for order tracking
--- Created: 2026-10-06
+-- Fix: admin_save_pending_order now persists the sales advisor and honours
+-- the unit price/cost entered in the form instead of always using the
+-- catalog values.
+--
+-- Bugs corrected:
+--   1. "sales_advisor_id = sales_advisor_id" inside an UPDATE reads the existing
+--      column, so the advisor was never updated when editing an order.
+--   2. The INSERT branch never passed sales_advisor_id at all.
+--   3. order_items stored the catalog price/cost, silently discarding the
+--      unit price typed by the admin.
 
--- Create sales_advisors table
-create table if not exists public.sales_advisors (
-  id uuid primary key default gen_random_uuid(),
-  full_name text not null,
-  phone text,
-  email text,
-  active boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
--- Enable RLS
-alter table public.sales_advisors enable row level security;
-
--- Grants (app uses the anon key with RLS)
-grant select, insert, update, delete on public.sales_advisors to authenticated;
-
--- Policy: only admins can manage sales advisors
-drop policy if exists "Admins can manage sales advisors" on public.sales_advisors;
-create policy "Admins can manage sales advisors"
-  on public.sales_advisors for all to authenticated
-  using ((select public.is_admin()))
-  with check ((select public.is_admin()));
-
--- Add sales_advisor_id column to orders table
-alter table public.orders
-  add column if not exists sales_advisor_id uuid references public.sales_advisors(id) on delete set null;
-
--- Index for faster lookups by sales advisor
-create index if not exists orders_sales_advisor_id_idx
-  on public.orders(sales_advisor_id);
-
--- Seed sales advisors from existing admin profiles (preserves current behavior,
--- where admin accounts were used as sales advisors)
-insert into public.sales_advisors (full_name, phone, email)
-select
-  coalesce(nullif(btrim(full_name), ''), nullif(btrim(email), ''), 'Asesor de venta'),
-  phone,
-  email
-from public.profiles
-where role = 'admin';
-
--- Replace admin_save_pending_order so it validates the advisor against
--- sales_advisors (active) and stores it on create AND on edit
 drop function if exists public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid);
 
 create or replace function public.admin_save_pending_order(
@@ -102,9 +66,9 @@ begin
   if new_delivery_cost is null or new_delivery_cost < 0 then
     raise exception 'Delivery cost must be zero or greater';
   end if;
-  if sales_advisor_id is not null and not exists (
+  if saved_sales_advisor_id is not null and not exists (
     select 1 from public.sales_advisors
-    where id = sales_advisor_id and active = true
+    where id = saved_sales_advisor_id and active = true
   ) then
     raise exception 'Select a valid sales advisor';
   end if;
@@ -225,10 +189,10 @@ begin
       variant_record.id,
       trim(variant_record.brand || ' ' || variant_record.name),
       variant_record.size_ml,
-      variant_record.price,
-      variant_record.cost,
+      item_unit_price,
+      coalesce(item_unit_cost, variant_record.cost),
       item_quantity,
-      variant_record.price * item_quantity - line_discount,
+      item_unit_price * item_quantity - line_discount,
       line_discount
     );
   end loop;
@@ -248,3 +212,6 @@ begin
   return saved_order_id;
 end;
 $$;
+
+revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid) from public, anon;
+grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid) to authenticated;
