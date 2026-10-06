@@ -336,9 +336,8 @@ footer { border-top: 1px solid var(--border); padding: 28px 5%; display: flex; g
 .footer-brand { font: 600 18px "Playfair Display", serif; color: #111; }
 footer a { color: #111; }
 
-.admin-layout { --sidebar-width: 230px; height: 100vh; min-height: 100vh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); overflow: hidden; background: #f7f6f4; transition: grid-template-columns .24s ease; }
-.admin-layout.sidebar-collapsed { --sidebar-width: 82px; }
-.sidebar { position: sticky; top: 0; height: 100vh; min-width: 0; overflow: visible; background: #111; color: white; padding: 24px 14px; display: flex; flex-direction: column; transition: padding .24s ease; z-index: 4; }
+.admin-layout { height: 100vh; min-height: 100vh; display: flex; background: #faf9f7; font-family: 'Poppins', sans-serif; overflow: hidden; }
+.admin-sidebar { width: 72px; min-width: 72px; height: 100vh; background: #ffffff; border-right: 1px solid rgba(44,36,32,.06); display: flex; flex-direction: column; align-items: center; padding: 24px 12px; flex-shrink: 0; }
 .sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; margin-bottom: 30px; }
 .admin-logo { border: 0; background: transparent; color: white; text-align: left; font: 600 25px "Playfair Display", serif; white-space: nowrap; }
 .admin-logo span { color: #c48a7c; }
