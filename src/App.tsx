@@ -1263,11 +1263,17 @@ function Admin({
   onSignOut: () => void;
 }) {
   const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "profiles" | "settings">("overview");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem("saad-admin-sidebar") === "collapsed"
+  );
   const [sectionRevision, setSectionRevision] = useState(0);
   const [sectionLoading, setSectionLoading] = useState(false);
   const [sectionError, setSectionError] = useState<string | null>(null);
   const { toasts, dismiss: dismissToast, notifySuccess, notifyError } = useToasts();
+
+  useEffect(() => {
+    window.localStorage.setItem("saad-admin-sidebar", sidebarCollapsed ? "collapsed" : "expanded");
+  }, [sidebarCollapsed]);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportDate, setReportDate] = useState(getBogotaDate);
@@ -1908,11 +1914,22 @@ function Admin({
   const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
 
   return (
-    <div className="admin-layout">
+    <div className={`admin-layout${sidebarCollapsed ? " is-collapsed" : ""}`}>
       <aside className="admin-sidebar">
         <div className="admin-sidebar-header">
           <button className="admin-brand-mark" onClick={onBack} aria-label={storeSettings.store_name}>
             S
+          </button>
+          <span className="admin-sidebar-title">{storeSettings.store_name}</span>
+          <button
+            type="button"
+            className="sidebar-collapse"
+            onClick={() => setSidebarCollapsed((current) => !current)}
+            aria-label={sidebarCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </button>
         </div>
         <nav className="admin-navigation">
@@ -1922,15 +1939,18 @@ function Admin({
               className={`admin-nav-item${section === item.id ? " active" : ""}`}
               onClick={() => { setSection(item.id); setSearch(""); }}
               data-tooltip={item.title}
-              title={item.title}
+              title={sidebarCollapsed ? item.title : undefined}
+              aria-current={section === item.id ? "page" : undefined}
             >
               {item.icon}
+              <span className="admin-nav-item-label">{item.title}</span>
             </button>
           ))}
         </nav>
         <div className="admin-sidebar-footer">
           <button className="admin-store-button" onClick={onBack} title="Volver a la tienda">
             <ArrowLeft size={18} />
+            <span className="admin-nav-item-label">Volver a la tienda</span>
           </button>
         </div>
       </aside>

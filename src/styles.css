@@ -372,7 +372,6 @@ footer a { color: #111; }
 .sidebar-collapsed .back-store { justify-content: center; padding-right: 0; padding-left: 0; }
 .sidebar-collapsed .back-store span { display: none; }
 .admin-section-tabs { display: none; }
-.admin-main { height: 100vh; overflow-y: auto; overscroll-behavior: contain; padding: 42px; max-width: 1500px; width: 100%; margin: auto; }
 .admin-top { display: flex; justify-content: space-between; align-items: end; margin-bottom: 28px; }
 .admin-top h1 { margin: 0; font: 500 42px "Playfair Display", serif; }
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
@@ -998,32 +997,79 @@ footer a { color: #111; }
    ========================================================= */
 
 .admin-layout {
+  height: 100vh;
   min-height: 100vh;
   background: #faf9f7;
   color: #2c2420;
   display: flex;
   font-family: 'Poppins', sans-serif;
+  overflow: hidden;
 }
 
 /* SIDEBAR */
 
 .admin-sidebar {
-  width: 72px;
-  min-width: 72px;
+  width: 252px;
+  min-width: 252px;
   height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 100;
   background: #1a2e22;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
+  padding: 20px 14px;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width .22s ease, min-width .22s ease, padding .22s ease;
+}
+
+/* Estado colapsado: solo iconos */
+.admin-layout.is-collapsed .admin-sidebar {
+  width: 76px;
+  min-width: 76px;
+  padding: 20px 10px;
   align-items: center;
-  padding: 24px 12px;
 }
 
 .admin-sidebar-header {
-  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+  min-height: 40px;
+}
+
+.admin-sidebar-title {
+  flex: 1;
+  min-width: 0;
+  color: #f5f0e8;
+  font-family: 'Playfair Display', serif;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-layout.is-collapsed .admin-sidebar-title {
+  display: none;
+}
+
+.sidebar-collapse {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(245, 240, 232, .18);
+  border-radius: 9px;
+  background: rgba(245, 240, 232, .06);
+  color: #f5f0e8;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+
+.sidebar-collapse:hover {
+  background: rgba(245, 240, 232, .16);
+  color: #fff;
 }
 
 .admin-brand-mark {
@@ -1065,9 +1111,10 @@ footer a { color: #111; }
 .admin-nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 12px;
   width: 100%;
-  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
   border: 0;
   background: transparent;
   border-radius: 10px;
@@ -1075,11 +1122,30 @@ footer a { color: #111; }
   cursor: pointer;
   transition: all .2s ease;
   position: relative;
+  text-align: left;
+}
+
+.admin-nav-item-label {
+  white-space: nowrap;
+  overflow: hidden;
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+}
+
+/* Colapsado: centering de iconos y ocultar etiquetas */
+.admin-layout.is-collapsed .admin-nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.admin-layout.is-collapsed .admin-nav-item-label {
+  display: none;
 }
 
 .admin-nav-item svg {
   width: 20px;
   height: 20px;
+  flex: 0 0 auto;
   stroke: currentColor;
   fill: none;
   stroke-width: 2;
@@ -1100,7 +1166,7 @@ footer a { color: #111; }
 .admin-nav-item.active::before {
   content: '';
   position: absolute;
-  left: -12px;
+  left: -14px;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
@@ -1109,8 +1175,8 @@ footer a { color: #111; }
   border-radius: 0 3px 3px 0;
 }
 
-/* Tooltip */
-.admin-nav-item[data-tooltip]::after {
+/* Tooltip: solo cuando el menú está colapsado */
+.admin-layout.is-collapsed .admin-nav-item[data-tooltip]::after {
   content: attr(data-tooltip);
   position: absolute;
   left: calc(100% + 12px);
@@ -1120,6 +1186,7 @@ footer a { color: #111; }
   color: #f5f0e8;
   padding: 6px 12px;
   border-radius: 6px;
+  font-family: 'Poppins', sans-serif;
   font-size: 12px;
   white-space: nowrap;
   opacity: 0;
@@ -1128,7 +1195,7 @@ footer a { color: #111; }
   z-index: 100;
 }
 
-.admin-nav-item[data-tooltip]:hover::after {
+.admin-layout.is-collapsed .admin-nav-item[data-tooltip]:hover::after {
   opacity: 1;
   transform: translateY(-50%) translateX(0);
 }
@@ -1144,9 +1211,10 @@ footer a { color: #111; }
 .admin-store-button {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
   border: 0;
   background: transparent;
   border-radius: 10px;
@@ -1155,17 +1223,34 @@ footer a { color: #111; }
   transition: all .2s ease;
 }
 
-.admin-store-button:hover {
-  background: #f5f0e8;
-  color: #1a2e22;
+.admin-layout.is-collapsed .admin-store-button {
+  justify-content: center;
+  padding: 0;
 }
 
-/* MAIN */
+.admin-layout.is-collapsed .admin-store-button .admin-nav-item-label {
+  display: none;
+}
+
+.admin-store-button:hover {
+  background: rgba(245, 240, 232, .12);
+  color: #f5f0e8;
+}
+
+.admin-store-button svg {
+  flex: 0 0 auto;
+}
+
+/* MAIN: ocupa todo el espacio restante y hace su propio scroll */
 
 .admin-main {
-  width: calc(100% - 72px);
-  margin-left: 72px;
-  min-height: 100vh;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 38px 40px 60px;
 }
 
 .admin-topbar {
@@ -1305,9 +1390,27 @@ footer a { color: #111; }
     letter-spacing: 0.7px;
   }
 
-  .admin-sidebar {
+  /* En móvil el sidebar se oculta: la navegación vive en .admin-section-tabs */
+  .admin-layout,
+  .admin-layout.is-collapsed {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .admin-sidebar,
+  .admin-layout.is-collapsed .admin-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 120;
+    width: 280px;
+    min-width: 280px;
+    padding: 20px 14px;
+    align-items: stretch;
     transform: translateX(-100%);
-    transition: transform 0.25s ease;
+    transition: transform .25s ease;
   }
 
   .admin-sidebar.open {
@@ -1325,13 +1428,15 @@ footer a { color: #111; }
   .admin-sidebar-overlay {
     position: fixed;
     inset: 0;
-    z-index: 95;
+    z-index: 115;
     background: rgba(0, 0, 0, 0.25);
   }
 
   .admin-main {
     width: 100%;
     margin-left: 0;
+    height: auto;
+    overflow: visible;
     padding-top: 62px;
   }
 
@@ -1345,7 +1450,8 @@ footer a { color: #111; }
 }
 
 @media (max-width: 600px) {
-  .admin-sidebar {
+  .admin-sidebar,
+  .admin-layout.is-collapsed .admin-sidebar {
     width: 280px;
     min-width: 280px;
   }
