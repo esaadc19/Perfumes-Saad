@@ -15,6 +15,18 @@ function money(value: number) {
 
 const productCollator = new Intl.Collator("es", { sensitivity: "base" });
 
+/**
+ * Normaliza texto para búsquedas: minúsculas, sin acentos y sin espacios extra.
+ * Así "sauvage" encuentra "Sauvage" y "  perfume " encuentra "Perfume".
+ */
+function normalizeSearch(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("es")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 type ManualCustomer = {
   full_name: string;
   phone: string | null;
@@ -111,9 +123,14 @@ export default function OrderEditorModal({
       productCollator.compare(left.productName, right.productName) ||
       left.size - right.size
     );
-  const searchTerm = productSearch.trim().toLocaleLowerCase("es");
+  const searchTerm = normalizeSearch(productSearch);
+  // Normaliza acentos para que "sauvage" encuentre "Sauvage" y "PERFUME" encuentre "Perfume".
   const matchingVariants = selectableVariants.filter((variant) =>
-    `${variant.productName} ${variant.size} ml`.toLocaleLowerCase("es").includes(searchTerm)
+    normalizeSearch(`${variant.productName} ${variant.size} ml`).includes(searchTerm)
+  );
+  const selectedVariantIds = new Set(items.map((item) => item.variantId));
+  const availableMatches = matchingVariants.filter(
+    (variant) => variant.stock > 0 && !selectedVariantIds.has(variant.id)
   );
   const orderPrice = calculatePromotionPrice(items.flatMap((item) => {
     const variant = selectableVariants.find((candidate) => candidate.id === item.variantId);
@@ -146,20 +163,22 @@ export default function OrderEditorModal({
   });
   const parsedDeliveryCost = Number(deliveryCost);
   const validDeliveryCost = Number.isFinite(parsedDeliveryCost) && parsedDeliveryCost >= 0;
-  const canAddItem = matchingVariants.some((variant) =>
-    variant.stock > 0 && !items.some((item) => item.variantId === variant.id)
-  );
+  const canAddItem = availableMatches.length > 0;
+  const addVariant = (variant: (typeof selectableVariants)[number]) => {
+    setItems((current) => {
+      if (current.some((item) => item.variantId === variant.id)) return current;
+      return [...current, {
+        variantId: variant.id,
+        quantity: "1",
+        unitPrice: String(variant.price),
+        unitCost: String(variant.cost ?? ""),
+      }];
+    });
+    setProductSearch("");
+  };
   const addItem = () => {
-    const variant = matchingVariants.find((candidate) =>
-      candidate.stock > 0 && !items.some((item) => item.variantId === candidate.id)
-    );
-    if (!variant) return;
-    setItems((current) => [...current, {
-      variantId: variant.id,
-      quantity: "1",
-      unitPrice: String(variant.price),
-      unitCost: String(variant.cost ?? ""),
-    }]);
+    const variant = availableMatches[0];
+    if (variant) addVariant(variant);
   };
 
   return (
@@ -294,7 +313,15 @@ export default function OrderEditorModal({
         <div className="order-editor-lines">
           <div className="order-editor-heading">
             <strong>Productos del pedido</strong>
-            <button type="button" className="text-button" onClick={addItem} disabled={!canAddItem || saving}>
+            <button
+              type="button"
+              className="text-button"
+              onClick={addItem}
+              disabled={!canAddItem || saving}
+              title={canAddItem
+                ? "Agrega la primera presentación disponible"
+                : "No quedan presentaciones con stock por agregar"}
+            >
               <Plus size={15} /> Añadir presentación
             </button>
           </div>
@@ -309,6 +336,39 @@ export default function OrderEditorModal({
               onChange={(event) => setProductSearch(event.target.value)}
             />
           </label>
+          {availableMatches.length > 0 && (
+            <div className="order-search-results">
+              <p className="order-search-results-title">
+                {searchTerm
+                  ? `${availableMatches.length} presentación(es) encontrada(s)`
+                  : "Presentaciones disponibles"}
+              </p>
+              <ul>
+                {availableMatches.slice(0, 40).map((variant) => (
+                  <li key={variant.id}>
+                    <button
+                      type="button"
+                      onClick={() => addVariant(variant)}
+                      disabled={saving}
+                    >
+                      <span className="order-search-result-name">{variant.productName}</span>
+                      <span className="order-search-result-meta">
+                        {variant.size} ml · {money(variant.price)} · stock {variant.stock}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {availableMatches.length > 40 && (
+                <p className="insight">Escribe para filtrar: se muestran las primeras 40 de {availableMatches.length}.</p>
+              )}
+            </div>
+          )}
+          {searchTerm && matchingVariants.length > 0 && availableMatches.length === 0 && (
+            <p className="insight">
+              Las presentaciones que coinciden ya están en el pedido o no tienen stock disponible.
+            </p>
+          )}
           {items.map((item, index) => {
             const selectedVariant = selectableVariants.find((variant) => variant.id === item.variantId);
             const rowVariants = selectedVariant && !matchingVariants.some((variant) => variant.id === selectedVariant.id)
@@ -405,8 +465,16 @@ export default function OrderEditorModal({
               </div>
             );
           })}
-          {matchingVariants.length === 0 && <p className="insight">No hay presentaciones que coincidan con la búsqueda.</p>}
-          {items.length === 0 && matchingVariants.length > 0 && <p className="insight">Añade al menos un producto con stock disponible.</p>}
+          {matchingVariants.length === 0 && (
+            <p className="insight">
+              {searchTerm
+                ? `No hay presentaciones que coincidan con “${productSearch.trim()}”. Prueba con otra marca o tamaño.`
+                : "No hay presentaciones activas para agregar."}
+            </p>
+          )}
+          {items.length === 0 && availableMatches.length > 0 && (
+            <p className="insight">Selecciona una presentación de la lista para agregarla al pedido.</p>
+          )}
         </div>
         <label className="auth-label order-delivery-cost">
           Costo de domicilio pagado

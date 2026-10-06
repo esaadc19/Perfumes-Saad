@@ -578,6 +578,16 @@ footer a { color: #111; }
 .order-date-field { margin-top: 0; }
 .order-manual-customer { margin: 12px 0 0; }
 .order-manual-customer input { width: 100%; min-height: 42px; margin-top: 7px; padding: 0 10px; border: 1px solid var(--border); background: white; }
+.order-search-results { margin: 12px 0 4px; border: 1px solid var(--border); background: #fbfaf7; }
+.order-search-results-title { padding: 10px 12px 0; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.order-search-results ul { list-style: none; margin: 6px 0 0; padding: 0 0 6px; max-height: 260px; overflow-y: auto; }
+.order-search-results li + li { border-top: 1px solid var(--border); }
+.order-search-results button { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 46px; padding: 8px 12px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.order-search-results button:hover:not(:disabled) { background: #f2eee5; }
+.order-search-results button:disabled { opacity: .5; cursor: not-allowed; }
+.order-search-result-name { color: var(--black); font-size: 12px; font-weight: 600; }
+.order-search-result-meta { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.order-search-results .insight { margin: 0; padding: 0 12px 10px; }
 .order-editor-lines { margin-top: 22px; }
 .order-editor-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; }
 .order-editor-line { display: grid; grid-template-columns: minmax(0, 1fr) 110px 110px; gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid var(--border); }
