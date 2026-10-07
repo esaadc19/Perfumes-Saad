@@ -1211,6 +1211,18 @@ begin
       status = case
         when status = 'draft' then 'pending_confirmation'
         else status
+      end,
+      credit_amount = case
+        when new_payment_status in ('credit', 'partial') then calculated_subtotal + shipping - calculated_discount
+        else 0
+      end,
+      credit_due_date = case
+        when new_payment_status = 'credit' then
+          case when (select credit_terms from public.customers where id = saved_customer_id) = 'mensual'
+               then current_date + interval '30 days'
+               else current_date + interval '15 days'
+          end
+        else null
       end
   where id = saved_order_id;
 
