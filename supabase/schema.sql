@@ -1934,6 +1934,10 @@ declare
   customer_phone text := nullif(trim(customer_data->>'phone'), '');
   customer_email text := lower(nullif(trim(customer_data->>'email'), ''));
   customer_city text := nullif(trim(customer_data->>'city'), '');
+  credit_enabled boolean := (customer_data->>'credit_enabled')::boolean;
+  credit_limit numeric := nullif(customer_data->>'credit_limit', '')::numeric;
+  credit_terms text := nullif(customer_data->>'credit_terms', '');
+  credit_blocked boolean := (customer_data->>'credit_blocked')::boolean;
 begin
   if not public.is_admin() then
     raise exception 'Administrator access required' using errcode = '42501';
@@ -1945,12 +1949,22 @@ begin
      and customer_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$' then
     raise exception 'Enter a valid email address';
   end if;
+  if credit_limit is not null and credit_limit < 0 then
+    raise exception 'Credit limit cannot be negative';
+  end if;
+  if credit_terms is not null and credit_terms not in ('quincenal', 'mensual') then
+    raise exception 'Invalid credit terms. Must be quincenal or mensual';
+  end if;
 
   update public.customers
   set full_name = customer_name,
       phone = customer_phone,
       email = customer_email,
       city = customer_city,
+      credit_enabled = coalesce(credit_enabled, credit_enabled),
+      credit_limit = coalesce(credit_limit, credit_limit),
+      credit_terms = coalesce(credit_terms, credit_terms),
+      credit_blocked = coalesce(credit_blocked, credit_blocked),
       updated_at = now()
   where id = customer_id
   returning account_id into linked_account_id;

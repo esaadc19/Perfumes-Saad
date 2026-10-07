@@ -305,6 +305,10 @@ export async function updateAdminCustomer(input: {
   phone: string;
   email: string;
   city: string;
+  creditEnabled?: boolean;
+  creditLimit?: number;
+  creditTerms?: "quincenal" | "mensual";
+  creditBlocked?: boolean;
 }): Promise<void> {
   const client = requireSupabase();
   const { error } = await client.rpc("admin_update_customer", {
@@ -314,6 +318,10 @@ export async function updateAdminCustomer(input: {
       phone: input.phone,
       email: input.email,
       city: input.city,
+      credit_enabled: input.creditEnabled,
+      credit_limit: input.creditLimit,
+      credit_terms: input.creditTerms,
+      credit_blocked: input.creditBlocked,
     },
   });
   if (error) {
