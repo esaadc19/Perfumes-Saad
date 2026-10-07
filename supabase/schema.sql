@@ -1165,7 +1165,9 @@ begin
   end loop;
 
   -- Descontar stock si el pedido se completa (pagado, crédito o parcial)
-  if next_status in ('confirmed', 'shipped', 'delivered')
+  -- Solo para pedidos NUEVOS (no ediciones)
+  if target_order_id is null
+     and next_status in ('confirmed', 'shipped', 'delivered')
      and new_payment_status in ('paid', 'credit', 'partial') then
     for item in
       select value
