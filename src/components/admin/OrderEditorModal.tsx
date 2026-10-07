@@ -67,7 +67,9 @@ export default function OrderEditorModal({
     items: { variant_id: string; quantity: number; unit_price: number; unit_cost: number | null }[],
     orderDate: string,
     deliveryCost: number,
-    salesAdvisorId: string | null
+    salesAdvisorId: string | null,
+    orderStatus: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled",
+    paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial"
   ) => void;
 }) {
   const [customerId, setCustomerId] = useState(order?.customer_id ?? "");
@@ -99,6 +101,12 @@ export default function OrderEditorModal({
   );
   const [deliveryCost, setDeliveryCost] = useState(String(order?.delivery_cost ?? 0));
   const [salesAdvisorId, setSalesAdvisorId] = useState(order?.sales_advisor_id ?? "");
+  const [orderStatus, setOrderStatus] = useState<"pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled">(
+    (order?.status as "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled") ?? "pending_confirmation"
+  );
+  const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid" | "refunded" | "credit" | "partial">(
+    (order?.payment_status as "pending" | "paid" | "refunded" | "credit" | "partial") ?? "pending"
+  );
   const [productSearch, setProductSearch] = useState("");
   const [items, setItems] = useState<OrderItem[]>(
     order?.order_items.map((item) => ({
@@ -210,7 +218,9 @@ export default function OrderEditorModal({
             })),
             orderDate,
             parsedDeliveryCost,
-            salesAdvisorId || null
+            salesAdvisorId || null,
+            orderStatus,
+            paymentStatus
           );
         }}
       >
@@ -507,7 +517,31 @@ export default function OrderEditorModal({
               ))}
           </select>
         </label>
-        <p className="order-editor-note">El total cobrado y el costo de domicilio se registran por separado. El inventario se descuenta cuando marques el pedido como pagado.</p>
+
+        <div className="form-grid">
+          <label className="auth-label">
+            Estado del pedido
+            <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value as "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled")} disabled={saving}>
+              <option value="pending_confirmation">Por confirmar</option>
+              <option value="confirmed">Confirmado</option>
+              <option value="shipped">Enviado</option>
+              <option value="delivered">Entregado</option>
+              <option value="cancelled">Cancelado</option>
+            </select>
+          </label>
+          <label className="auth-label">
+            Estado de pago
+            <select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as "pending" | "paid" | "refunded" | "credit" | "partial")} disabled={saving}>
+              <option value="pending">Pendiente</option>
+              <option value="paid">Pagado · completar venta</option>
+              <option value="credit">Crédito</option>
+              <option value="partial">Pago parcial</option>
+              <option value="refunded">Reembolsado</option>
+            </select>
+          </label>
+        </div>
+
+        <p className="order-editor-note">El total cobrado y el costo de domicilio se registran por separado. El inventario se descuenta cuando marques el pedido como pagado o con crédito.</p>
         {orderPrice.discount > 0 && <p className="cart-discount">Ahorro en promociones: -{money(orderPrice.discount)}</p>}
         <div className="order-editor-total"><span>Total del pedido</span><strong>{money(orderPrice.total)}</strong></div>
         {items.length > 0 && !validItems && <p className="form-error">Revisa productos, cantidades disponibles y evita repetir presentaciones.</p>}

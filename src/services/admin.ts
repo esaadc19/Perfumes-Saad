@@ -248,6 +248,8 @@ export async function saveAdminPendingOrder(input: {
   orderDate: string;
   deliveryCost: number;
   salesAdvisorId: string | null;
+  orderStatus?: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled";
+  paymentStatus?: "pending" | "paid" | "refunded" | "credit" | "partial";
 }): Promise<string> {
   const client = requireSupabase();
   const { data, error } = await client.rpc("admin_save_pending_order", {
@@ -258,6 +260,8 @@ export async function saveAdminPendingOrder(input: {
     order_date: input.orderDate,
     new_delivery_cost: input.deliveryCost,
     sales_advisor_id: input.salesAdvisorId,
+    new_status: input.orderStatus ?? "pending_confirmation",
+    new_payment_status: input.paymentStatus ?? "pending",
   });
   if (error) {
     console.error("No se pudo guardar el pedido:", error);

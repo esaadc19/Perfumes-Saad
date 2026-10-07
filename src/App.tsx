@@ -1699,12 +1699,14 @@ function Admin({
     orderId: string | null,
     orderDate: string,
     deliveryCost: number,
-    salesAdvisorId: string | null
+    salesAdvisorId: string | null,
+    orderStatus?: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled",
+    paymentStatus?: "pending" | "paid" | "refunded" | "credit" | "partial"
   ) => {
     setOrderSaving(true);
     setSectionError(null);
     try {
-      await saveAdminPendingOrder({ orderId, customerId, customer, items, orderDate, deliveryCost, salesAdvisorId });
+      await saveAdminPendingOrder({ orderId, customerId, customer, items, orderDate, deliveryCost, salesAdvisorId, orderStatus, paymentStatus });
       setOrderEditor(null);
       setSectionRevision((current) => current + 1);
       notifySuccess(orderId ? "Pedido actualizado correctamente." : "Pedido creado correctamente.");
@@ -2892,8 +2894,8 @@ function Admin({
           saving={orderSaving}
           error={sectionError}
           onClose={() => { if (!orderSaving) setOrderEditor(null); }}
-          onSave={(customerId, customer, items, orderDate, deliveryCost, salesAdvisorId) =>
-            void savePendingOrder(customerId, customer, items, orderEditor.order?.id ?? null, orderDate, deliveryCost, salesAdvisorId)
+          onSave={(customerId, customer, items, orderDate, deliveryCost, salesAdvisorId, orderStatus, paymentStatus) =>
+            void savePendingOrder(customerId, customer, items, orderEditor.order?.id ?? null, orderDate, deliveryCost, salesAdvisorId, orderStatus, paymentStatus)
           }
         />
         </Suspense>

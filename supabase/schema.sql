@@ -964,7 +964,9 @@ create or replace function public.admin_save_pending_order(
   items_data jsonb,
   order_date date,
   new_delivery_cost numeric,
-  sales_advisor_id uuid
+  sales_advisor_id uuid,
+  new_status text default 'pending_confirmation',
+  new_payment_status text default 'pending'
 )
 returns uuid
 language plpgsql
@@ -987,6 +989,7 @@ declare
   -- Copia local del parámetro: dentro de un UPDATE, "sales_advisor_id = sales_advisor_id"
   -- leería la columna existente (no-op), así que se referencia esta variable.
   saved_sales_advisor_id uuid;
+  next_status text := new_status;
 begin
   saved_sales_advisor_id := sales_advisor_id;
   if not public.is_admin() then
@@ -1032,6 +1035,22 @@ begin
   ) then
     raise exception 'Each product presentation can only appear once in an order';
   end if;
+  
+  -- Validar estados de pago
+  if new_payment_status not in ('pending', 'paid', 'refunded', 'credit', 'partial') then
+    raise exception 'Invalid payment status';
+  end if;
+  if new_status not in ('pending_confirmation', 'confirmed', 'shipped', 'delivered', 'cancelled') then
+    raise exception 'Invalid order status';
+  end if;
+
+  -- Si es crédito/parcial, el estado debe ser al menos confirmado
+  if new_payment_status in ('credit', 'partial') and new_status = 'pending_confirmation' then
+    next_status := 'confirmed';
+  else
+    next_status := new_status;
+  end if;
+
   promotion_discounts := public.calculate_promotion_discounts(items_data);
 
   if target_customer_id is null then
@@ -1055,8 +1074,8 @@ begin
     insert into public.orders (customer_id, status, payment_status, created_at, delivery_cost, sales_advisor_id)
     values (
       saved_customer_id,
-      'pending_confirmation',
-      'pending',
+      next_status,
+      new_payment_status,
       order_date::timestamp at time zone 'America/Bogota',
       new_delivery_cost,
       saved_sales_advisor_id
@@ -1078,7 +1097,9 @@ begin
     update public.orders
     set created_at = order_date::timestamp at time zone 'America/Bogota',
         delivery_cost = new_delivery_cost,
-        sales_advisor_id = saved_sales_advisor_id
+        sales_advisor_id = saved_sales_advisor_id,
+        status = next_status,
+        payment_status = new_payment_status
     where id = saved_order_id;
   end if;
 
@@ -1142,6 +1163,42 @@ begin
       line_discount
     );
   end loop;
+
+  -- Descontar stock si el pedido se completa (pagado, crédito o parcial)
+  if next_status in ('confirmed', 'shipped', 'delivered')
+     and new_payment_status in ('paid', 'credit', 'partial') then
+    for item in
+      select value
+      from jsonb_array_elements(items_data)
+      order by (value->>'variant_id')::uuid
+    loop
+      item_quantity := (item->>'quantity')::integer;
+      select pv.id, pv.stock
+      into variant_record
+      from public.product_variants pv
+      where pv.id = (item->>'variant_id')::uuid
+      for update;
+      if not found then
+        raise exception 'Product presentation not found during stock deduction';
+      end if;
+      if item_quantity > variant_record.stock then
+        raise exception 'Insufficient stock for order completion';
+      end if;
+      update public.product_variants
+      set stock = stock - item_quantity
+      where id = variant_record.id;
+
+      insert into public.inventory_movements (variant_id, movement_type, quantity, reason, order_id)
+      values (
+        variant_record.id,
+        'sale',
+        -item_quantity,
+        case when new_payment_status in ('credit', 'partial')
+             then 'Completed credit sale' else 'Completed paid order' end,
+        saved_order_id
+      );
+    end loop;
+  end if;
 
   update public.orders
   set customer_id = saved_customer_id,
