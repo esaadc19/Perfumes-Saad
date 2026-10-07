@@ -1479,18 +1479,16 @@ function Admin({
     setCustomerSaving(true);
     setSectionError(null);
     try {
-      await updateAdminCustomerCredit(editingCustomer.id, {
-        credit_enabled,
-        credit_limit,
-        credit_terms,
-        credit_blocked,
-      });
       await updateAdminCustomer({
         customerId: editingCustomer.id,
         fullName,
         phone,
         email,
         city,
+        creditEnabled: credit_enabled,
+        creditLimit: credit_limit,
+        creditTerms: credit_terms,
+        creditBlocked: credit_blocked,
       });
       setEditingCustomer(null);
       setSectionRevision((current) => current + 1);
