@@ -1930,41 +1930,41 @@ set search_path = ''
 as $$
 declare
   linked_account_id uuid;
-  customer_name text := nullif(trim(customer_data->>'full_name'), '');
-  customer_phone text := nullif(trim(customer_data->>'phone'), '');
-  customer_email text := lower(nullif(trim(customer_data->>'email'), ''));
-  customer_city text := nullif(trim(customer_data->>'city'), '');
-  credit_enabled boolean := (customer_data->>'credit_enabled')::boolean;
-  credit_limit numeric := nullif(customer_data->>'credit_limit', '')::numeric;
-  credit_terms text := nullif(customer_data->>'credit_terms', '');
-  credit_blocked boolean := (customer_data->>'credit_blocked')::boolean;
+  v_customer_name text := nullif(trim(customer_data->>'full_name'), '');
+  v_customer_phone text := nullif(trim(customer_data->>'phone'), '');
+  v_customer_email text := lower(nullif(trim(customer_data->>'email'), ''));
+  v_customer_city text := nullif(trim(customer_data->>'city'), '');
+  v_credit_enabled boolean := (customer_data->>'credit_enabled')::boolean;
+  v_credit_limit numeric := nullif(customer_data->>'credit_limit', '')::numeric;
+  v_credit_terms text := nullif(customer_data->>'credit_terms', '');
+  v_credit_blocked boolean := (customer_data->>'credit_blocked')::boolean;
 begin
   if not public.is_admin() then
     raise exception 'Administrator access required' using errcode = '42501';
   end if;
-  if customer_name is null then
+  if v_customer_name is null then
     raise exception 'Customer name is required';
   end if;
-  if customer_email is not null
-     and customer_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$' then
+  if v_customer_email is not null
+     and v_customer_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$' then
     raise exception 'Enter a valid email address';
   end if;
-  if credit_limit is not null and credit_limit < 0 then
+  if v_credit_limit is not null and v_credit_limit < 0 then
     raise exception 'Credit limit cannot be negative';
   end if;
-  if credit_terms is not null and credit_terms not in ('quincenal', 'mensual') then
+  if v_credit_terms is not null and v_credit_terms not in ('quincenal', 'mensual') then
     raise exception 'Invalid credit terms. Must be quincenal or mensual';
   end if;
 
   update public.customers
-  set full_name = customer_name,
-      phone = customer_phone,
-      email = customer_email,
-      city = customer_city,
-      credit_enabled = coalesce(credit_enabled, credit_enabled),
-      credit_limit = coalesce(credit_limit, credit_limit),
-      credit_terms = coalesce(credit_terms, credit_terms),
-      credit_blocked = coalesce(credit_blocked, credit_blocked),
+  set full_name = v_customer_name,
+      phone = v_customer_phone,
+      email = v_customer_email,
+      city = v_customer_city,
+      credit_enabled = coalesce(v_credit_enabled, public.customers.credit_enabled),
+      credit_limit = coalesce(v_credit_limit, public.customers.credit_limit),
+      credit_terms = coalesce(v_credit_terms, public.customers.credit_terms),
+      credit_blocked = coalesce(v_credit_blocked, public.customers.credit_blocked),
       updated_at = now()
   where id = customer_id
   returning account_id into linked_account_id;
@@ -1975,7 +1975,7 @@ begin
 
   if linked_account_id is not null then
     update public.profiles
-    set full_name = customer_name, phone = customer_phone, email = customer_email
+    set full_name = v_customer_name, phone = v_customer_phone, email = v_customer_email
     where id = linked_account_id;
   end if;
 end;
