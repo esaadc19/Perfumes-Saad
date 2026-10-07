@@ -1825,24 +1825,24 @@ begin
     ),
     'completed_sales', (select count(*) from public.orders where payment_status = 'paid'),
     'sales_revenue', coalesce((
-      select sum(total) from public.orders where payment_status = 'paid'
+      select sum(total) from public.orders where payment_status in ('paid', 'credit', 'partial')
     ), 0),
     'sales_cost', coalesce((
       select sum(oi.unit_cost_snapshot * oi.quantity)
       from public.orders o
       join public.order_items oi on oi.order_id = o.id
-      where o.payment_status = 'paid' and oi.unit_cost_snapshot is not null
+      where o.payment_status in ('paid', 'credit', 'partial') and oi.unit_cost_snapshot is not null
     ), 0),
     'sales_delivery_cost', coalesce((
-      select sum(delivery_cost) from public.orders where payment_status = 'paid'
+      select sum(delivery_cost) from public.orders where payment_status in ('paid', 'credit', 'partial')
     ), 0),
     'sales_profit', coalesce((
       select sum(oi.subtotal - oi.unit_cost_snapshot * oi.quantity)
       from public.orders o
       join public.order_items oi on oi.order_id = o.id
-      where o.payment_status = 'paid' and oi.unit_cost_snapshot is not null
+      where o.payment_status in ('paid', 'credit', 'partial') and oi.unit_cost_snapshot is not null
     ), 0) - coalesce((
-      select sum(delivery_cost) from public.orders where payment_status = 'paid'
+      select sum(delivery_cost) from public.orders where payment_status in ('paid', 'credit', 'partial')
     ), 0),
     -- Credit metrics
     'credit_sales', (select count(*) from public.orders where payment_status in ('credit', 'partial')),
