@@ -4,6 +4,7 @@ import type { Promotion } from "../../services/promotions";
 import type { Product } from "../../services/products";
 import type { AdminCustomer, AdminOrder, SalesAdvisor } from "../../services/admin";
 import { calculatePromotionPrice } from "../../services/promotions";
+import AdminButton from "./AdminButton";
 
 function money(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -469,9 +470,9 @@ export default function OrderEditorModal({
                     ))}
                   />
                 </label>
-                <button type="button" className="icon-button" aria-label="Quitar producto" disabled={saving} onClick={() => setItems((current) => current.filter((_, lineIndex) => lineIndex !== index))}>
+                <AdminButton tone="danger" variant="outline" compact type="button" aria-label="Quitar producto" disabled={saving} onClick={() => setItems((current) => current.filter((_, lineIndex) => lineIndex !== index))}>
                   <Trash2 size={17} />
-                </button>
+                </AdminButton>
               </div>
             );
           })}
@@ -547,8 +548,8 @@ export default function OrderEditorModal({
         {items.length > 0 && !validItems && <p className="form-error">Revisa productos, cantidades disponibles y evita repetir presentaciones.</p>}
         {!validDeliveryCost && <p className="form-error">El costo de domicilio debe ser un valor igual o mayor que cero.</p>}
         {error && <p className="form-error" role="alert">{error}</p>}
-        <button
-          className="primary full"
+        <AdminButton
+          fullWidth
           type="submit"
           disabled={saving ||
             (customerMode === "registered" && !customerId) ||
@@ -556,7 +557,7 @@ export default function OrderEditorModal({
             !orderDate || !validItems || !validDeliveryCost}
         >
           {saving ? "Guardando…" : order ? "Guardar cambios" : "Crear pedido"}
-        </button>
+        </AdminButton>
       </form>
     </div>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Save, Upload } from "lucide-react";
+import AdminButton from "./AdminButton";
 import {
   removeStoreLogo,
   saveStoreSettings,
@@ -110,14 +111,15 @@ export default function SettingsPage({
           {logoUrl
             ? <img src={logoUrl} alt="Vista previa del logo de la tienda" />
             : <div className="store-settings-logo-placeholder">Sin logo</div>}
-          <button
-            className="secondary image-file-button"
+          <AdminButton
+            tone="secondary"
+            compact
             type="button"
             disabled={saving}
             onClick={() => document.getElementById("logo-file-input")?.click()}
           >
             <Upload size={15} /> {logoFile ? "Cambiar archivo" : "Subir logo"}
-          </button>
+          </AdminButton>
           <input
             id="logo-file-input"
             type="file"
@@ -175,9 +177,9 @@ export default function SettingsPage({
         </div>
         {error && <p className="form-error" role="alert">{error}</p>}
         {feedback && <p className="import-feedback" role="status">{feedback}</p>}
-        <button className="primary" type="submit" disabled={saving}>
+        <AdminButton type="submit" disabled={saving}>
           <Save size={16} /> {saving ? "Guardando..." : "Guardar configuración"}
-        </button>
+        </AdminButton>
       </form>
     </section>
   );

@@ -14,6 +14,7 @@ import {
 import type { AdminOrder } from "../../services/admin";
 import Metric from "./Metric";
 import Pagination from "./Pagination";
+import AdminButton from "./AdminButton";
 
 type OrderStatus = "pending_confirmation" | "confirmed" | "cancelled";
 type PaymentStatus = "pending" | "paid" | "refunded" | "credit" | "partial";
@@ -134,20 +135,23 @@ export default function OrdersPage({
         />
         <Metric title="Ventas completas" value={String(completedOrders.length)} icon={<Check />} />
       </div>
-      <div className="transaction-filters" aria-label="Filtrar transacciones">
+      <div className="transaction-filters" role="tablist" aria-label="Filtrar transacciones">
         {([
           ["all", "Todos"],
           ["paid", "Ventas completas"],
           ["pending", "Pendientes de pago"],
           ["refunded", "Reembolsados"],
         ] as const).map(([status, label]) => (
-          <button
+          <AdminButton
             key={status}
-            className={filter === status ? "selected" : ""}
+            tone={filter === status ? "primary" : "secondary"}
+            compact
+            role="tab"
+            aria-selected={filter === status}
             onClick={() => setFilter(status)}
           >
             {label}
-          </button>
+          </AdminButton>
         ))}
       </div>
       {missingCostItems > 0 && (
@@ -233,8 +237,9 @@ export default function OrdersPage({
                 </select>
               </label>
               <div className="order-actions">
-                <button
-                  className="secondary"
+                <AdminButton
+                  tone="secondary"
+                  compact
                   type="button"
                   title="Enviar link de seguimiento por WhatsApp"
                   onClick={() => {
@@ -258,14 +263,23 @@ export default function OrdersPage({
                   }}
                 >
                   <Package size={15} /> Rastrear
-                </button>
+                </AdminButton>
                 {order.payment_status !== "paid" ? (
                   <>
-                    <button className="secondary" type="button" onClick={() => onEditOrder(order)}><Pencil size={15} /> Editar</button>
+                    <AdminButton tone="secondary" compact type="button" onClick={() => onEditOrder(order)}>
+                      <Pencil size={15} /> Editar
+                    </AdminButton>
                     {order.payment_status === "pending" && order.status !== "cancelled" && (
-                      <button className="secondary" type="button" disabled={deletingOrderId === order.id} onClick={() => onDeleteOrder(order)}>
+                      <AdminButton
+                        tone="danger"
+                        variant="outline"
+                        compact
+                        type="button"
+                        disabled={deletingOrderId === order.id}
+                        onClick={() => onDeleteOrder(order)}
+                      >
                         <Trash2 size={15} />{deletingOrderId === order.id ? "Eliminando…" : "Eliminar"}
-                      </button>
+                      </AdminButton>
                     )}
                   </>
                 ) : <span>Venta completada; reembolsa para desbloquear</span>}
