@@ -1,5 +1,5 @@
 import { useState, useEffect, type KeyboardEvent } from "react";
-import { Search, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Clock, X, Pencil, Trash2, Plus } from "lucide-react";
+import { Search, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Clock, X, Pencil, Trash2, Plus, ShieldCheck } from "lucide-react";
 import {
   getCreditOrders,
   recordCreditPayment,
@@ -193,14 +193,16 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
             <strong>{money(totalOutstanding)}</strong>
           </div>
         </div>
-        <div className="summary-card warning">
-          <AlertTriangle size={20} />
+        {/* El tono de alerta solo cuando hay algo vencido de verdad: un $0
+            en rojo sería una señal falsa de alarma. */}
+        <div className={`summary-card${totalOverdue > 0 ? " warning" : ""}`}>
+          {totalOverdue > 0 ? <AlertTriangle size={20} /> : <ShieldCheck size={20} />}
           <div>
             <span>Vencido</span>
             <strong>{money(totalOverdue)}</strong>
           </div>
         </div>
-        <div className="summary-card">
+        <div className={`summary-card${overdueCount > 0 ? " warning" : ""}`}>
           <Clock size={20} />
           <div>
             <span>Clientes vencidos</span>
