@@ -57,8 +57,8 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
     }
   });
 
-  const totalOutstanding = orders.reduce((sum, o) => sum + (o.credit_amount - o.paid_amount), 0);
-  const totalOverdue = orders.filter((o) => o.overdue).reduce((sum, o) => sum + (o.credit_amount - o.paid_amount), 0);
+  const totalOutstanding = orders.reduce((sum, o) => sum + o.credit_amount, 0);
+  const totalOverdue = orders.filter((o) => o.overdue).reduce((sum, o) => sum + o.credit_amount, 0);
   const overdueCount = orders.filter((o) => o.overdue).length;
 
   const openPaymentModal = (order: CreditOrderSummary) => {
@@ -226,7 +226,7 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
               <span>#{order.order_code}</span>
               <span>{money(order.total)}</span>
               <span className={order.overdue ? "balance overdue" : "balance"}>
-                {money(order.credit_amount - order.paid_amount)}
+                {money(order.credit_amount)}
               </span>
               <span>{money(order.paid_amount)}</span>
               {getDueDateDisplay(order)}
@@ -267,7 +267,7 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
               Cliente: <strong>{paymentModal.order.customer_name}</strong> · Pedido #{paymentModal.order.order_code}
             </p>
             <p className="credit-modal-info">
-              Total: {money(paymentModal.order.total)} · Saldo actual: <strong>{money(paymentModal.order.credit_amount - paymentModal.order.paid_amount)}</strong>
+              Total: {money(paymentModal.order.total)} · Saldo actual: <strong>{money(paymentModal.order.credit_amount)}</strong>
             </p>
 
             <div className="form-grid">
@@ -277,9 +277,9 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
                   name="amount"
                   min="1"
                   step="1"
-                  max={paymentModal.order.credit_amount - paymentModal.order.paid_amount}
+                  max={paymentModal.order.credit_amount}
                   required
-                  placeholder={`Máx: ${money(paymentModal.order.credit_amount - paymentModal.order.paid_amount)}`}
+                  placeholder={`Máx: ${money(paymentModal.order.credit_amount)}`}
                 />
               </label>
               <label>Método
