@@ -1197,18 +1197,18 @@ function App() {
             <h3>{confirmDialog.title}</h3>
             <p>{confirmDialog.message}</p>
             <div className="confirm-dialog-actions">
-              <button className="secondary" onClick={() => setConfirmDialog(null)}>
+              <AdminButton tone="secondary" compact onClick={() => setConfirmDialog(null)}>
                 Cancelar
-              </button>
-              <button
-                className="primary"
+              </AdminButton>
+              <AdminButton
+                tone="danger"
                 onClick={() => {
                   confirmDialog.onConfirm();
                   setConfirmDialog(null);
                 }}
               >
                 Confirmar
-              </button>
+              </AdminButton>
             </div>
           </div>
         </div>
@@ -2128,22 +2128,24 @@ function Admin({
                   onChange={(event) => setReportDate(event.target.value)}
                 />
               </label>
-              <button
-                className="secondary"
+              <AdminButton
+                tone="secondary"
+                compact
                 type="button"
                 onClick={() => void generateReport(reportDate)}
                 disabled={reportLoading || !reportDate}
               >
                 <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte diario"}
-              </button>
-              <button
-                className="secondary"
+              </AdminButton>
+              <AdminButton
+                tone="secondary"
+                compact
                 type="button"
                 onClick={() => void generateReport()}
                 disabled={reportLoading}
               >
                 <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte semanal"}
-              </button>
+              </AdminButton>
             </div>
             {reportError && <p className="form-error" role="alert">{reportError}</p>}
             {reportResult && (
@@ -2270,9 +2272,9 @@ function Admin({
                   </select>
                 </label>
               )}
-              <button className="primary" type="submit" disabled={savingExpense}>
+              <AdminButton type="submit" disabled={savingExpense}>
                 {savingExpense ? "Guardando..." : expenseForm.recurring ? "Crear recordatorio" : "Agregar gasto"}
-              </button>
+              </AdminButton>
             </form>
             {expenseForm.recurring && (
               <p className="profile-notice">
@@ -2300,23 +2302,26 @@ function Admin({
                         <small className={daysUntil <= 0 ? "expense-overdue" : ""}>{dueLabel}</small>
                       </div>
                       <div className="recurring-expense-actions">
-                        <button
-                          className="secondary"
+                        <AdminButton
+                          tone="secondary"
+                          compact
                           type="button"
                           disabled={payingRecurringExpenseId === expense.id}
                           onClick={() => void payRecurringExpense(expense)}
                         >
                           {payingRecurringExpenseId === expense.id ? "Guardando..." : "Registrar pago"}
-                        </button>
-                        <button
-                          className="icon-button"
+                        </AdminButton>
+                        <AdminButton
+                          tone="danger"
+                          variant="outline"
+                          compact
                           type="button"
                           aria-label={`Eliminar recordatorio ${expense.name}`}
                           disabled={deletingRecurringExpenseId === expense.id}
                           onClick={() => void removeRecurringExpense(expense.id)}
                         >
                           <Trash2 size={16} />
-                        </button>
+                        </AdminButton>
                       </div>
                     </div>
                   );
@@ -2333,8 +2338,11 @@ function Admin({
                       <span>{expense.category}</span>
                       <span>{money(expense.amount)}</span>
                       <span>{expense.expense_date}</span>
-                      <button
-                        className="icon-button"
+                      <AdminButton
+                        tone="danger"
+                        variant="outline"
+                        compact
+                        type="button"
                         aria-label={`Eliminar gasto ${expense.name}`}
                         disabled={deletingExpenseId === expense.id}
                         onClick={() => {
@@ -2346,7 +2354,7 @@ function Admin({
                         }}
                       >
                         <Trash2 size={16} />
-                      </button>
+                      </AdminButton>
                     </div>
                   ))}
                 </div>
@@ -2414,12 +2422,13 @@ function Admin({
                 </label>
               </div>
               <div className="advisor-form-actions">
-                <button className="primary" type="submit" disabled={savingAdvisor || !advisorForm.full_name.trim()}>
+                <AdminButton type="submit" disabled={savingAdvisor || !advisorForm.full_name.trim()}>
                   {editingAdvisor ? "Guardar cambios" : "Agregar asesor"}
-                </button>
+                </AdminButton>
                 {editingAdvisor && (
-                  <button
-                    className="secondary"
+                  <AdminButton
+                    tone="secondary"
+                    compact
                     type="button"
                     disabled={savingAdvisor}
                     onClick={() => {
@@ -2428,7 +2437,7 @@ function Admin({
                     }}
                   >
                     Cancelar
-                  </button>
+                  </AdminButton>
                 )}
               </div>
             </form>
@@ -2445,8 +2454,9 @@ function Admin({
                     {advisor.active ? "Activo" : "Inactivo"}
                   </span>
                   <div className="order-actions">
-                    <button
-                      className="secondary"
+                    <AdminButton
+                      tone="secondary"
+                      compact
                       type="button"
                       aria-label={`Editar ${advisor.full_name}`}
                       disabled={savingAdvisor}
@@ -2460,9 +2470,12 @@ function Admin({
                       }}
                     >
                       <Pencil size={15} /> Editar
-                    </button>
-                    <button
-                      className="icon-button"
+                    </AdminButton>
+                    <AdminButton
+                      tone="danger"
+                      variant="outline"
+                      compact
+                      type="button"
                       aria-label={`Eliminar ${advisor.full_name}`}
                       disabled={deletingAdvisorId === advisor.id}
                       onClick={() => {
@@ -2474,7 +2487,7 @@ function Admin({
                       }}
                     >
                       <Trash2 size={16} />
-                    </button>
+                    </AdminButton>
                   </div>
                 </div>
               ))}
@@ -2669,15 +2682,17 @@ function Admin({
                     <span className="archived-history-note">Se conserva por su historial de ventas o inventario.</span>
                   ) : (
                     <div className="product-actions">
-                      <button className="secondary" type="button" onClick={() => {
+                      <AdminButton tone="secondary" compact type="button" onClick={() => {
                           setProductActionFeedback(null);
                           setProductActionError(null);
                           setEditingProduct(product);
                       }}>
                           <Pencil size={14}/> Editar
-                      </button>
-                      <button
-                          className="secondary danger-button"
+                      </AdminButton>
+                      <AdminButton
+                          tone="danger"
+                          variant="outline"
+                          compact
                           type="button"
                           disabled={deletingProductId === product.id}
                           onClick={() => {
@@ -2701,7 +2716,7 @@ function Admin({
                           }}
                       >
                           <Trash2 size={14}/>{deletingProductId === product.id ? "Eliminando..." : "Eliminar"}
-                      </button>
+                      </AdminButton>
                     </div>
                   )}
                 </div>
@@ -2725,10 +2740,19 @@ function Admin({
                 <h2>Promociones y ofertas</h2>
                 <span>Asocia los productos desde su formulario. La oferta se repite por cada paquete completo.</span>
               </div>
-              <button className="primary" onClick={() => setPromotionEditor("new")}><Plus size={17}/> Nueva promoción</button>
+              <AdminButton type="button" onClick={() => setPromotionEditor("new")}><Plus size={17}/> Nueva promoción</AdminButton>
             </div>
             {promotions.length === 0 ? (
-              <p className="insight">Todavía no hay promociones. Crea una para comenzar a ofrecer paquetes.</p>
+              <EmptyState
+                icon={<Tag size={26} />}
+                title="Todavía no hay promociones"
+                hint="Crea una para ofrecer paquetes con precio especial."
+                action={
+                  <AdminButton tone="secondary" compact type="button" onClick={() => setPromotionEditor("new")}>
+                    <Plus size={14} /> Nueva promoción
+                  </AdminButton>
+                }
+              />
             ) : (
               <div className="admin-table promotion-table">
                 <div className="table-row header"><span>Promoción</span><span>Paquete</span><span>Combinación</span><span>Estado</span><span>Acciones</span></div>
@@ -2739,8 +2763,8 @@ function Admin({
                     <span>{promotion.allow_mixed ? "Productos asociados combinables" : "Mismo perfume"}</span>
                     <span className={promotion.active ? "status-pill status-paid" : "status-pill"}>{promotion.active ? "Activa" : "Inactiva"}</span>
                     <div className="product-actions">
-                      <button className="secondary" onClick={() => setPromotionEditor(promotion)}><Pencil size={15}/> Editar</button>
-                      <button className="secondary danger-button" onClick={() => void removePromotion(promotion)}><Trash2 size={15}/> Eliminar</button>
+                      <AdminButton tone="secondary" compact onClick={() => setPromotionEditor(promotion)}><Pencil size={15}/> Editar</AdminButton>
+                      <AdminButton tone="danger" variant="outline" compact onClick={() => void removePromotion(promotion)}><Trash2 size={15}/> Eliminar</AdminButton>
                     </div>
                   </div>
                 ))}
@@ -2775,7 +2799,7 @@ function Admin({
                 {paginatedCustomers.map((customer) => (
                   <div className="table-row customer-row" key={customer.id}>
                     <strong>{customer.full_name}</strong><span>{customer.phone || "—"}</span><span>{customer.email || "—"}</span><span>{customer.city || "—"}</span><span>{customer.orders?.length ?? 0}</span>
-                    <button className="icon-button" aria-label={`Editar ${customer.full_name}`} onClick={() => setEditingCustomer(customer)}><Pencil size={16}/></button>
+                    <AdminButton tone="secondary" compact type="button" aria-label={`Editar ${customer.full_name}`} onClick={() => setEditingCustomer(customer)}><Pencil size={16}/></AdminButton>
                   </div>
                 ))}
                 {!sectionLoading && visibleCustomers.length === 0 && (
@@ -3066,8 +3090,8 @@ function PromotionEditorModal({
         <p className="order-editor-note">Cada paquete completo obtiene el precio promocional. Las unidades que sobren se cobran a su precio normal.</p>
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="edit-product-actions">
-          <button className="secondary" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button className="primary" type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar promoción"}</button>
+          <AdminButton tone="secondary" compact type="button" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
+          <AdminButton type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar promoción"}</AdminButton>
         </div>
       </form>
     </div>
@@ -3219,17 +3243,17 @@ function EditProductModal({
             {images.map((image, index) => (
               <div className="edit-image-item" key={`${image}-${index}`}>
                 <img src={image} alt={`Imagen ${index + 1} de ${product.name}`} />
-                <button type="button" className="secondary danger-button" onClick={() => setImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}>
+                <AdminButton tone="danger" variant="outline" compact type="button" onClick={() => setImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}>
                   <Trash2 size={14}/> Quitar
-                </button>
+                </AdminButton>
               </div>
             ))}
             {imageFiles.map((file, index) => (
               <div className="edit-image-item" key={`${file.name}-${index}`}>
                 <span className="edit-image-filename">{file.name}</span>
-                <button type="button" className="secondary danger-button" onClick={() => setImageFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>
+                <AdminButton tone="danger" variant="outline" compact type="button" onClick={() => setImageFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}>
                   <Trash2 size={14}/> Quitar
-                </button>
+                </AdminButton>
               </div>
             ))}
           </div>
@@ -3264,8 +3288,9 @@ function EditProductModal({
         <section className="edit-variant-list">
           <div className="edit-variant-heading">
             <h3>Presentaciones, precios, costos y stock</h3>
-            <button
-              className="secondary"
+            <AdminButton
+              tone="secondary"
+              compact
               type="button"
               disabled={saving}
               onClick={() => setVariants((current) => [
@@ -3285,7 +3310,7 @@ function EditProductModal({
               ])}
             >
               <Plus size={15} /> Agregar presentación
-            </button>
+            </AdminButton>
           </div>
           {variants.map((variant, index) => (
             <div className="edit-variant-row" key={variant.id}>
@@ -3312,9 +3337,12 @@ function EditProductModal({
               <label>Stock
                 <input type="number" min="0" step="1" value={variant.stockDraft} disabled={saving} onChange={(event) => setVariants((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, stockDraft: event.target.value } : item))} required />
               </label>
-              <button
+              <AdminButton
+                tone="danger"
+                variant="outline"
+                compact
+                className="edit-variant-remove"
                 type="button"
-                className="icon-button edit-variant-remove"
                 aria-label={`Eliminar presentación de ${variant.sizeDraft} ml`}
                 title={`Eliminar presentación de ${variant.sizeDraft} ml`}
                 disabled={saving || variants.length <= 1}
@@ -3328,15 +3356,15 @@ function EditProductModal({
                 }}
               >
                 <Trash2 size={17} />
-              </button>
+              </AdminButton>
             </div>
           ))}
         </section>
         <p className="order-editor-note">Los cambios de stock se guardan como movimientos de inventario para conservar el historial.</p>
         {(error || saveError) && <p className="form-error" role="alert">{error ?? saveError}</p>}
         <div className="edit-product-actions">
-          <button className="secondary" type="button" onClick={onClose} disabled={saving}>Cancelar</button>
-          <button className="primary" type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar cambios"}</button>
+          <AdminButton tone="secondary" compact type="button" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
+          <AdminButton type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar cambios"}</AdminButton>
         </div>
       </form>
     </div>
@@ -3486,9 +3514,9 @@ function AddProductModal({
               <label>Precio<input type="number" min="0" value={variant.price} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, price: event.target.value } : item))} /></label>
               <label>Costo<input type="number" min="0" value={variant.cost} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, cost: event.target.value } : item))} required /></label>
               <label>Stock<input type="number" min="0" value={variant.stock} onChange={(event) => setVariants((current) => current.map((item, i) => i === index ? { ...item, stock: event.target.value } : item))} /></label>
-              <button className="icon-button" type="button" aria-label="Quitar presentación" disabled={variants.length === 1} onClick={() => setVariants((current) => current.filter((_, i) => i !== index))}>
+              <AdminButton tone="danger" variant="outline" compact type="button" aria-label="Quitar presentación" disabled={variants.length === 1} onClick={() => setVariants((current) => current.filter((_, i) => i !== index))}>
                 <Trash2 size={16} />
-              </button>
+              </AdminButton>
             </div>
           ))}
         </div>
