@@ -1,6 +1,15 @@
 import { useState, useEffect } from "react";
-import { Search, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Clock, X } from "lucide-react";
-import { getCreditOrders, recordCreditPayment, setCreditBlock, CREDIT_METHODS, type CreditOrderSummary, type CreditPayment } from "../../services/credits";
+import { Search, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Clock, X, Pencil, Trash2, Plus } from "lucide-react";
+import {
+  getCreditOrders,
+  recordCreditPayment,
+  updateCreditPayment,
+  deleteCreditPayment,
+  setCreditBlock,
+  CREDIT_METHODS,
+  type CreditOrderSummary,
+  type CreditPayment,
+} from "../../services/credits";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -19,6 +28,8 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
   const [filter, setFilter] = useState<FilterTab>("all");
   const [paymentModal, setPaymentModal] = useState<{ order: CreditOrderSummary | null; editingPayment?: CreditPayment } | null>(null);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
+  const [listModal, setListModal] = useState<CreditOrderSummary | null>(null);
 
   useEffect(() => {
     loadOrders();
@@ -79,20 +90,44 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
       const note = formData.get("note") as string;
       const paidAt = formData.get("paid_at") as string;
 
-      await recordCreditPayment({
-        order_id: paymentModal.order.order_id,
-        amount,
-        method,
-        note: note || null,
-        paid_at: paidAt || undefined,
-      });
+      if (paymentModal.editingPayment) {
+        await updateCreditPayment(paymentModal.editingPayment.id, {
+          amount,
+          method,
+          note: note || null,
+          paid_at: paidAt || undefined,
+        });
+      } else {
+        await recordCreditPayment({
+          order_id: paymentModal.order.order_id,
+          amount,
+          method,
+          note: note || null,
+          paid_at: paidAt || undefined,
+        });
+      }
 
       closePaymentModal();
+      setListModal(null);
       loadOrders();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo registrar el abono");
     } finally {
       setSavingPayment(false);
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    setDeletingPaymentId(paymentId);
+    setError(null);
+    try {
+      await deleteCreditPayment(paymentId);
+      setListModal(null);
+      loadOrders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el abono");
+    } finally {
+      setDeletingPaymentId(null);
     }
   };
 
@@ -239,7 +274,16 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
                     onClick={() => openPaymentModal(order)}
                     disabled={savingPayment}
                   >
-                    Registrar abono
+                    <Plus size={14} /> Abono
+                  </button>
+                )}
+                {order.paid_amount > 0 && (
+                  <button
+                    className="secondary"
+                    type="button"
+                    onClick={() => setListModal(order)}
+                  >
+                    <Pencil size={14} /> Editar
                   </button>
                 )}
                 {order.status !== "paid" && order.overdue && (
@@ -257,12 +301,82 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
         </div>
       )}
 
+      {listModal && (
+        <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setListModal(null)}>
+          <div className="add-modal">
+            <button className="close" type="button" onClick={() => setListModal(null)} aria-label="Cerrar"><X /></button>
+            <p className="eyebrow">CARTERA</p>
+            <h2>Abonos registrados</h2>
+            <p className="credit-modal-info">
+              Cliente: <strong>{listModal.customer_name}</strong> · Pedido #{listModal.order_code}
+            </p>
+            <p className="credit-modal-info">
+              Total: {money(listModal.total)} · Saldo actual: <strong>{money(listModal.credit_amount)}</strong>
+            </p>
+
+            {error && <p className="form-error" role="alert">{error}</p>}
+
+            {listModal.payments.length === 0 ? (
+              <p className="insight">Este pedido no tiene abonos registrados.</p>
+            ) : (
+              <div className="admin-table credit-payments-table">
+                <div className="table-row header">
+                  <span>Fecha</span>
+                  <span>Monto</span>
+                  <span>Método</span>
+                  <span>Nota</span>
+                  <span></span>
+                </div>
+                {listModal.payments.map((payment) => (
+                  <div className="table-row" key={payment.id}>
+                    <span>{new Date(payment.paid_at).toLocaleDateString("es-CO")}</span>
+                    <span>{money(Number(payment.amount))}</span>
+                    <span>{payment.method}</span>
+                    <span>{payment.note ?? "—"}</span>
+                    <div className="order-actions">
+                      <button
+                        className="secondary"
+                        type="button"
+                        onClick={() => setPaymentModal({ order: listModal, editingPayment: payment })}
+                        disabled={savingPayment}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        className="secondary danger"
+                        type="button"
+                        onClick={() => handleDeletePayment(payment.id)}
+                        disabled={deletingPaymentId === payment.id}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="edit-product-actions">
+              <button className="secondary" type="button" onClick={() => setListModal(null)}>Cerrar</button>
+              <button
+                className="primary"
+                type="button"
+                onClick={() => { setPaymentModal({ order: listModal }); setListModal(null); }}
+                disabled={listModal.status === "paid"}
+              >
+                <Plus size={14} /> Nuevo abono
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {paymentModal?.order && (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && closePaymentModal()}>
           <form className="add-modal" onSubmit={(e) => { e.preventDefault(); handleSavePayment(new FormData(e.currentTarget)); }}>
             <button className="close" type="button" onClick={closePaymentModal} aria-label="Cerrar"><X /></button>
             <p className="eyebrow">CARTERA</p>
-            <h2>Registrar abono</h2>
+            <h2>{paymentModal.editingPayment ? "Editar abono" : "Registrar abono"}</h2>
             <p className="credit-modal-info">
               Cliente: <strong>{paymentModal.order.customer_name}</strong> · Pedido #{paymentModal.order.order_code}
             </p>
@@ -277,23 +391,33 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
                   name="amount"
                   min="1"
                   step="1"
-                  max={paymentModal.order.credit_amount}
+                  max={paymentModal.order.credit_amount + (paymentModal.editingPayment ? Number(paymentModal.editingPayment.amount) : 0)}
+                  defaultValue={paymentModal.editingPayment ? Number(paymentModal.editingPayment.amount) : ""}
                   required
                   placeholder={`Máx: ${money(paymentModal.order.credit_amount)}`}
                 />
               </label>
               <label>Método
-                <select name="method" required>
+                <select name="method" defaultValue={paymentModal.editingPayment?.method ?? "efectivo"} required>
                   {CREDIT_METHODS.map((m) => (
                     <option key={m.value} value={m.value}>{m.label}</option>
                   ))}
                 </select>
               </label>
               <label>Fecha del pago
-                <input type="date" name="paid_at" defaultValue={new Date().toISOString().split("T")[0]} required />
+                <input
+                  type="date"
+                  name="paid_at"
+                  defaultValue={
+                    paymentModal.editingPayment
+                      ? new Date(paymentModal.editingPayment.paid_at).toISOString().split("T")[0]
+                      : new Date().toISOString().split("T")[0]
+                  }
+                  required
+                />
               </label>
               <label className="form-wide">Nota (opcional)
-                <input name="note" placeholder="Referencia de transferencia, etc." />
+                <input name="note" defaultValue={paymentModal.editingPayment?.note ?? ""} placeholder="Referencia de transferencia, etc." />
               </label>
             </div>
 
@@ -302,7 +426,7 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
             <div className="edit-product-actions">
               <button className="secondary" type="button" onClick={closePaymentModal} disabled={savingPayment}>Cancelar</button>
               <button className="primary" type="submit" disabled={savingPayment}>
-                {savingPayment ? "Guardando..." : "Registrar abono"}
+                {savingPayment ? "Guardando..." : paymentModal.editingPayment ? "Guardar cambios" : "Registrar abono"}
               </button>
             </div>
           </form>

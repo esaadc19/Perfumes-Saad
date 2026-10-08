@@ -140,6 +140,50 @@ export async function recordCreditPayment(
   return data[0];
 }
 
+export async function updateCreditPayment(
+  paymentId: string,
+  payment: {
+    amount: number;
+    method?: "efectivo" | "transferencia" | "otro";
+    note?: string | null;
+    paid_at?: string;
+  }
+): Promise<{ order_id: string; remaining_balance: number; new_payment_status: string }> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+
+  const { data, error } = await supabase.rpc("admin_update_credit_payment", {
+    target_payment_id: paymentId,
+    new_amount: payment.amount,
+    new_method: payment.method ?? null,
+    new_note: payment.note ?? null,
+    new_paid_at: payment.paid_at ?? null,
+  });
+
+  if (error) {
+    console.error("Error actualizando abono:", error);
+    throw new Error(error.message);
+  }
+
+  return data[0];
+}
+
+export async function deleteCreditPayment(
+  paymentId: string
+): Promise<{ order_id: string; remaining_balance: number; new_payment_status: string }> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+
+  const { data, error } = await supabase.rpc("admin_delete_credit_payment", {
+    target_payment_id: paymentId,
+  });
+
+  if (error) {
+    console.error("Error eliminando abono:", error);
+    throw new Error(error.message);
+  }
+
+  return data[0];
+}
+
 export async function checkCreditLimit(
   customerId: string,
   orderTotal: number
