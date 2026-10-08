@@ -627,15 +627,21 @@ footer a { color: #111; }
 }
 .filter-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 
-.credit-row { min-width: 1000px; grid-template-columns: 2fr .8fr .8fr .9fr .8fr 1fr .9fr auto; gap: 12px; }
-/* Cliente y acciones se alinean a la izquierda; el resto al centro para
+/* La última columna lleva ancho fijo, no `auto`: si dependiera del
+   contenido, el encabezado (que la tiene vacía) y la fila de datos
+   (que trae dos botones) se dimensionarían distinto y se desalinearían
+   todas las columnas anteriores. */
+.credit-row { min-width: 1020px; grid-template-columns: 2fr .8fr .8fr .9fr .8fr 1fr .9fr 205px; gap: 12px; }
+/* Cliente y acciones se alinean a los extremos; el resto al centro para
    que las cifras queden alineadas entre sí. */
 .credit-row > span:not(.status-badge):not(.due-date),
 .credit-row > .balance { justify-self: center; text-align: center; }
-/* La primera columna y la de acciones se mantienen a los extremos para
-   que la cabecera coincida con el contenido de cada celda. */
-.credit-row > span:first-child { justify-self: start; text-align: left; }
-.credit-row > span:last-child { justify-self: end; }
+.credit-row > span.status-badge,
+.credit-row > span.due-date { justify-self: center; }
+.credit-row > span:first-child,
+.credit-row.header > span:first-child { justify-self: start; text-align: left; }
+.credit-row > .order-actions,
+.credit-row.header > span:last-child { justify-self: end; }
 .credit-row .order-actions { justify-self: end; }
 .credit-row .customer-cell { display: grid; gap: 3px; min-width: 0; justify-self: start; text-align: left; }
 .credit-row .customer-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
