@@ -628,7 +628,16 @@ footer a { color: #111; }
 .filter-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .credit-row { min-width: 1000px; grid-template-columns: 2fr .8fr .8fr .9fr .8fr 1fr .9fr auto; gap: 12px; }
-.credit-row .customer-cell { display: grid; gap: 3px; min-width: 0; }
+/* Cliente y acciones se alinean a la izquierda; el resto al centro para
+   que las cifras queden alineadas entre sí. */
+.credit-row > span:not(.status-badge):not(.due-date),
+.credit-row > .balance { justify-self: center; text-align: center; }
+/* La primera columna y la de acciones se mantienen a los extremos para
+   que la cabecera coincida con el contenido de cada celda. */
+.credit-row > span:first-child { justify-self: start; text-align: left; }
+.credit-row > span:last-child { justify-self: end; }
+.credit-row .order-actions { justify-self: end; }
+.credit-row .customer-cell { display: grid; gap: 3px; min-width: 0; justify-self: start; text-align: left; }
 .credit-row .customer-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .credit-row .customer-cell small { color: var(--muted); font-size: 11px; }
 
@@ -642,7 +651,7 @@ footer a { color: #111; }
 .status-badge {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
-  white-space: nowrap; justify-self: start;
+  white-space: nowrap; justify-self: center;
 }
 .status-badge.paid { background: #edf6ee; color: #3d7444; }
 .status-badge.pending { background: var(--marfil); color: var(--cuero); }
@@ -1409,19 +1418,23 @@ footer a { color: #111; }
   display: flex;
   align-items: center;
   gap: 10px;
-  background: transparent;
-  border: 1px solid transparent;
+  /* Fondo y borde visibles: el buscador se pierde sobre las tarjetas
+     blancas si se queda transparente. */
+  background: #ffffff;
+  border: 1px solid rgba(44, 36, 32, .16);
   padding: 8px 14px;
   border-radius: 10px;
   width: 280px;
-  transition: all .2s ease;
+  transition: border-color .2s ease, box-shadow .2s ease;
   color: #8b6f5c;
 }
 
+.admin-search:hover { border-color: rgba(44, 36, 32, .28); }
+
 .admin-search:focus-within {
   background: #ffffff;
-  border-color: rgba(44,36,32,.1);
-  box-shadow: 0 0 0 3px rgba(26,46,34,.06);
+  border-color: var(--verde);
+  box-shadow: 0 0 0 3px rgba(26, 46, 34, .10);
 }
 
 .admin-search input {
