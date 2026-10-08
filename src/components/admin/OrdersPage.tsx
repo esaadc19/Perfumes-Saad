@@ -163,10 +163,10 @@ export default function OrdersPage({
       )}
       <div className="admin-table">
         <div className="table-row transaction-row header">
-          <span>Pedido / Cliente</span><span>Fecha del pedido</span><span>Vendido</span>
-          <span>Costo productos</span><span>Domicilio</span><span>Utilidad neta</span>
-          <span>Asesor</span>
-          <span>Estado del pedido</span><span>Pago</span><span>Acciones</span>
+          <span>Pedido / Cliente</span><span className="cell-center">Fecha del pedido</span><span className="cell-center">Vendido</span>
+          <span className="cell-center">Costo productos</span><span className="cell-center">Domicilio</span><span className="cell-center">Utilidad neta</span>
+          <span className="cell-center">Asesor</span>
+          <span className="cell-center">Estado del pedido</span><span className="cell-center">Pago</span><span>Acciones</span>
         </div>
         {paginatedOrders.map((order) => {
           const hasMissingCost = order.order_items.some((item) => item.unit_cost_snapshot === null);
@@ -182,14 +182,14 @@ export default function OrdersPage({
                   `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`
                 ).join(" · ") || order.customers?.phone || "Sin detalle"}</span>
               </div>
-              <span>{new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}</span>
-              <strong>{order.payment_status === "paid" ? money(Number(order.total)) : "—"}</strong>
-              <span>{order.payment_status !== "paid" ? "—" : hasMissingCost ? "Falta costo" : money(orderProductCost)}</span>
-              <span>{money(Number(order.delivery_cost ?? 0))}</span>
-              <span>{order.payment_status !== "paid" ? "—" : hasMissingCost
+              <span className="cell-center">{new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}</span>
+              <strong className="cell-center">{order.payment_status === "paid" ? money(Number(order.total)) : "—"}</strong>
+              <span className="cell-center">{order.payment_status !== "paid" ? "—" : hasMissingCost ? "Falta costo" : money(orderProductCost)}</span>
+              <span className="cell-center">{money(Number(order.delivery_cost ?? 0))}</span>
+              <span className="cell-center">{order.payment_status !== "paid" ? "—" : hasMissingCost
                 ? "Incompleta"
                 : money(Number(order.total) - orderProductCost - Number(order.delivery_cost ?? 0))}</span>
-              <span className="advisor-cell">{order.sales_advisor_name || "—"}</span>
+              <span className="advisor-cell cell-center">{order.sales_advisor_name || "—"}</span>
               <label className="mobile-select-cell">
                 <select
                   aria-label={`Estado del pedido ${order.id.slice(0, 8)}`}

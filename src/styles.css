@@ -450,7 +450,9 @@ footer a { color: #111; }
      sticky no tape el borde redondeado. */
   scroll-padding-top: 44px;
 }
-.table-row { min-width: 850px; display: grid; grid-template-columns: 2fr 1fr 1.2fr .7fr 1fr .4fr; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid #eee; font-size: 12px; }
+/* Padding horizontal para que la primera y la última columna no queden
+   pegadas al borde de la tarjeta. */
+.table-row { min-width: 850px; display: grid; grid-template-columns: 2fr 1fr 1.2fr .7fr 1fr .4fr; gap: 14px; align-items: center; padding: 14px 16px; border-top: 1px solid #eee; font-size: 12px; }
 
 /* La cabecera se pega arriba y conserva el fondo blanco para que las
    filas no se transparenten al deslizar. */
@@ -462,6 +464,33 @@ footer a { color: #111; }
   font-size: 11px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .05em;
 }
+
+/* --- Alineación de columnas (compartida por todas las secciones) -----
+   La primera columna identifies la fila, así que va a la izquierda; la
+   última son acciones, a la derecha; el resto se centran para que las
+   cifras queden alineadas entre sí. Las clases .cell-* permiten
+   ajustar el caso puntual desde el componente.                      */
+.admin-table > .table-row > span:first-child,
+.admin-table > .table-row > strong:first-child,
+.admin-table > .table-row > .cell-left { justify-self: start; text-align: left; }
+
+.admin-table > .table-row > .order-actions,
+.admin-table > .table-row > .product-actions,
+.admin-table > .table-row > .recurring-expense-actions,
+.admin-table > .table-row > span:last-child { justify-self: end; }
+
+.admin-table > .table-row > .cell-center,
+.admin-table > .table-row > span.cell-center { justify-self: center; text-align: center; }
+.admin-table > .table-row > .cell-right,
+.admin-table > .table-row > span.cell-right { justify-self: end; text-align: right; }
+
+/* Etiquetas de estado y fechas: siempre centradas. */
+.admin-table > .table-row > .status-badge,
+.admin-table > .table-row > .status,
+.admin-table > .table-row > .status-pill,
+.admin-table > .table-row > .due-date,
+.admin-table > .table-row > .archived-status,
+.admin-table > .table-row > .mobile-select-cell { justify-self: center; }
 
 /* Filas alternas: solo en las de datos, nunca en la cabecera. */
 .admin-table > .table-row:not(.header):nth-of-type(even) { background: #fbfaf8; }
