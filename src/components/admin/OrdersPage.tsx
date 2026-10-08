@@ -15,6 +15,7 @@ import type { AdminOrder } from "../../services/admin";
 import Metric from "./Metric";
 import Pagination from "./Pagination";
 import AdminButton from "./AdminButton";
+import EmptyState from "./EmptyState";
 
 type OrderStatus = "pending_confirmation" | "confirmed" | "cancelled";
 type PaymentStatus = "pending" | "paid" | "refunded" | "credit" | "partial";
@@ -287,7 +288,13 @@ export default function OrdersPage({
             </div>
           );
         })}
-        {!loading && visibleOrders.length === 0 && <p className="insight">No hay pedidos que coincidan con la búsqueda.</p>}
+        {!loading && visibleOrders.length === 0 && (
+          <EmptyState
+            icon={<ReceiptText size={26} />}
+            title="No hay pedidos que coincidan con la búsqueda."
+            hint="Ajusta el término de búsqueda o cambia el filtro de estado."
+          />
+        )}
       </div>
       <Pagination
         page={currentPage}

@@ -439,13 +439,42 @@ footer a { color: #111; }
 .variant-active-control input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
 .card-title { display: flex; justify-content: space-between; align-items: start; margin-bottom: 22px; }
 .card-title span { color: var(--muted); font-size: 12px; }
-.admin-table { overflow-x: auto; }
+
+/* --- Tablas del admin -------------------------------------------------
+   Cabecera fija al desplazar horizontalmente, filas alternas para
+   seguir la lectura, y realce al pasar el cursor.                  */
+.admin-table {
+  overflow-x: auto;
+  border-radius: 10px;
+  /* Compensa el ancho de la barra de scroll para que la cabecera
+     sticky no tape el borde redondeado. */
+  scroll-padding-top: 44px;
+}
+.table-row { min-width: 850px; display: grid; grid-template-columns: 2fr 1fr 1.2fr .7fr 1fr .4fr; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid #eee; font-size: 12px; }
+
+/* La cabecera se pega arriba y conserva el fondo blanco para que las
+   filas no se transparenten al deslizar. */
+.table-row.header {
+  position: sticky; top: 0; z-index: 2;
+  background: white;
+  color: var(--muted);
+  border-top: 0; padding-top: 0;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+}
+
+/* Filas alternas: solo en las de datos, nunca en la cabecera. */
+.admin-table > .table-row:not(.header):nth-of-type(even) { background: #fbfaf8; }
+.admin-table > .table-row:not(.header):hover { background: var(--soft); }
+
+/* Foco visible para filas navegables por teclado. */
+.admin-table > .table-row:focus-visible { outline: 2px solid var(--verde); outline-offset: -2px; }
+
 .admin-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); padding: 8px 10px; }
 .admin-search input { min-width: 150px; border: 0; outline: 0; background: transparent; font-size: 12px; }
-.table-row { min-width: 850px; display: grid; grid-template-columns: 2fr 1fr 1.2fr .7fr 1fr .4fr; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid #eee; font-size: 12px; }
+
 .product-row { min-width: 1080px; grid-template-columns: 1.7fr .8fr 1.3fr .55fr .85fr 1.3fr; }
 .promotion-table .table-row { min-width: 870px; grid-template-columns: 1.2fr 1fr 1.6fr .7fr 1.3fr; }
-.table-row.header { color: var(--muted); border-top: 0; padding-top: 0; }
 .product-cell { display: flex; gap: 12px; align-items: center; }
 .product-cell img { width: 44px; height: 50px; object-fit: cover; }
 .product-cell div { display: grid; gap: 3px; }
@@ -621,6 +650,23 @@ footer a { color: #111; }
 
 .credit-modal-info { margin: 0 0 6px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .credit-modal-info strong { color: var(--black); }
+
+/* Estado vacío unificado (reemplaza los <p class="insight"> sueltos) */
+.empty-state {
+  display: grid; justify-items: center; gap: 6px;
+  padding: 34px 16px; margin: 8px 0;
+  border: 1px dashed var(--border); border-radius: 12px;
+  color: var(--muted); text-align: center; background: #fdfcfa;
+}
+.empty-state .empty-state-icon {
+  display: grid; place-items: center; width: 46px; height: 46px;
+  margin-bottom: 4px; border-radius: 50%; background: var(--marfil); color: var(--cuero);
+}
+.empty-state strong { color: var(--black); font-size: 13px; }
+.empty-state > span { max-width: 420px; font-size: 12px; line-height: 1.55; }
+.empty-state.is-danger { border-color: var(--danger-line); background: var(--danger-soft); }
+.empty-state.is-danger .empty-state-icon { background: #fff; color: var(--danger); }
+.empty-state.is-danger strong { color: var(--danger); }
 .pagination { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 0 4px; }
 .pagination .admin-button { min-height: 38px; padding: 0 14px; font-size: 12px; }
 .pagination .admin-button:disabled { opacity: .45; cursor: not-allowed; }
@@ -701,8 +747,7 @@ footer a { color: #111; }
   .admin-actions { width: 100%; }
   .admin-actions button { flex: 1 1 45%; }
   .admin-section-tabs { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 -16px 18px; padding: 0 16px 6px; overflow: visible; }
-  .admin-section-tabs button { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; padding: 9px 12px; border: 1px solid var(--border); border-radius: 999px; background: white; color: var(--ink); font-size: 12px; }
-  .admin-section-tabs button.selected { border-color: #111; background: #111; color: white; }
+  .admin-section-tabs .admin-button { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
   .admin-search { width: 100%; }
   .admin-search input { flex: 1; min-width: 0; }
   .product-list-tools { flex-wrap: wrap; justify-content: flex-start; }
@@ -772,7 +817,7 @@ footer a { color: #111; }
   .admin-actions { min-width: 0; flex-wrap: wrap; }
   .admin-actions button { min-width: 0; min-height: 44px; padding: 0 10px; font-size: 12px; }
   .admin-section-tabs { margin-right: -12px; margin-left: -12px; padding-right: 12px; padding-left: 12px; }
-  .admin-section-tabs button { padding: 9px 10px; }
+  .admin-section-tabs .admin-button { padding-inline: 10px; }
   .admin-card { min-width: 0; padding: 16px 12px; margin-bottom: 14px; }
   .card-title { flex-direction: column; gap: 14px; margin-bottom: 18px; }
   .product-list-tools { width: 100%; align-items: stretch; flex-direction: column; }

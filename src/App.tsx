@@ -66,6 +66,8 @@ import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
 import Metric from "./components/admin/Metric";
 import Pagination from "./components/admin/Pagination";
+import AdminButton from "./components/admin/AdminButton";
+import EmptyState from "./components/admin/EmptyState";
 import { Toaster, useToasts } from "./components/Toast";
 
 // Solo el panel de administración necesita estos módulos: se cargan bajo demanda
@@ -2017,14 +2019,15 @@ function Admin({
                   aria-label="Importar productos desde CSV o Excel"
                   tabIndex={-1}
                 />
-                <button
-                  className="secondary"
+                <AdminButton
+                  tone="secondary"
+                  compact
                   type="button"
                   onClick={() => productImportInput.current?.click()}
                   disabled={importingProducts}
                 >
                   <Upload size={16} /> {importingProducts ? "Importando..." : "Importar archivo"}
-                </button>
+                </AdminButton>
                 <a
                   className="secondary template-download"
                   href="/plantilla-importacion-productos.csv"
@@ -2033,7 +2036,7 @@ function Admin({
                 >
                   <Download size={16} /> Plantilla CSV
                 </a>
-                <button className="primary" onClick={onAdd}><Plus size={17}/> Nuevo producto</button>
+                <AdminButton type="button" onClick={onAdd}><Plus size={17}/> Nuevo producto</AdminButton>
               </>
             )}
             {section === "customers" && (
@@ -2048,30 +2051,41 @@ function Admin({
                   aria-label="Importar clientes desde CSV o Excel"
                   tabIndex={-1}
                 />
-                <button
-                  className="secondary"
+                <AdminButton
+                  tone="secondary"
+                  compact
                   type="button"
                   onClick={() => customerImportInput.current?.click()}
                   disabled={importingCustomers}
                 >
                   <Upload size={16} /> {importingCustomers ? "Importando..." : "Importar archivo"}
-                </button>
+                </AdminButton>
               </>
             )}
-            {section === "transactions" && <button className="primary" onClick={() => setOrderEditor({ order: null })}><Plus size={17}/> Nuevo pedido</button>}
-            <button className="secondary" onClick={onSignOut}>Cerrar sesión</button>
+            {section === "transactions" && <AdminButton type="button" onClick={() => setOrderEditor({ order: null })}><Plus size={17}/> Nuevo pedido</AdminButton>}
+            <AdminButton tone="secondary" compact type="button" onClick={onSignOut}>Cerrar sesión</AdminButton>
             {section !== "products" && (
-              <button className="secondary" onClick={() => setSectionRevision((current) => current + 1)} disabled={sectionLoading} aria-label="Actualizar datos">
+              <AdminButton
+                tone="secondary"
+                compact
+                type="button"
+                onClick={() => setSectionRevision((current) => current + 1)}
+                disabled={sectionLoading}
+                aria-label="Actualizar datos"
+              >
                 <RefreshCw size={16}/> Actualizar
-              </button>
+              </AdminButton>
             )}
           </div>
         </div>
         <nav className="admin-section-tabs" aria-label="Secciones de administración">
           {sections.map((item) => (
-            <button
+            <AdminButton
               key={item.id}
-              className={section === item.id ? "selected" : ""}
+              tone={section === item.id ? "primary" : "secondary"}
+              compact
+              variant={section === item.id ? undefined : "ghost"}
+              aria-current={section === item.id ? "page" : undefined}
               onClick={() => {
                 setSection(item.id);
                 setSearch("");
@@ -2079,7 +2093,7 @@ function Admin({
               }}
             >
               {item.icon}{item.title}
-            </button>
+            </AdminButton>
           ))}
         </nav>
 
@@ -2191,7 +2205,10 @@ function Admin({
                     <span>Confirmados pendientes de pago</span><strong>{metrics.pending_orders}</strong>
                   </button>
                   {soldOut === 0 && lowStock === 0 && metrics.pending_orders === 0 && (
-                    <p className="insight">No hay productos agotados, stock bajo ni pedidos pendientes.</p>
+                    <EmptyState
+                      title="Todo en orden"
+                      hint="No hay productos agotados, stock bajo ni pedidos pendientes."
+                    />
                   )}
                 </div>
               </div>
@@ -2462,7 +2479,11 @@ function Admin({
                 </div>
               ))}
               {!sectionLoading && salesAdvisors.length === 0 && (
-                <p className="insight">No hay asesores registrados. Agrega el primero con el formulario.</p>
+                <EmptyState
+                  icon={<UserCheck size={26} />}
+                  title="No hay asesores registrados"
+                  hint="Agrega el primero con el formulario de arriba."
+                />
               )}
             </div>
           </section>
@@ -2757,7 +2778,13 @@ function Admin({
                     <button className="icon-button" aria-label={`Editar ${customer.full_name}`} onClick={() => setEditingCustomer(customer)}><Pencil size={16}/></button>
                   </div>
                 ))}
-                {!sectionLoading && visibleCustomers.length === 0 && <p className="insight">No hay clientes que coincidan con la búsqueda.</p>}
+                {!sectionLoading && visibleCustomers.length === 0 && (
+                  <EmptyState
+                    icon={<Users size={26} />}
+                    title="No hay clientes que coincidan con la búsqueda."
+                    hint="Prueba con otro nombre o teléfono."
+                  />
+                )}
               </div>
               <Pagination
                 page={currentCustomerPage}
@@ -2786,7 +2813,13 @@ function Admin({
                       </label>
                     </div>
                   ))}
-                  {!sectionLoading && visibleProfiles.length === 0 && <p className="insight">No hay perfiles que coincidan con la búsqueda.</p>}
+                  {!sectionLoading && visibleProfiles.length === 0 && (
+                  <EmptyState
+                    icon={<ShieldCheck size={26} />}
+                    title="No hay perfiles que coincidan con la búsqueda."
+                    hint="Prueba con otro nombre o correo."
+                  />
+                )}
                 </div>
                 <Pagination
                   page={currentProfilePage}
@@ -2863,7 +2896,7 @@ function Admin({
                 (dashboardDetail === "pending" && orders.every((order) =>
                   order.payment_status !== "pending" || order.status !== "confirmed"
                 ))) && (
-                <p className="insight">No hay elementos para mostrar.</p>
+                <EmptyState title="No hay elementos para mostrar." />
               )}
             </div>
             <button className="primary full" type="button" onClick={() => {

@@ -11,6 +11,7 @@ import {
   type CreditPayment,
 } from "../../services/credits";
 import AdminButton from "./AdminButton";
+import EmptyState from "./EmptyState";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -212,6 +213,7 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
         <label className="admin-search">
           <Search size={16} />
           <input
+            aria-label="Buscar pedidos a crédito por cliente, pedido o teléfono"
             placeholder="Buscar por cliente, pedido o teléfono"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -253,7 +255,13 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
       {error && <p className="form-error" role="alert">{error}</p>}
 
       {filteredOrders.length === 0 ? (
-        <p className="insight">No hay pedidos que coincidan con el filtro.</p>
+        <EmptyState
+          icon={<DollarSign size={26} />}
+          title="No hay pedidos que coincidan con el filtro."
+          hint={search || filter !== "all"
+            ? "Prueba con otro término de búsqueda o vuelve a la pestaña Todos."
+            : "Los pedidos vendidos a crédito aparecerán aquí."}
+        />
       ) : (
         <div className="admin-table">
           <div className="table-row credit-row header">
