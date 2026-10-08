@@ -14,6 +14,9 @@
   --dorado: #c9a96e;
   --marfil: #f5f0e8;
   --cuero: #8b6f5c;
+  --danger: #8c3c36;
+  --danger-soft: #fbf1ef;
+  --danger-line: #ead6d3;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: #fff; }
@@ -545,6 +548,80 @@ footer a { color: #111; }
 .credit-payments-table .order-actions { justify-content: flex-end; }
 .credit-payments-table .order-actions button { min-width: 34px; padding: 0 8px; }
 .credit-payments-table + .edit-product-actions { margin-top: 4px; }
+
+/* ===================================================================
+   AdminButton — ajustes sobre CoreUI para igualar la caja y el ritmo
+   del resto del admin.
+   =================================================================== */
+.admin-button.btn { min-height: 40px; font-weight: 600; letter-spacing: .01em; }
+.admin-button.btn-lg { min-height: 44px; font-size: 13px; }
+.admin-button.btn-sm { min-height: 34px; font-size: 12px; padding-inline: .875rem; }
+.admin-button.full { width: 100%; }
+.admin-button.compact { white-space: nowrap; }
+.admin-button + .admin-button { margin-left: 8px; }
+.order-actions .admin-button + .admin-button,
+.credit-filters .admin-button + .admin-button,
+.filter-tabs .admin-button + .admin-button,
+.edit-product-actions .admin-button + .admin-button { margin-left: 0; }
+
+/* Contador dentro de las pestañas de filtro */
+.filter-tabs .filter-count {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px;
+  margin-left: 6px; padding: 0 6px; border-radius: 999px;
+  background: rgba(0, 0, 0, .07); font-size: 11px; font-weight: 600; line-height: 1;
+}
+.filter-tabs .btn-primary .filter-count { background: rgba(255, 255, 255, .22); color: #fff; }
+
+/* ===================================================================
+   Cartera / Crédito
+   =================================================================== */
+.credit-summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px; margin-bottom: 22px;
+}
+.credit-summary .summary-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: white;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.credit-summary .summary-card:hover { border-color: #cbbfae; box-shadow: 0 4px 14px rgba(44, 36, 32, .07); transform: translateY(-1px); }
+.credit-summary .summary-card > svg { flex: 0 0 auto; color: var(--cuero); }
+.credit-summary .summary-card > div { display: grid; gap: 2px; min-width: 0; }
+.credit-summary .summary-card span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.credit-summary .summary-card strong { font-size: 22px; line-height: 1.15; overflow-wrap: anywhere; }
+.credit-summary .summary-card.warning { background: var(--danger-soft); border-color: var(--danger-line); }
+.credit-summary .summary-card.warning > svg { color: var(--danger); }
+.credit-summary .summary-card.warning strong { color: var(--danger); }
+
+.credit-filters {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+}
+.filter-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.credit-row { min-width: 1000px; grid-template-columns: 2fr .8fr .8fr .9fr .8fr 1fr .9fr auto; gap: 12px; }
+.credit-row .customer-cell { display: grid; gap: 3px; min-width: 0; }
+.credit-row .customer-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.credit-row .customer-cell small { color: var(--muted); font-size: 11px; }
+
+.credit-row .balance { font-weight: 600; }
+.credit-row .balance.overdue { color: var(--danger); }
+
+.due-date { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.due-date.soon { color: var(--cuero); font-weight: 600; }
+.due-date.overdue { color: var(--danger); font-weight: 600; }
+
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  white-space: nowrap; justify-self: start;
+}
+.status-badge.paid { background: #edf6ee; color: #3d7444; }
+.status-badge.pending { background: var(--marfil); color: var(--cuero); }
+.status-badge.overdue { background: var(--danger-soft); color: var(--danger); }
+
+.credit-modal-info { margin: 0 0 6px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.credit-modal-info strong { color: var(--black); }
 .pagination { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 0 4px; }
 .pagination button { min-height: 38px; padding: 0 12px; font-size: 11px; }
 .pagination button:disabled { opacity: .45; cursor: not-allowed; }

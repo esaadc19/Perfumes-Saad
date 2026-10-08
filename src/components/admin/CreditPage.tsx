@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type KeyboardEvent } from "react";
 import { Search, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Clock, X, Pencil, Trash2, Plus } from "lucide-react";
 import {
   getCreditOrders,
@@ -10,6 +10,7 @@ import {
   type CreditOrderSummary,
   type CreditPayment,
 } from "../../services/credits";
+import AdminButton from "./AdminButton";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CO", {
@@ -216,22 +217,35 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
             onChange={(e) => setSearch(e.target.value)}
           />
         </label>
-        <div className="filter-tabs" role="tablist">
+        <div className="filter-tabs" role="tablist" aria-label="Filtrar cartera por estado">
           {([
-            ["all", "Todos"],
-            ["overdue", "Vencidos"],
-            ["upcoming", "Por vencer"],
-            ["paid", "Pagados"],
-          ] as const).map(([key, label]) => (
-            <button
+            ["all", "Todos", orders.length],
+            ["overdue", "Vencidos", orders.filter((o) => o.overdue).length],
+            ["upcoming", "Por vencer", orders.filter((o) => !o.overdue && o.status !== "paid").length],
+            ["paid", "Pagados", orders.filter((o) => o.status === "paid").length],
+          ] as const).map(([key, label, count]) => (
+            <AdminButton
               key={key}
+              tone={filter === key ? "primary" : "secondary"}
+              compact
               role="tab"
               aria-selected={filter === key}
+              tabIndex={filter === key ? 0 : -1}
               className={filter === key ? "active" : ""}
               onClick={() => setFilter(key as FilterTab)}
+              onKeyDown={(e: KeyboardEvent<HTMLButtonElement>) => {
+                // Flechas para moverse entre pestañas, patrón esperado en un tablist.
+                const order: FilterTab[] = ["all", "overdue", "upcoming", "paid"];
+                const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+                if (!step) return;
+                e.preventDefault();
+                const next = order[(order.indexOf(filter) + step + order.length) % order.length];
+                setFilter(next);
+              }}
             >
               {label}
-            </button>
+              <span className="filter-count">{count}</span>
+            </AdminButton>
           ))}
         </div>
       </div>
@@ -268,32 +282,36 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
               {getStatusBadge(order)}
               <div className="order-actions">
                 {order.status !== "paid" && (
-                  <button
-                    className="secondary"
+                  <AdminButton
+                    tone="secondary"
+                    compact
                     type="button"
                     onClick={() => openPaymentModal(order)}
                     disabled={savingPayment}
                   >
                     <Plus size={14} /> Abono
-                  </button>
+                  </AdminButton>
                 )}
                 {order.paid_amount > 0 && (
-                  <button
-                    className="secondary"
+                  <AdminButton
+                    tone="secondary"
+                    compact
                     type="button"
                     onClick={() => setListModal(order)}
                   >
                     <Pencil size={14} /> Editar
-                  </button>
+                  </AdminButton>
                 )}
                 {order.status !== "paid" && order.overdue && (
-                  <button
-                    className="secondary danger"
+                  <AdminButton
+                    tone="danger"
+                    variant="outline"
+                    compact
                     type="button"
                     onClick={() => handleBlockCredit(order.order_id, true)}
                   >
                     <X size={14} /> Bloquear
-                  </button>
+                  </AdminButton>
                 )}
               </div>
             </div>
@@ -334,22 +352,27 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
                     <span>{payment.method}</span>
                     <span>{payment.note ?? "—"}</span>
                     <div className="order-actions">
-                      <button
-                        className="secondary"
+                      <AdminButton
+                        tone="secondary"
+                        compact
+                        aria-label="Editar abono"
                         type="button"
                         onClick={() => setPaymentModal({ order: listModal, editingPayment: payment })}
                         disabled={savingPayment}
                       >
                         <Pencil size={14} />
-                      </button>
-                      <button
-                        className="secondary danger"
+                      </AdminButton>
+                      <AdminButton
+                        tone="danger"
+                        variant="outline"
+                        compact
+                        aria-label="Eliminar abono"
                         type="button"
                         onClick={() => handleDeletePayment(payment.id)}
                         disabled={deletingPaymentId === payment.id}
                       >
                         <Trash2 size={14} />
-                      </button>
+                      </AdminButton>
                     </div>
                   </div>
                 ))}
@@ -357,15 +380,14 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
             )}
 
             <div className="edit-product-actions">
-              <button className="secondary" type="button" onClick={() => setListModal(null)}>Cerrar</button>
-              <button
-                className="primary"
+              <AdminButton tone="secondary" type="button" onClick={() => setListModal(null)}>Cerrar</AdminButton>
+              <AdminButton
                 type="button"
                 onClick={() => { setPaymentModal({ order: listModal }); setListModal(null); }}
                 disabled={listModal.status === "paid"}
               >
                 <Plus size={14} /> Nuevo abono
-              </button>
+              </AdminButton>
             </div>
           </div>
         </div>
@@ -424,10 +446,10 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
             {error && <p className="form-error" role="alert">{error}</p>}
 
             <div className="edit-product-actions">
-              <button className="secondary" type="button" onClick={closePaymentModal} disabled={savingPayment}>Cancelar</button>
-              <button className="primary" type="submit" disabled={savingPayment}>
+              <AdminButton tone="secondary" type="button" onClick={closePaymentModal} disabled={savingPayment}>Cancelar</AdminButton>
+              <AdminButton type="submit" disabled={savingPayment}>
                 {savingPayment ? "Guardando..." : paymentModal.editingPayment ? "Guardar cambios" : "Registrar abono"}
-              </button>
+              </AdminButton>
             </div>
           </form>
         </div>
