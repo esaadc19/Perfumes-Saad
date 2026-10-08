@@ -1,0 +1,75 @@
+// Compila SOLO los estilos de botón de CoreUI, con la paleta de Perfumes SAAD.
+// Evita importar el bundle completo de CoreUI (~328 KB) por un solo componente.
+@use "@coreui/coreui/scss/variables" with (
+  // Verde oscuro de marca como color principal
+  $primary: #1a2e22,
+  $secondary: #6c7a72,
+  $success: #3d7444,
+  $info: #4a6b8a,
+  $warning: #a05b3e,
+  $danger: #8c3c36,
+  $light: #f1efeb,
+  $dark: #2c2420,
+  // Forma pill en todos los botones
+  $border-radius: 999px,
+  $border-radius-sm: 999px,
+  $border-radius-lg: 999px,
+  // Cotas táctiles más cómodas
+  $btn-padding-y: 0.625rem,
+  $btn-padding-x: 1.125rem,
+  $btn-font-weight: 600,
+  $btn-transition: color .15s ease
+);
+
+@use "@coreui/coreui/scss/buttons";
+@use "@coreui/coreui/scss/button-group";
+
+// --cui-border-radius y las utilidades no vienen en este import parcial,
+// así que forzamos la forma pill directamente.
+:root,
+[data-coreui-theme="light"] {
+  --cui-border-radius: 999px;
+  --cui-border-radius-sm: 999px;
+  --cui-border-radius-lg: 999px;
+  --cui-btn-border-radius: 999px;
+}
+
+// Coherente con el uso que hace el ejemplo de referencia.
+.rounded-pill {
+  border-radius: 999px !important;
+}
+
+// --- Interacción -------------------------------------------------------
+// Elevación suave al pasar el cursor, hundido al pulsar. Sin salto de layout.
+.btn {
+  transition: transform .15s ease, box-shadow .15s ease,
+    background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.btn:hover:not(:disabled):not(.disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(26, 46, 34, .18);
+}
+
+.btn:active:not(:disabled):not(.disabled) {
+  transform: translateY(0) scale(.97);
+  box-shadow: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #1a2e22;
+  outline-offset: 2px;
+}
+
+.btn:disabled,
+.btn.disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+// Iconos dentro del botón no deben encogerse al pulsar.
+.btn svg {
+  flex: 0 0 auto;
+}
