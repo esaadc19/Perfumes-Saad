@@ -66,6 +66,8 @@ import OrderTracking from "./components/OrderTracking";
 import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
 import Metric from "./components/admin/Metric";
+import MetricGroup from "./components/admin/MetricGroup";
+import AlertBlock from "./components/admin/AlertBlock";
 import Pagination from "./components/admin/Pagination";
 import AdminButton from "./components/admin/AdminButton";
 import EmptyState from "./components/admin/EmptyState";
@@ -111,6 +113,7 @@ import {
   Wallet,
   Lock,
   CalendarClock,
+  Percent,
   TrendingUp,
   Upload,
   User,
@@ -2186,36 +2189,91 @@ function Admin({
                 <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
               </p>
             )}
-            <div className="metrics">
-              <Metric title="Ventas completas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
-              <Metric title="Total vendido" value={money(Number(metrics.sales_revenue))} icon={<BarChart3 />} />
-              <Metric title="Clientes registrados" value={String(metrics.customer_count)} icon={<Users />} />
-              <Metric title="Presentaciones con stock bajo" value={String(lowStock)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("low-stock")} />
-            </div>
-            <div className="metrics">
-              <Metric title="Productos" value={products.filter((product) => !product.archived).length.toString()} icon={<Package />} />
-              <Metric title="Unidades en stock" value={totalStock.toString()} icon={<ShoppingBag />} />
-              <Metric title="Pendientes de pago" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
-              <Metric title="Agotados" value={soldOut.toString()} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
-            </div>
-            <div className="metrics">
-              <Metric title="Costo de ventas registrado" value={money(Number(metrics.sales_cost))} icon={<ReceiptText />} />
-              <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
-              <Metric title="Utilidad estimada" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
-              <Metric title="Costos pendientes" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning={metrics.missing_cost_items > 0} />
-              <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
-            </div>
-            <div className="metrics">
-              <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} icon={<DollarSign />} />
-              <Metric title="Total a crédito" value={money(Number(metrics.credit_revenue))} icon={<BarChart3 />} />
-              <Metric title="Utilidad estimada" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
-              <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} icon={<DollarSign />} />
-              <Metric title="Utilidad no cobrada" value={money(Number(metrics.locked_credit_profit))} icon={<Lock />} />
-              <Metric title="Gastos comprometidos" value={money(Number(metrics.committed_expenses))} icon={<CalendarClock />} />
-            </div>
-            <div className="metrics">
-              <Metric title="Vencido" value={money(Number(metrics.credit_overdue_balance))} icon={<AlertTriangle />} warning={metrics.credit_overdue_balance > 0} />
-              <Metric title="Clientes vencidos" value={String(metrics.credit_customers_with_overdue)} icon={<Users />} warning={metrics.credit_customers_with_overdue > 0} />
+            <AlertBlock
+              items={[
+                lowStock > 0 ? (
+                  <Metric key="low-stock" title="Presentaciones con stock bajo" value={String(lowStock)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("low-stock")} />
+                ) : null,
+                soldOut > 0 ? (
+                  <Metric key="sold-out" title="Presentaciones agotadas" value={String(soldOut)} icon={<X />} warning onClick={() => setDashboardDetail("sold-out")} />
+                ) : null,
+                metrics.pending_orders > 0 ? (
+                  <Metric key="pending" title="Pedidos pendientes de pago" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
+                ) : null,
+                metrics.missing_cost_items > 0 ? (
+                  <Metric key="missing-cost" title="Costos por completar" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning onClick={() => setSection("products")} />
+                ) : null,
+                metrics.credit_overdue_balance > 0 ? (
+                  <Metric key="overdue" title="Cartera vencida" value={money(Number(metrics.credit_overdue_balance))} icon={<AlertTriangle />} warning onClick={() => setSection("credit")} />
+                ) : null,
+                metrics.credit_customers_with_overdue > 0 ? (
+                  <Metric key="overdue-clients" title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} icon={<Users />} warning onClick={() => setSection("credit")} />
+                ) : null,
+              ]}
+            />
+            <div className="metric-groups">
+              <MetricGroup
+                title="Ventas"
+                hint="Solo lo cobrado. Una venta a crédito entra aquí cuando queda saldada."
+                icon={<BarChart3 />}
+              >
+                <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} />
+                <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} icon={<Package />} />
+                <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
+                <Metric
+                  title="Utilidad neta"
+                  value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
+                  icon={<TrendingUp />}
+                  warning={metrics.sales_profit < 0}
+                  emphasis
+                />
+                <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} />
+                <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
+              </MetricGroup>
+
+              <MetricGroup
+                title="Cartera"
+                hint="Lo vendido a fiado y lo que todavía no es tuyo."
+                icon={<DollarSign />}
+              >
+                <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} icon={<ReceiptText />} />
+                <Metric title="Total a crédito" value={money(Number(metrics.credit_revenue))} icon={<BarChart3 />} />
+                <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} icon={<DollarSign />} />
+                <Metric
+                  title="Utilidad no cobrada"
+                  value={money(Number(metrics.locked_credit_profit))}
+                  icon={<Lock />}
+                  hint="Margen que sigue en cartera; entra a utilidad al cobrarse."
+                />
+                {metrics.committed_expenses > 0 && (
+                  <Metric
+                    title="Gastos comprometidos"
+                    value={money(Number(metrics.committed_expenses))}
+                    icon={<CalendarClock />}
+                    hint="Recordatorios ya creados que aún no se han pagado."
+                  />
+                )}
+              </MetricGroup>
+
+              <MetricGroup
+                title="Inventario"
+                hint="Lo que tienes disponible para vender hoy."
+                icon={<Package />}
+              >
+                <Metric title="Productos activos" value={String(products.filter((product) => !product.archived).length)} icon={<Package />} />
+                <Metric title="Unidades en stock" value={String(totalStock)} icon={<ShoppingBag />} />
+                <Metric title="Presentaciones agotadas" value={String(soldOut)} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
+              </MetricGroup>
+
+              <MetricGroup
+                title="Clientes"
+                hint="Cuánta gente te ha comprado y quién te debe."
+                icon={<Users />}
+              >
+                <Metric title="Clientes registrados" value={String(metrics.customer_count)} icon={<Users />} />
+                <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} icon={<AlertTriangle />} onClick={() => setSection("credit")} />
+                <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ReceiptText />} />
+              </MetricGroup>
             </div>
             <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
               <Charts orders={orders} products={metrics.top_products} />

@@ -625,6 +625,62 @@ footer a { color: #111; }
 .metric-action:hover { border-color: #cbbfae; box-shadow: 0 6px 18px rgba(44,36,32,.09); transform: translateY(-2px); }
 .metric-action:active { transform: translateY(0); }
 .metric-hint { grid-column: 2; font-size: 10px !important; text-decoration: underline; text-transform: none !important; letter-spacing: 0 !important; }
+
+/* Aclaracion bajo el numero: solo aparece cuando hace falta. */
+.metric-note {
+  grid-column: 2; margin-top: 2px;
+  font-size: 11px !important; line-height: 1.45; font-weight: 400;
+  text-transform: none !important; letter-spacing: 0 !important; color: var(--muted);
+}
+
+/* La utilidad neta es el resultado del grupo Ventas: se destaca. */
+.metric.is-emphasis {
+  background: var(--verde); border-color: var(--verde); color: #fff;
+  grid-column: span 2;
+}
+.metric.is-emphasis .metric-icon { background: rgba(255,255,255,.14); color: #fff; }
+.metric.is-emphasis span { color: rgba(255,255,255,.72); }
+.metric.is-emphasis .metric-note { color: rgba(255,255,255,.7); }
+.metric.is-emphasis:hover { box-shadow: 0 8px 22px rgba(26,46,34,.24); }
+
+/* --- Bloque Requiere atencion --- */
+.alert-block {
+  padding: 18px 20px; margin-bottom: 20px;
+  border: 1px solid var(--danger-line); border-radius: 12px; background: var(--danger-soft);
+}
+.alert-block-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px; color: var(--danger); }
+.alert-block-head > div { display: grid; gap: 2px; }
+.alert-block-head h3 { margin: 0; font: 500 20px "Playfair Display", serif; color: var(--danger); }
+.alert-block-head p { margin: 0; font-size: 12px; color: #8c5a52; line-height: 1.5; }
+.alert-block-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+
+/* --- Grupos del dashboard --- */
+.metric-groups {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px; margin-bottom: 24px;
+}
+.metric-group {
+  padding: 20px; background: white;
+  border: 1px solid var(--border); border-radius: 12px;
+}
+.metric-group-head {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid var(--border);
+}
+.metric-group-icon {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: 32px; height: 32px; border-radius: 9px; background: var(--marfil); color: var(--cuero);
+}
+.metric-group-head > div { display: grid; gap: 3px; min-width: 0; }
+.metric-group-head h3 { margin: 0; font: 500 20px "Playfair Display", serif; color: var(--black); }
+.metric-group-head p { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
+/* Dentro de un grupo las tarjetas son mas compactas: ya hay un titulo
+   que las enmarca y no necesitan el aire de la version suelta. */
+.metric-group .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 0; }
+.metric-group .metric { grid-template-columns: 30px 1fr; padding: 13px 14px; border-radius: 10px; }
+.metric-group .metric-icon { width: 30px; height: 30px; border-radius: 8px; }
+.metric-group .metric strong { font-size: 19px; }
+.metric-group .metric span { font-size: 10px; }
 .alert-list { display: grid; }
 .alert-link { display: flex; justify-content: space-between; gap: 14px; align-items: center; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--black); text-align: left; }
 .alert-link:hover span { text-decoration: underline; }
