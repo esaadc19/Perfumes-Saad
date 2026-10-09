@@ -1815,7 +1815,12 @@ $$;
 revoke all on function public.create_whatsapp_order(jsonb, jsonb) from public;
 grant execute on function public.create_whatsapp_order(jsonb, jsonb) to anon, authenticated;
 
-create or replace function public.admin_dashboard_metrics()
+-- Ver migrations/20261009000000_dashboard_expenses.sql: la version vigente
+-- descuenta gastos, realiza la utilidad solo con ventas cobradas y acepta
+-- un rango de fechas opcional.
+create or replace function public.admin_dashboard_metrics(
+  period_days integer default null
+)
 returns jsonb
 language plpgsql
 stable

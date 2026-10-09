@@ -1,20 +1,46 @@
 import { supabase } from "../lib/supabase";
 
 export interface AdminDashboardMetrics {
+  /** Ventas efectivamente cobradas (payment_status = 'paid'). */
   total_orders: number;
   pending_orders: number;
   completed_sales: number;
   sales_revenue: number;
   sales_cost: number;
   sales_delivery_cost: number;
+  /** Margen antes de gastos: ingresos - costo de productos. */
+  sales_gross_profit: number;
+  /** Gastos registrados en el periodo (tabla expenses, solo lo pagado). */
+  total_expenses: number;
+  /** Compromisos firmados que aun no se pagan. Informa, no resta. */
+  committed_expenses: number;
+  /** Utilidad neta = margen - domicilio - gastos. Solo sobre ventas cobradas. */
   sales_profit: number;
+  net_margin_percent: number;
+
+  /** Pipeline de fiado: lo vendido a credito y aun no cobrado. */
   credit_sales: number;
   credit_revenue: number;
-  credit_cost: number;
-  credit_profit: number;
+  /**
+   * Utilidad que sigue parada en cartera: no entra en sales_profit hasta
+   * que el fiado queda saldado. Reemplaza a credit_profit, que se perdia
+   * para siempre en cuanto el pedido pasaba a 'paid'.
+   */
+  locked_credit_profit: number;
   credit_outstanding_balance: number;
   credit_overdue_balance: number;
   credit_customers_with_overdue: number;
+
+  /** Cierre del rango consultado, para los deltas contra el anterior. */
+  period_days: number | null;
+  period_from: string | null;
+  period_to: string | null;
+  previous: {
+    sales_revenue: number;
+    sales_profit: number;
+    net_margin_percent: number;
+  };
+
   missing_cost_items: number;
   customer_count: number;
   low_stock_variants: number;
@@ -92,9 +118,21 @@ function requireSupabase() {
   return supabase;
 }
 
-export async function getAdminDashboardMetrics(): Promise<AdminDashboardMetrics> {
+/**
+ * Metricas del dashboard.
+ *
+ * @param periodDays Rango en dias para las metricas de flujo (ventas,
+ *   costos, gastos). `null` devuelve el acumulado historico. Las
+ *   instantaneas (stock, por cobrar, vencidos) no se acotan nunca: son
+ *   una foto del momento.
+ */
+export async function getAdminDashboardMetrics(
+  periodDays?: number | null
+): Promise<AdminDashboardMetrics> {
   const client = requireSupabase();
-  const { data, error } = await client.rpc("admin_dashboard_metrics");
+  const { data, error } = await client.rpc("admin_dashboard_metrics", {
+    period_days: periodDays ?? null,
+  });
   if (error) {
     console.error("No se pudieron cargar las métricas:", error);
     throw error;

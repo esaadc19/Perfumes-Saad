@@ -109,6 +109,8 @@ import {
   Tag,
   Trash2,
   Wallet,
+  Lock,
+  CalendarClock,
   TrendingUp,
   Upload,
   User,
@@ -2198,6 +2200,7 @@ function Admin({
             </div>
             <div className="metrics">
               <Metric title="Costo de ventas registrado" value={money(Number(metrics.sales_cost))} icon={<ReceiptText />} />
+              <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
               <Metric title="Utilidad estimada" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
               <Metric title="Costos pendientes" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning={metrics.missing_cost_items > 0} />
               <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ShoppingBag />} />
@@ -2205,12 +2208,14 @@ function Admin({
             <div className="metrics">
               <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} icon={<DollarSign />} />
               <Metric title="Total a crédito" value={money(Number(metrics.credit_revenue))} icon={<BarChart3 />} />
-              <Metric title="Utilidad a crédito" value={metrics.credit_profit === null ? "Incompleta" : money(Number(metrics.credit_profit))} icon={<TrendingUp />} warning={metrics.credit_profit !== null && metrics.credit_profit < 0} />
-              <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} icon={<AlertTriangle />} warning />
+              <Metric title="Utilidad estimada" value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))} icon={<TrendingUp />} warning={metrics.sales_profit < 0} />
+              <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} icon={<DollarSign />} />
+              <Metric title="Utilidad no cobrada" value={money(Number(metrics.locked_credit_profit))} icon={<Lock />} />
+              <Metric title="Gastos comprometidos" value={money(Number(metrics.committed_expenses))} icon={<CalendarClock />} />
             </div>
             <div className="metrics">
-              <Metric title="Vencido" value={money(Number(metrics.credit_overdue_balance))} icon={<AlertTriangle />} warning />
-              <Metric title="Clientes vencidos" value={String(metrics.credit_customers_with_overdue)} icon={<Users />} warning />
+              <Metric title="Vencido" value={money(Number(metrics.credit_overdue_balance))} icon={<AlertTriangle />} warning={metrics.credit_overdue_balance > 0} />
+              <Metric title="Clientes vencidos" value={String(metrics.credit_customers_with_overdue)} icon={<Users />} warning={metrics.credit_customers_with_overdue > 0} />
             </div>
             <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
               <Charts orders={orders} products={metrics.top_products} />
