@@ -477,7 +477,10 @@ footer a { color: #111; }
 .admin-table > .table-row > .order-actions,
 .admin-table > .table-row > .product-actions,
 .admin-table > .table-row > .recurring-expense-actions,
+.admin-table > .table-row > .admin-button,
 .admin-table > .table-row > span:last-child { justify-self: end; }
+/* Botones sueltos como última celda: sin margen extra entre ellos. */
+.admin-table > .table-row > .admin-button + .admin-button { margin-left: 0; }
 
 .admin-table > .table-row > .cell-center,
 .admin-table > .table-row > span.cell-center { justify-self: center; text-align: center; }
@@ -945,6 +948,14 @@ footer a { color: #111; }
   .transaction-row > :nth-child(8)::before { content: "Estado del pedido"; }
   .transaction-row > :nth-child(9)::before { content: "Pago"; }
   .transaction-row > :nth-child(10)::before { content: "Acciones"; }
+  /* Etiquetas de Gastos: viven aquí dentro del media query para que solo
+     aparezcan en la vista de tarjetas de móvil. Fuera de él se duplicaba
+     el texto de la cabecera en escritorio. */
+  .expense-row > :nth-child(1)::before { content: "Nombre"; }
+  .expense-row > :nth-child(2)::before { content: "Categoría"; }
+  .expense-row > :nth-child(3)::before { content: "Monto"; }
+  .expense-row > :nth-child(4)::before { content: "Fecha"; }
+  .expense-row > :nth-child(5)::before { content: "Recurrente"; }
   .profile-cell { gap: 3px; }
   .profile-cell::before { margin-bottom: 4px; }
   .admin-table select { min-width: 0; }
@@ -1140,12 +1151,6 @@ footer a { color: #111; }
 .expense-row {
   grid-template-columns: 2fr 1fr 1fr 1fr 40px !important;
 }
-
-.expense-row > :nth-child(1)::before { content: "Nombre"; }
-.expense-row > :nth-child(2)::before { content: "Categoría"; }
-.expense-row > :nth-child(3)::before { content: "Monto"; }
-.expense-row > :nth-child(4)::before { content: "Fecha"; }
-.expense-row > :nth-child(5)::before { content: "Recurrente"; }
 
 .receipt-auto-send {
   display: inline-flex;

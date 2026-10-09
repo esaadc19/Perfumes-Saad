@@ -2331,13 +2331,13 @@ function Admin({
             {expenses.length > 0 ? (
               <>
                 <div className="admin-table">
-                  <div className="table-row expense-row header"><span>Nombre</span><span>Categoría</span><span>Monto</span><span>Fecha</span><span></span></div>
+                  <div className="table-row expense-row header"><span>Nombre</span><span>Categoría</span><span className="cell-center">Monto</span><span className="cell-center">Fecha</span><span></span></div>
                   {paginatedExpenses.map((expense) => (
                     <div className="table-row expense-row" key={expense.id}>
                       <strong>{expense.name}</strong>
                       <span>{expense.category}</span>
-                      <span>{money(expense.amount)}</span>
-                      <span>{expense.expense_date}</span>
+                      <span className="cell-center">{money(expense.amount)}</span>
+                      <span className="cell-center">{expense.expense_date}</span>
                       <AdminButton
                         tone="danger"
                         variant="outline"
@@ -2443,14 +2443,14 @@ function Admin({
             </form>
             <div className="admin-table">
               <div className="table-row advisor-row header">
-                <span>Asesor</span><span>WhatsApp</span><span>Correo</span><span>Estado</span><span></span>
+                <span>Asesor</span><span>WhatsApp</span><span>Correo</span><span className="cell-center">Estado</span><span></span>
               </div>
               {salesAdvisors.map((advisor) => (
                 <div className="table-row advisor-row" key={advisor.id}>
                   <strong>{advisor.full_name}</strong>
                   <span>{advisor.phone || "—"}</span>
                   <span>{advisor.email || "—"}</span>
-                  <span className={advisor.active ? "advisor-active" : "advisor-inactive"}>
+                  <span className={`cell-center ${advisor.active ? "advisor-active" : "advisor-inactive"}`}>
                     {advisor.active ? "Activo" : "Inactivo"}
                   </span>
                   <div className="order-actions">
@@ -2662,7 +2662,7 @@ function Admin({
                       </label>
                     ))}
                   </div>
-                  <span>{stock}</span>
+                  <span className="cell-center">{stock}</span>
                   {product.archived ? (
                     <span className="status sold archived-status">Archivado</span>
                   ) : (
@@ -2795,10 +2795,10 @@ function Admin({
               {customerImportError && <p className="form-error" role="alert">{customerImportError}</p>}
               <p className="customer-import-hint">Importa CSV o Excel (.xlsx) con las columnas <code>full_name</code> y, opcionalmente, <code>phone</code>, <code>email</code> y <code>city</code>. Se omiten coincidencias por correo o teléfono.</p>
               <div className="admin-table">
-                <div className="table-row customer-row header"><span>Cliente</span><span>WhatsApp</span><span>Correo</span><span>Ciudad</span><span>Pedidos</span><span></span></div>
+                <div className="table-row customer-row header"><span>Cliente</span><span>WhatsApp</span><span>Correo</span><span>Ciudad</span><span className="cell-center">Pedidos</span><span></span></div>
                 {paginatedCustomers.map((customer) => (
                   <div className="table-row customer-row" key={customer.id}>
-                    <strong>{customer.full_name}</strong><span>{customer.phone || "—"}</span><span>{customer.email || "—"}</span><span>{customer.city || "—"}</span><span>{customer.orders?.length ?? 0}</span>
+                    <strong>{customer.full_name}</strong><span>{customer.phone || "—"}</span><span>{customer.email || "—"}</span><span>{customer.city || "—"}</span><span className="cell-center">{customer.orders?.length ?? 0}</span>
                     <AdminButton tone="secondary" compact type="button" aria-label={`Editar ${customer.full_name}`} onClick={() => setEditingCustomer(customer)}><Pencil size={16}/></AdminButton>
                   </div>
                 ))}
@@ -2824,12 +2824,12 @@ function Admin({
               <>
                 <div className="profile-notice"><ShieldCheck size={17}/> Los usuarios se registran desde la tienda como clientes. Puedes promover una cuenta a administrador; no puedes cambiar tu propio rol.</div>
                 <div className="admin-table">
-                  <div className="table-row profile-row header"><span>Perfil</span><span>WhatsApp</span><span>Alta</span><span>Permiso</span></div>
+                  <div className="table-row profile-row header"><span>Perfil</span><span>WhatsApp</span><span className="cell-center">Alta</span><span className="cell-center">Permiso</span></div>
                   {paginatedProfiles.map((profile) => (
                     <div className="table-row profile-row" key={profile.id}>
                       <div className="profile-cell"><strong>{profile.full_name || "Sin nombre"}</strong><span>{profile.email || "Sin correo"}</span></div>
                       <span>{profile.phone || "—"}</span>
-                      <span>{new Date(profile.created_at).toLocaleDateString("es-CO")}</span>
+                      <span className="cell-center">{new Date(profile.created_at).toLocaleDateString("es-CO")}</span>
                       <label className="mobile-select-cell">
                         <select aria-label={`Permiso de ${profile.email ?? profile.id}`} value={profile.role} disabled={profile.id === currentUserId || savingProfileId === profile.id} onChange={(event) => void saveProfileRole(profile, event.target.value as AdminProfile["role"])}>
                           <option value="customer">Cliente</option><option value="admin">Administrador</option>
