@@ -166,7 +166,7 @@ export default function OrdersPage({
           <span>Pedido / Cliente</span><span className="cell-center">Fecha del pedido</span><span className="cell-center">Vendido</span>
           <span className="cell-center">Costo productos</span><span className="cell-center">Domicilio</span><span className="cell-center">Utilidad neta</span>
           <span className="cell-center">Asesor</span>
-          <span className="cell-center">Estado del pedido</span><span className="cell-center">Pago</span><span>Acciones</span>
+          <span className="cell-center">Estado del pedido</span><span className="cell-center">Pago</span><span className="cell-center">Acciones</span>
         </div>
         {paginatedOrders.map((order) => {
           const hasMissingCost = order.order_items.some((item) => item.unit_cost_snapshot === null);

@@ -516,11 +516,13 @@ footer a { color: #111; }
 .admin-table > .table-row > strong:first-child,
 .admin-table > .table-row > .cell-left { justify-self: start; text-align: left; }
 
+/* Columna de acciones centrada: el dato (botones) y la cabecera deben
+   compartir la misma alineación o la palabra queda corrida. */
 .admin-table > .table-row > .order-actions,
 .admin-table > .table-row > .product-actions,
 .admin-table > .table-row > .recurring-expense-actions,
 .admin-table > .table-row > .admin-button,
-.admin-table > .table-row > span:last-child { justify-self: end; }
+.admin-table > .table-row > .admin-cell-center { justify-self: center; }
 /* Botones sueltos como última celda: sin margen extra entre ellos. */
 .admin-table > .table-row > .admin-button + .admin-button { margin-left: 0; }
 
@@ -1210,8 +1212,10 @@ footer a { color: #111; }
   font-size: 11px;
 }
 
+/* 52px en vez de 40: al centrar los botones, 40px quedaba justo y el
+   botón se desbordaba hacia el borde de la tarjeta. */
 .expense-row {
-  grid-template-columns: 2fr 1fr 1fr 1fr 40px !important;
+  grid-template-columns: 2fr 1fr 1fr 1fr 52px !important;
 }
 
 .receipt-auto-send {
