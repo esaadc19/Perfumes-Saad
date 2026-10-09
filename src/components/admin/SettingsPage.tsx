@@ -103,83 +103,115 @@ export default function SettingsPage({
       </div>
       {loadError && <p className="profile-notice" role="status">{loadError}</p>}
       <form className="store-settings-form" onSubmit={(event) => void save(event)}>
-        <section className="store-settings-logo">
-          <div>
-            <strong>Logo</strong>
-            <span>JPG, PNG, WebP o AVIF · máximo 5 MB</span>
-          </div>
-          {logoUrl
-            ? <img src={logoUrl} alt="Vista previa del logo de la tienda" />
-            : <div className="store-settings-logo-placeholder">Sin logo</div>}
-          <AdminButton
-            tone="secondary"
-            compact
-            type="button"
-            disabled={saving}
-            onClick={() => document.getElementById("logo-file-input")?.click()}
-          >
-            <Upload size={15} /> {logoFile ? "Cambiar archivo" : "Subir logo"}
-          </AdminButton>
-          <input
-            id="logo-file-input"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/avif"
-            disabled={saving}
-            style={{ display: "none" }}
-            onChange={(event) => {
-              const file = event.currentTarget.files?.[0] ?? null;
-              event.currentTarget.value = "";
-              setLogoFile(file);
-              if (file) setRemoveLogo(false);
-            }}
-          />
-          {(draft.logo_url || logoFile) && (
-            <button className="text-button" type="button" disabled={saving} onClick={() => {
-              setLogoFile(null);
-              setRemoveLogo(true);
-            }}>
-              Quitar logo
-            </button>
-          )}
-        </section>
-
-        <div className="form-grid">
-          <label>Nombre de la tienda
-            <input value={draft.store_name} maxLength={80} disabled={saving} onChange={(event) => setField("store_name", event.target.value)} required />
-          </label>
-          <label>Número de WhatsApp
-            <input
-              type="tel"
-              value={draft.whatsapp_number}
-              maxLength={20}
-              placeholder="573001234567"
+        {/* Identidad */}
+        <fieldset className="settings-group">
+          <legend>Identidad</legend>
+          <p>Lo primero que ve el cliente: el nombre y el logo de la tienda.</p>
+          <section className="store-settings-logo">
+            <div>
+              <strong>Logo</strong>
+              <span>JPG, PNG, WebP o AVIF · máximo 5 MB</span>
+            </div>
+            {logoUrl
+              ? <img src={logoUrl} alt="Vista previa del logo de la tienda" />
+              : <div className="store-settings-logo-placeholder">Sin logo</div>}
+            <AdminButton
+              tone="secondary"
+              compact
+              type="button"
               disabled={saving}
-              onChange={(event) => setField("whatsapp_number", event.target.value)}
-              required
+              onClick={() => document.getElementById("logo-file-input")?.click()}
+            >
+              <Upload size={15} /> {logoFile ? "Cambiar archivo" : "Subir logo"}
+            </AdminButton>
+            <input
+              id="logo-file-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/avif"
+              disabled={saving}
+              style={{ display: "none" }}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0] ?? null;
+                event.currentTarget.value = "";
+                setLogoFile(file);
+                if (file) setRemoveLogo(false);
+              }}
             />
-            <small>Incluye indicativo de país, sin el signo +.</small>
-          </label>
-          <label className="form-wide">Correo de contacto
-            <input type="email" value={draft.contact_email} maxLength={254} disabled={saving} onChange={(event) => setField("contact_email", event.target.value)} />
-          </label>
-          <label className="form-wide">Saludo de WhatsApp
-            <textarea value={draft.whatsapp_greeting} maxLength={500} rows={2} disabled={saving} onChange={(event) => setField("whatsapp_greeting", event.target.value)} required />
-          </label>
-          <label className="form-wide">Título de la portada
-            <input value={draft.home_title} maxLength={140} disabled={saving} onChange={(event) => setField("home_title", event.target.value)} required />
-          </label>
-          <label className="form-wide">Mensaje de la portada
-            <textarea value={draft.home_message} maxLength={500} rows={3} disabled={saving} onChange={(event) => setField("home_message", event.target.value)} required />
-          </label>
-          <label className="form-wide">Mensaje al final del recibo
-            <textarea value={draft.receipt_footer_message} maxLength={240} rows={2} disabled={saving} onChange={(event) => setField("receipt_footer_message", event.target.value)} required />
-          </label>
-        </div>
+            {(draft.logo_url || logoFile) && (
+              <AdminButton tone="danger" variant="ghost" compact type="button" disabled={saving} onClick={() => {
+                setLogoFile(null);
+                setRemoveLogo(true);
+              }}>
+                Quitar logo
+              </AdminButton>
+            )}
+          </section>
+
+          <div className="form-grid">
+            <label className="form-wide">Nombre de la tienda
+              <input value={draft.store_name} maxLength={80} disabled={saving} onChange={(event) => setField("store_name", event.target.value)} required />
+            </label>
+          </div>
+        </fieldset>
+
+        {/* Contacto */}
+        <fieldset className="settings-group">
+          <legend>Contacto</legend>
+          <p>El número y el correo que ven los clientes para pedir.</p>
+          <div className="form-grid">
+            <label>Número de WhatsApp
+              <input
+                type="tel"
+                value={draft.whatsapp_number}
+                maxLength={20}
+                placeholder="573001234567"
+                disabled={saving}
+                onChange={(event) => setField("whatsapp_number", event.target.value)}
+                required
+              />
+              <small>Incluye indicativo de país, sin el signo +.</small>
+            </label>
+            <label>Correo de contacto
+              <input type="email" value={draft.contact_email} maxLength={254} disabled={saving} onChange={(event) => setField("contact_email", event.target.value)} />
+            </label>
+          </div>
+        </fieldset>
+
+        {/* Textos de la tienda */}
+        <fieldset className="settings-group">
+          <legend>Textos visibles</legend>
+          <p>Lo que aparece en la portada y en el saludo automático de WhatsApp.</p>
+          <div className="form-grid">
+            <label className="form-wide">Saludo de WhatsApp
+              <textarea value={draft.whatsapp_greeting} maxLength={500} rows={2} disabled={saving} onChange={(event) => setField("whatsapp_greeting", event.target.value)} required />
+            </label>
+            <label className="form-wide">Título de la portada
+              <input value={draft.home_title} maxLength={140} disabled={saving} onChange={(event) => setField("home_title", event.target.value)} required />
+            </label>
+            <label className="form-wide">Mensaje de la portada
+              <textarea value={draft.home_message} maxLength={500} rows={3} disabled={saving} onChange={(event) => setField("home_message", event.target.value)} required />
+            </label>
+          </div>
+        </fieldset>
+
+        {/* Recibo */}
+        <fieldset className="settings-group">
+          <legend>Recibo</legend>
+          <p>El pie de página que se envía al cliente por WhatsApp.</p>
+          <div className="form-grid">
+            <label className="form-wide">Mensaje al final del recibo
+              <textarea value={draft.receipt_footer_message} maxLength={240} rows={2} disabled={saving} onChange={(event) => setField("receipt_footer_message", event.target.value)} required />
+            </label>
+          </div>
+        </fieldset>
+
         {error && <p className="form-error" role="alert">{error}</p>}
         {feedback && <p className="import-feedback" role="status">{feedback}</p>}
-        <AdminButton type="submit" disabled={saving}>
-          <Save size={16} /> {saving ? "Guardando..." : "Guardar configuración"}
-        </AdminButton>
+        <div className="settings-actions">
+          <AdminButton type="submit" disabled={saving}>
+            <Save size={16} /> {saving ? "Guardando..." : "Guardar configuración"}
+          </AdminButton>
+        </div>
       </form>
     </section>
   );
