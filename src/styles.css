@@ -454,6 +454,12 @@ footer a { color: #111; }
    pegadas al borde de la tarjeta. */
 .table-row { min-width: 850px; display: grid; grid-template-columns: 2fr 1fr 1.2fr .7fr 1fr .4fr; gap: 14px; align-items: center; padding: 14px 16px; border-top: 1px solid #eee; font-size: 12px; }
 
+/* Cada fila es una rejilla independiente, así que las fr se calculan por
+   separado en cada una. Sin min-width: 0 (el default `auto`), un texto
+   largo ensancha su propia columna y desalinea esa fila respecto a la
+   cabecera. Con 0, todas las filas reparten el ancho igual. */
+.admin-table > .table-row > * { min-width: 0; overflow-wrap: break-word; }
+
 /* La cabecera se pega arriba y conserva el fondo blanco para que las
    filas no se transparenten al deslizar. */
 .table-row.header {

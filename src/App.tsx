@@ -2564,7 +2564,7 @@ function Admin({
           )}
 
           <div className="admin-table">
-            <div className="table-row header">
+            <div className="table-row product-row header">
               <span>Producto</span><span>Categoría</span><span>Presentación y costo unitario</span><span>Stock</span><span>Estado</span><span>Acciones</span>
             </div>
             {visibleProducts.map((product) => {
