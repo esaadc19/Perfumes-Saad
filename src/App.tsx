@@ -2593,7 +2593,7 @@ function Admin({
 
           <div className="admin-table">
             <div className="table-row product-row header">
-              <span>Producto</span><span>Categoría</span><span>Presentación y costo unitario</span><span>Stock</span><span>Estado</span><span>Acciones</span>
+              <span>Producto</span><span>Categoría</span><span>Presentación y costo unitario</span><span className="cell-center">Stock</span><span className="cell-center">Estado</span><span>Acciones</span>
             </div>
             {visibleProducts.map((product) => {
               const stock = product.variants.reduce((s, v) => s + v.stock, 0);
@@ -2783,7 +2783,7 @@ function Admin({
               />
             ) : (
               <div className="admin-table promotion-table">
-                <div className="table-row header"><span>Promoción</span><span>Paquete</span><span>Combinación</span><span>Estado</span><span>Acciones</span></div>
+                <div className="table-row header"><span>Promoción</span><span>Paquete</span><span>Combinación</span><span className="cell-center">Estado</span><span>Acciones</span></div>
                 {promotions.map((promotion) => (
                   <div className="table-row" key={promotion.id}>
                     <strong>{promotion.name}</strong>
