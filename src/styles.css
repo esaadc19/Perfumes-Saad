@@ -389,7 +389,10 @@ footer a { color: #111; }
 }
 .metric-icon.warning { background: #f7e9e1; color: #a05b3e; }
 .metric span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
-.metric strong { font-size: clamp(17px, 2vw, 26px); line-height: 1.2; overflow-wrap: anywhere; font-weight: 600; }
+/* `normal` y no `anywhere`: este ultimo permite partir "1.510.000" por
+   cualquier caracter y lo deja como "1.510.00" + "0" al final de la
+   linea. Un monto nunca debe partirse por la mitad. */
+.metric strong { font-size: clamp(17px, 2vw, 26px); line-height: 1.2; overflow-wrap: normal; font-weight: 600; }
 .dashboard-chart-card { overflow: hidden; }
 /* Jerarquía del dashboard: el selector de periodo usa el verde de marca
    como el resto del admin, en vez de un gris genérico. */
@@ -656,7 +659,7 @@ footer a { color: #111; }
 
 /* --- Grupos del dashboard --- */
 .metric-groups {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: 16px; margin-bottom: 24px;
 }
 .metric-group {
@@ -676,11 +679,14 @@ footer a { color: #111; }
 .metric-group-head p { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
 /* Dentro de un grupo las tarjetas son mas compactas: ya hay un titulo
    que las enmarca y no necesitan el aire de la version suelta. */
+/* Dos columnas fijas: predecibles y siempre en pares legibles. Un
+   `auto-fit` con minmax bajo estiraba las tarjetas de más en pantallas
+   anchas y dejaba una huérfana en la última fila. */
 .metric-group .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 0; }
-.metric-group .metric { grid-template-columns: 30px 1fr; padding: 13px 14px; border-radius: 10px; }
-.metric-group .metric-icon { width: 30px; height: 30px; border-radius: 8px; }
-.metric-group .metric strong { font-size: 19px; }
-.metric-group .metric span { font-size: 10px; }
+.metric-group .metric { grid-template-columns: 28px 1fr; gap: 10px; padding: 13px; border-radius: 10px; }
+.metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; }
+.metric-group .metric strong { font-size: 17px; white-space: nowrap; }
+.metric-group .metric span { font-size: 10px; line-height: 1.35; }
 .alert-list { display: grid; }
 .alert-link { display: flex; justify-content: space-between; gap: 14px; align-items: center; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--black); text-align: left; }
 .alert-link:hover span { text-decoration: underline; }
