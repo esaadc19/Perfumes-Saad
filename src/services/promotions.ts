@@ -53,6 +53,18 @@ export async function savePromotion(input: PromotionInput, id?: string): Promise
   }
 }
 
+export async function togglePromotionActive(id: string, active: boolean): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client
+    .from("promotions")
+    .update({ active, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) {
+    console.error("No se pudo cambiar el estado de la promoción:", error);
+    throw error;
+  }
+}
+
 export async function deletePromotion(id: string): Promise<void> {
   const client = requireSupabase();
   const { error } = await client.from("promotions").delete().eq("id", id);

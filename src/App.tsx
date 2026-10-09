@@ -20,6 +20,7 @@ import {
   deletePromotion,
   getPromotions,
   savePromotion,
+  togglePromotionActive,
   type Promotion,
   type PromotionInput,
 } from "./services/promotions";
@@ -1826,6 +1827,33 @@ function Admin({
     }
   };
 
+  const togglePromotion = async (promotion: Promotion) => {
+    const nextActive = !promotion.active;
+    setSectionError(null);
+    setPromotionFeedback(null);
+    try {
+      await togglePromotionActive(promotion.id, nextActive);
+      onPromotionsChange(await getPromotions(true));
+      setPromotionFeedback(
+        nextActive
+          ? `«${promotion.name}» volvió a estar activa.`
+          : `«${promotion.name}» quedó pausada y ya no aparece en la tienda.`
+      );
+      notifySuccess(
+        nextActive
+          ? `La promoción «${promotion.name}» se activó.`
+          : `La promoción «${promotion.name}» se pausó.`
+      );
+    } catch (toggleError) {
+      console.error("No se pudo cambiar el estado de la promoción:", toggleError);
+      setSectionError(
+        toggleError instanceof Error
+          ? toggleError.message
+          : "No se pudo cambiar el estado de la promoción."
+      );
+    }
+  };
+
   const removePromotion = async (promotion: Promotion) => {
     if (!window.confirm(`¿Eliminar la promoción «${promotion.name}»? Los productos asociados quedarán sin promoción.`)) return;
     setSectionError(null);
@@ -2761,7 +2789,15 @@ function Admin({
                     <strong>{promotion.name}</strong>
                     <span>{promotion.required_quantity} por {money(promotion.bundle_price)}</span>
                     <span>{promotion.allow_mixed ? "Productos asociados combinables" : "Mismo perfume"}</span>
-                    <span className={promotion.active ? "status-pill status-paid" : "status-pill"}>{promotion.active ? "Activa" : "Inactiva"}</span>
+                    <button
+                      type="button"
+                      className={`status-pill ${promotion.active ? "status-paid" : ""} status-toggle`}
+                      aria-pressed={promotion.active}
+                      title={promotion.active ? "Activa · pausar" : "Pausada · activar"}
+                      onClick={() => void togglePromotion(promotion)}
+                    >
+                      {promotion.active ? "Activa" : "Inactiva"}
+                    </button>
                     <div className="product-actions">
                       <AdminButton tone="secondary" compact onClick={() => setPromotionEditor(promotion)}><Pencil size={15}/> Editar</AdminButton>
                       <AdminButton tone="danger" variant="outline" compact onClick={() => void removePromotion(promotion)}><Trash2 size={15}/> Eliminar</AdminButton>

@@ -738,6 +738,25 @@ footer a { color: #111; }
 .status-badge.pending { background: var(--marfil); color: var(--cuero); }
 .status-badge.overdue { background: var(--danger-soft); color: var(--danger); }
 
+/* Estado de Promociones. Sin estilo, "Activa" se leía como texto normal y
+   la columna parecía no existir. */
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  white-space: nowrap; justify-self: center;
+  background: var(--marfil); color: var(--cuero);
+}
+.status-pill.status-paid { background: #edf6ee; color: #3d7444; }
+
+/* El estado de la promoción es pulsable: activa o pausa la oferta. */
+.status-toggle {
+  border: 0; cursor: pointer; font: inherit;
+  transition: background-color .15s ease, box-shadow .15s ease, transform .12s ease;
+}
+.status-toggle:hover { box-shadow: 0 0 0 3px rgba(26, 46, 34, .10); }
+.status-toggle:active { transform: scale(.96); }
+.status-toggle:focus-visible { outline: 2px solid var(--verde); outline-offset: 2px; }
+
 .credit-modal-info { margin: 0 0 6px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .credit-modal-info strong { color: var(--black); }
 
