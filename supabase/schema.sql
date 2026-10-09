@@ -1,5 +1,5 @@
 -- Perfumes SAAD: esquema inicial para Supabase.
--- Ejecutar en Supabase SQL Editor antes de configurar la aplicación.
+-- Ejecutar en Supabase SQL Editor antes de configurar la aplicaciÃ³n.
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -470,7 +470,7 @@ end;
 $$;
 
 -- ============================================
--- CRÉDITO / FIADO: RPCs
+-- CRÃ‰DITO / FIADO: RPCs
 -- ============================================
 
 create or replace function public.admin_update_order_transaction(
@@ -538,8 +538,8 @@ begin
     end if;
   end if;
 
-  -- Descuenta stock cuando la venta se completa (pagada O despachada a crédito)
-  -- Se ejecuta solo la primera vez que pasa de no-pagado a pagado/crédito
+  -- Descuenta stock cuando la venta se completa (pagada O despachada a crÃ©dito)
+  -- Se ejecuta solo la primera vez que pasa de no-pagado a pagado/crÃ©dito
   if (new_payment_status in ('paid', 'credit', 'partial'))
      and order_record.payment_status not in ('paid', 'credit', 'partial') then
     for order_item in
@@ -583,7 +583,7 @@ begin
     end loop;
   end if;
 
-  -- Calcular fecha de compromiso si es crédito nuevo y no se proporcionó
+  -- Calcular fecha de compromiso si es crÃ©dito nuevo y no se proporcionÃ³
   if new_payment_status = 'credit' and order_record.payment_status <> 'credit' then
     if credit_due_date_val is null then
       select c.credit_terms
@@ -986,8 +986,8 @@ declare
   promotion_discounts jsonb;
   saved_order_id uuid;
   saved_customer_id uuid;
-  -- Copia local del parámetro: dentro de un UPDATE, "sales_advisor_id = sales_advisor_id"
-  -- leería la columna existente (no-op), así que se referencia esta variable.
+  -- Copia local del parÃ¡metro: dentro de un UPDATE, "sales_advisor_id = sales_advisor_id"
+  -- leerÃ­a la columna existente (no-op), asÃ­ que se referencia esta variable.
   saved_sales_advisor_id uuid;
   next_status text := new_status;
 begin
@@ -1044,7 +1044,7 @@ begin
     raise exception 'Invalid order status';
   end if;
 
-  -- Si es crédito/parcial, el estado debe ser al menos confirmado
+  -- Si es crÃ©dito/parcial, el estado debe ser al menos confirmado
   if new_payment_status in ('credit', 'partial') and new_status = 'pending_confirmation' then
     next_status := 'confirmed';
   else
@@ -1164,7 +1164,7 @@ begin
     );
   end loop;
 
-  -- Descontar stock si el pedido se completa (pagado, crédito o parcial)
+  -- Descontar stock si el pedido se completa (pagado, crÃ©dito o parcial)
   -- Solo para pedidos NUEVOS (no ediciones)
   if target_order_id is null
      and next_status in ('confirmed', 'shipped', 'delivered')
@@ -1771,7 +1771,7 @@ begin
       line_discount
     );
     message_lines := message_lines || format(
-      E'\n• %s %s — %s ml x%s — $%s%s',
+      E'\nâ€¢ %s %s â€” %s ml x%s â€” $%s%s',
       variant_record.brand,
       variant_record.name,
       variant_record.size_ml,
@@ -1788,7 +1788,7 @@ begin
   where id = order_id;
 
   order_message := format(
-    E'Hola Perfumes SAAD 👋\n\nQuiero confirmar este pedido:\nRecibo: %s\nCliente: %s\nWhatsApp: %s\nCorreo: %s\nDirección: %s\n%s\n\nAhorro por promociones: $%s\nTotal: $%s\n\nQuedo atento(a) para confirmar disponibilidad, domicilio y medio de pago.',
+    E'Hola Perfumes SAAD ðŸ‘‹\n\nQuiero confirmar este pedido:\nRecibo: %s\nCliente: %s\nWhatsApp: %s\nCorreo: %s\nDirecciÃ³n: %s\n%s\n\nAhorro por promociones: $%s\nTotal: $%s\n\nQuedo atento(a) para confirmar disponibilidad, domicilio y medio de pago.',
     upper(left(order_id::text, 8)),
     customer_name,
     customer_phone,
@@ -1829,76 +1829,213 @@ set search_path = ''
 as $$
 declare
   result jsonb;
+  v_today date := (now() at time zone 'America/Bogota')::date;
+  v_from date;
+  v_prev_to date;
+  v_prev_from date;
+  v_scoped boolean := period_days is not null and period_days > 0;
+
+  -- --- Periodo actual (cobrado) ---
+  c_revenue numeric;
+  c_cost numeric;
+  c_delivery numeric;
+  c_gross numeric;
+  c_expenses numeric;
+  c_profit numeric;
+
+  -- --- Periodo anterior (cobrado), para deltas ---
+  p_revenue numeric;
+  p_cost numeric;
+  p_delivery numeric;
+  p_gross numeric;
+  p_expenses numeric;
+  p_profit numeric;
+
+  -- --- Credito: pipeline no cobrado ---
+  cr_count integer;
+  cr_revenue numeric;
+  cr_cost numeric;
+  cr_delivery numeric;
+  cr_gross numeric;
+  cr_outstanding numeric;
+  cr_overdue numeric;
+  cr_overdue_clients integer;
+  cr_committed numeric;
 begin
   if not public.is_admin() then
     raise exception 'Administrator access required' using errcode = '42501';
   end if;
 
+  if v_scoped then
+    v_from := v_today - (period_days - 1);
+    v_prev_to := v_from - 1;
+    v_prev_from := v_from - period_days;
+  end if;
+
+  -- ==========================================================
+  -- Utilidad realizada: solo ventas cobradas (paid), por paid_at
+  -- ==========================================================
+  select
+    coalesce(sum(o.total), 0),
+    coalesce((
+      select sum(oi.unit_cost_snapshot * oi.quantity)
+      from public.order_items oi
+      where oi.unit_cost_snapshot is not null
+        and oi.order_id in (
+          select o2.id from public.orders o2
+          where o2.payment_status = 'paid'
+            and (not v_scoped or (
+              (o2.paid_at at time zone 'America/Bogota')::date between v_from and v_today
+            ))
+        )
+    ), 0),
+    coalesce(sum(o.delivery_cost), 0)
+  into c_revenue, c_cost, c_delivery
+  from public.orders o
+  where o.payment_status = 'paid'
+    and (not v_scoped or (
+      (o.paid_at at time zone 'America/Bogota')::date between v_from and v_today
+    ));
+
+  -- Margen bruto = ingresos - costo de productos, antes de gastos.
+  c_gross := c_revenue - c_cost;
+
+  select coalesce(sum(e.amount), 0)
+  into c_expenses
+  from public.expenses e
+  where (not v_scoped) or (e.expense_date between v_from and v_today);
+
+  c_profit := c_gross - c_delivery - c_expenses;
+
+  -- ==========================================================
+  -- Periodo anterior, misma logica, para calcular deltas
+  -- ==========================================================
+  if v_scoped then
+    select
+      coalesce(sum(o.total), 0),
+      coalesce((
+        select sum(oi.unit_cost_snapshot * oi.quantity)
+        from public.order_items oi
+        where oi.unit_cost_snapshot is not null
+          and oi.order_id in (
+            select o2.id from public.orders o2
+            where o2.payment_status = 'paid'
+              and (o2.paid_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to
+          )
+      ), 0),
+      coalesce(sum(o.delivery_cost), 0)
+    into p_revenue, p_cost, p_delivery
+    from public.orders o
+    where o.payment_status = 'paid'
+      and (o.paid_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to;
+
+    p_gross := p_revenue - p_cost;
+
+    select coalesce(sum(e.amount), 0)
+    into p_expenses
+    from public.expenses e
+    where e.expense_date between v_prev_from and v_prev_to;
+
+    p_profit := p_gross - p_delivery - p_expenses;
+  else
+    p_revenue := 0; p_cost := 0; p_delivery := 0;
+    p_gross := 0; p_expenses := 0; p_profit := 0;
+  end if;
+
+  -- ==========================================================
+  -- Credito: lo vendido a fiado y lo que sigue sin cobrar
+  -- ==========================================================
+  select count(*), coalesce(sum(o.total), 0), coalesce(sum(o.delivery_cost), 0)
+  into cr_count, cr_revenue, cr_delivery
+  from public.orders o
+  where o.payment_status in ('credit', 'partial')
+    and (not v_scoped or (
+      (o.created_at at time zone 'America/Bogota')::date between v_from and v_today
+    ));
+
+  select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
+  into cr_cost
+  from public.order_items oi
+  join public.orders o on o.id = oi.order_id
+  where o.payment_status in ('credit', 'partial')
+    and oi.unit_cost_snapshot is not null
+    and (not v_scoped or (
+      (o.created_at at time zone 'America/Bogota')::date between v_from and v_today
+    ));
+
+  -- Utilidad que NO es tuya todavia: sigue parada en cartera.
+  cr_gross := cr_revenue - cr_cost - cr_delivery;
+
+  -- Instantaneas: no se acotan por periodo.
+  select coalesce(sum(o.credit_amount), 0)
+  into cr_outstanding
+  from public.orders o
+  where o.payment_status in ('credit', 'partial');
+
+  select
+    coalesce(sum(o.credit_amount), 0),
+    count(distinct o.customer_id)
+  into cr_overdue, cr_overdue_clients
+  from public.orders o
+  where o.payment_status in ('credit', 'partial')
+    and o.credit_due_date < v_today;
+
+  -- Compromisos firmados que aun no se han pagado: informa, no resta.
+  select coalesce(sum(re.amount), 0)
+  into cr_committed
+  from public.recurring_expenses re
+  where re.active;
+
   select jsonb_build_object(
+    'period_days', period_days,
+    'period_from', v_from,
+    'period_to', v_today,
+
+    -- Realizado (cobrado)
     'total_orders', (select count(*) from public.orders),
     'pending_orders', (
       select count(*) from public.orders
       where payment_status = 'pending' and status = 'confirmed'
     ),
-    'completed_sales', (select count(*) from public.orders where payment_status = 'paid'),
-    'sales_revenue', coalesce((
-      select sum(total) from public.orders where payment_status in ('paid', 'credit', 'partial')
-    ), 0),
-    'sales_cost', coalesce((
-      select sum(oi.unit_cost_snapshot * oi.quantity)
-      from public.orders o
-      join public.order_items oi on oi.order_id = o.id
-      where o.payment_status in ('paid', 'credit', 'partial') and oi.unit_cost_snapshot is not null
-    ), 0),
-    'sales_delivery_cost', coalesce((
-      select sum(delivery_cost) from public.orders where payment_status in ('paid', 'credit', 'partial')
-    ), 0),
-    'sales_profit', coalesce((
-      select sum(oi.subtotal - oi.unit_cost_snapshot * oi.quantity)
-      from public.orders o
-      join public.order_items oi on oi.order_id = o.id
-      where o.payment_status in ('paid', 'credit', 'partial') and oi.unit_cost_snapshot is not null
-    ), 0) - coalesce((
-      select sum(delivery_cost) from public.orders where payment_status in ('paid', 'credit', 'partial')
-    ), 0),
-    -- Credit metrics
-    'credit_sales', (select count(*) from public.orders where payment_status in ('credit', 'partial')),
-    'credit_revenue', coalesce((
-      select sum(total) from public.orders where payment_status in ('credit', 'partial')
-    ), 0),
-    'credit_cost', coalesce((
-      select sum(oi.unit_cost_snapshot * oi.quantity)
-      from public.orders o
-      join public.order_items oi on oi.order_id = o.id
-      where o.payment_status in ('credit', 'partial') and oi.unit_cost_snapshot is not null
-    ), 0),
-    'credit_profit', coalesce((
-      select sum(oi.subtotal - oi.unit_cost_snapshot * oi.quantity)
-      from public.orders o
-      join public.order_items oi on oi.order_id = o.id
-      where o.payment_status in ('credit', 'partial') and oi.unit_cost_snapshot is not null
-    ), 0) - coalesce((
-      select sum(delivery_cost) from public.orders where payment_status in ('credit', 'partial')
-    ), 0),
-    'credit_outstanding_balance', coalesce((
-      select sum(credit_amount) from public.orders where payment_status in ('credit', 'partial')
-    ), 0),
-    'credit_overdue_balance', coalesce((
-      select sum(credit_amount) from public.orders
-      where payment_status in ('credit', 'partial')
-        and credit_due_date < current_date
-    ), 0),
-    'credit_customers_with_overdue', (
-      select count(distinct o.customer_id) from public.orders o
-      where o.payment_status in ('credit', 'partial')
-        and o.credit_due_date < current_date
+    'completed_sales', (
+      select count(*) from public.orders o
+      where o.payment_status = 'paid'
+        and (not v_scoped or (
+          (o.paid_at at time zone 'America/Bogota')::date between v_from and v_today
+        ))
     ),
-    'missing_cost_items', coalesce((
-      select sum(oi.quantity)
-      from public.orders o
-      join public.order_items oi on oi.order_id = o.id
-      where o.payment_status = 'paid' and oi.unit_cost_snapshot is null
-    ), 0),
+    'sales_revenue', c_revenue,
+    'sales_cost', c_cost,
+    'sales_delivery_cost', c_delivery,
+    'sales_gross_profit', c_gross,
+    'total_expenses', c_expenses,
+    'committed_expenses', cr_committed,
+    'sales_profit', c_profit,
+    'net_margin_percent', case
+      when c_revenue > 0 then round((c_profit / c_revenue) * 100, 1)
+      else 0
+    end,
+
+    -- Credito (pipeline)
+    'credit_sales', cr_count,
+    'credit_revenue', cr_revenue,
+    'locked_credit_profit', cr_gross,
+    'credit_outstanding_balance', cr_outstanding,
+    'credit_overdue_balance', cr_overdue,
+    'credit_customers_with_overdue', cr_overdue_clients,
+
+    -- Deltas contra el periodo anterior
+    'previous', jsonb_build_object(
+      'sales_revenue', p_revenue,
+      'sales_profit', p_profit,
+      'net_margin_percent', case
+        when p_revenue > 0 then round((p_profit / p_revenue) * 100, 1)
+        else 0
+      end,
+      'credit_revenue', 0
+    ),
+
+    -- Inventario y clientes (instantaneos)
     'customer_count', (select count(*) from public.customers),
     'low_stock_variants', (
       select count(*)
@@ -1906,6 +2043,16 @@ begin
       join public.products p on p.id = pv.product_id
       where pv.active = true and p.active = true and pv.stock <= pv.min_stock
     ),
+    'missing_cost_items', coalesce((
+      select sum(oi.quantity)
+      from public.orders o
+      join public.order_items oi on oi.order_id = o.id
+      where o.payment_status = 'paid'
+        and oi.unit_cost_snapshot is null
+        and (not v_scoped or (
+          (o.paid_at at time zone 'America/Bogota')::date between v_from and v_today
+        ))
+    ), 0),
     'top_products', coalesce((
       select jsonb_agg(ranked_products.product order by ranked_products.units desc)
       from (
@@ -2035,7 +2182,7 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_dashboard_metrics() from public, anon;
+revoke all on function public.admin_dashboard_metrics(integer) from public, anon;
 revoke all on function public.admin_update_customer(uuid, jsonb) from public, anon;
 revoke all on function public.admin_set_profile_role(uuid, text) from public, anon;
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
@@ -2048,7 +2195,7 @@ revoke all on function public.admin_record_credit_payment(uuid, numeric, text, t
 revoke all on function public.admin_check_credit_limit(uuid, numeric) from public, anon;
 revoke all on function public.admin_set_credit_block(uuid, boolean) from public, anon;
 revoke all on function public.admin_set_credit_terms(uuid, text) from public, anon;
-grant execute on function public.admin_dashboard_metrics() to authenticated;
+grant execute on function public.admin_dashboard_metrics(integer) to authenticated;
 grant execute on function public.admin_update_customer(uuid, jsonb) to authenticated;
 grant execute on function public.admin_set_profile_role(uuid, text) to authenticated;
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
@@ -2279,7 +2426,7 @@ create table if not exists public.store_settings (
   contact_email text,
   whatsapp_greeting text not null default 'Hola, quiero hacer una consulta sobre sus perfumes.',
   home_title text not null default 'Encuentra una fragancia que vaya contigo.',
-  home_message text not null default 'Catálogo de perfumería con recomendaciones, diferentes presentaciones y atención personalizada por WhatsApp.',
+  home_message text not null default 'CatÃ¡logo de perfumerÃ­a con recomendaciones, diferentes presentaciones y atenciÃ³n personalizada por WhatsApp.',
   receipt_footer_message text not null default 'Gracias por elegir Perfumes SAAD',
   updated_at timestamptz not null default now()
 );
@@ -2333,7 +2480,7 @@ create policy "Admins can manage expenses"
   with check ((select public.is_admin()));
 
 -- ============================================
--- FUNCIÓN DE REPORTE SEMANAL
+-- FUNCIÃ“N DE REPORTE SEMANAL
 -- ============================================
 create or replace function public.weekly_sales_report()
 returns jsonb
@@ -2629,7 +2776,7 @@ revoke all on function public.daily_sales_report(date) from public, anon, authen
 grant execute on function public.daily_sales_report(date) to service_role;
 
 -- ============================================
--- FUNCIÓN DE SEGUIMIENTO DE PEDIDOS (PÚBLICO)
+-- FUNCIÃ“N DE SEGUIMIENTO DE PEDIDOS (PÃšBLICO)
 -- ============================================
 create or replace function public.get_order_tracking(
   order_code text,
@@ -2647,10 +2794,10 @@ declare
   result jsonb;
 begin
   if order_code is null or nullif(btrim(order_code), '') is null then
-    raise exception 'Ingresa el número de pedido';
+    raise exception 'Ingresa el nÃºmero de pedido';
   end if;
   if customer_phone is null or nullif(btrim(customer_phone), '') is null then
-    raise exception 'Ingresa el número de teléfono';
+    raise exception 'Ingresa el nÃºmero de telÃ©fono';
   end if;
 
   select * into order_record
