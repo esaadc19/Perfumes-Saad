@@ -684,8 +684,15 @@ footer a { color: #111; }
    que dejaba el hueco vacío al pie de Cartera. */
 .metric-groups {
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start; gap: 16px; margin-bottom: 16px;
+  gap: 16px; margin-bottom: 16px;
 }
+/* Sin align-items: start las tres cajas de arriba miden lo mismo. Antes
+   Cartera (5 tarjetas) quedaba 488px contra los 327px de Inventario y
+   Clientes (3 cada una), y se leia como tres bloques de distinto tamano.
+
+   El sobrante NO se reparte entre las tarjetas: eso las inflaba a 179px
+   con un hueco vacio bajo el numero. Prefiero que las tarjetas midan lo
+   que necesitan y que el aire quede al pie del grupo. */
 /* Ventas va sola debajo, a todo el ancho: su desglose tiene mas numeros
    y la utilidad neta necesita respirar. Ademas es la lectura final:
    primero Cartera/Inventario/Clientes, luego el resultado. */
@@ -739,6 +746,11 @@ footer a { color: #111; }
 /* La nota se pega al fondo de la caja para que, al igualarse las alturas,
    el vacio quede abajo y no entre el monto y la nota. */
 .metric-group .metric-note { align-self: end; }
+/* Inventario y Clientes tienen 3 tarjetas donde Cartera tiene 5. Para que
+   la fila de abajo no quede pegada a la mitad de la caja, el aire sobrante
+   se deja como margenes entre filas, no dentro de las tarjetas. */
+.metric-group .metrics { align-content: stretch; row-gap: 10px; }
+.metric-group:not(.metric-group--wide) .metrics { grid-auto-rows: max-content; }
 .metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; align-self: center; }
 .metric-group .metric strong { font-size: 17px; white-space: nowrap; }
 .metric-group .metric span { font-size: 10px; line-height: 1.35; }
