@@ -1835,28 +1835,30 @@ declare
   v_prev_from date;
   v_scoped boolean := period_days is not null and period_days > 0;
 
-  -- --- Periodo actual (cobrado) ---
+  -- Utilidad realizada (ventas cobradas)
   c_revenue numeric;
   c_cost numeric;
   c_delivery numeric;
-  c_gross numeric;
-  c_expenses numeric;
   c_profit numeric;
+  c_expenses numeric;
 
-  -- --- Periodo anterior (cobrado), para deltas ---
+  -- Periodo anterior, para deltas
   p_revenue numeric;
   p_cost numeric;
   p_delivery numeric;
-  p_gross numeric;
-  p_expenses numeric;
   p_profit numeric;
+  p_credit_pending numeric;
+  p_expenses numeric;
 
-  -- --- Credito: pipeline no cobrado ---
+  -- Credito pendiente de cobro
   cr_count integer;
   cr_revenue numeric;
   cr_cost numeric;
   cr_delivery numeric;
   cr_gross numeric;
+  -- Costo yapagado de las ventas a credito que siguen sin cobrar.
+  -- Es lo que se resta de la utilidad.
+  cr_cost_pending numeric;
   cr_outstanding numeric;
   cr_overdue numeric;
   cr_overdue_clients integer;
@@ -1877,73 +1879,33 @@ begin
   -- ==========================================================
   select
     coalesce(sum(o.total), 0),
-    coalesce((
-      select sum(oi.unit_cost_snapshot * oi.quantity)
-      from public.order_items oi
-      where oi.unit_cost_snapshot is not null
-        and oi.order_id in (
-          select o2.id from public.orders o2
-          where o2.payment_status = 'paid'
-            and (not v_scoped or (
-              (o2.paid_at at time zone 'America/Bogota')::date between v_from and v_today
-            ))
-        )
-    ), 0),
     coalesce(sum(o.delivery_cost), 0)
-  into c_revenue, c_cost, c_delivery
+  into c_revenue, c_delivery
   from public.orders o
   where o.payment_status = 'paid'
     and (not v_scoped or (
       (o.paid_at at time zone 'America/Bogota')::date between v_from and v_today
     ));
 
-  -- Margen bruto = ingresos - costo de productos, antes de gastos.
-  c_gross := c_revenue - c_cost;
+  select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
+  into c_cost
+  from public.order_items oi
+  where oi.unit_cost_snapshot is not null
+    and oi.order_id in (
+      select o.id from public.orders o
+      where o.payment_status = 'paid'
+        and (not v_scoped or (
+          (o.paid_at at time zone 'America/Bogota')::date between v_from and v_today
+        ))
+    );
 
   select coalesce(sum(e.amount), 0)
   into c_expenses
   from public.expenses e
   where (not v_scoped) or (e.expense_date between v_from and v_today);
 
-  c_profit := c_gross - c_delivery - c_expenses;
-
   -- ==========================================================
-  -- Periodo anterior, misma logica, para calcular deltas
-  -- ==========================================================
-  if v_scoped then
-    select
-      coalesce(sum(o.total), 0),
-      coalesce((
-        select sum(oi.unit_cost_snapshot * oi.quantity)
-        from public.order_items oi
-        where oi.unit_cost_snapshot is not null
-          and oi.order_id in (
-            select o2.id from public.orders o2
-            where o2.payment_status = 'paid'
-              and (o2.paid_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to
-          )
-      ), 0),
-      coalesce(sum(o.delivery_cost), 0)
-    into p_revenue, p_cost, p_delivery
-    from public.orders o
-    where o.payment_status = 'paid'
-      and (o.paid_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to;
-
-    p_gross := p_revenue - p_cost;
-
-    select coalesce(sum(e.amount), 0)
-    into p_expenses
-    from public.expenses e
-    where e.expense_date between v_prev_from and v_prev_to;
-
-    p_profit := p_gross - p_delivery - p_expenses;
-  else
-    p_revenue := 0; p_cost := 0; p_delivery := 0;
-    p_gross := 0; p_expenses := 0; p_profit := 0;
-  end if;
-
-  -- ==========================================================
-  -- Credito: lo vendido a fiado y lo que sigue sin cobrar
+  -- Credito sin cobrar: costo que ya salio de tu bolsillo
   -- ==========================================================
   select count(*), coalesce(sum(o.total), 0), coalesce(sum(o.delivery_cost), 0)
   into cr_count, cr_revenue, cr_delivery
@@ -1963,8 +1925,61 @@ begin
       (o.created_at at time zone 'America/Bogota')::date between v_from and v_today
     ));
 
-  -- Utilidad que NO es tuya todavia: sigue parada en cartera.
+  -- Margen que sigue en cartera: entra a utilidad cuando se cobre.
   cr_gross := cr_revenue - cr_cost - cr_delivery;
+
+  -- Lo que YA pagaste de esas ventas pero aun no te devolvieron.
+  -- Es lo que la utilidad tiene que absorber mientras el fiado esta vivo.
+  cr_cost_pending := cr_cost + cr_delivery;
+
+  c_profit := (c_revenue - c_cost - c_delivery) - cr_cost_pending - c_expenses;
+
+  -- ==========================================================
+  -- Periodo anterior con la misma formula, para los deltas
+  -- ==========================================================
+  if v_scoped then
+    select
+      coalesce(sum(o.total), 0),
+      coalesce(sum(o.delivery_cost), 0)
+    into p_revenue, p_delivery
+    from public.orders o
+    where o.payment_status = 'paid'
+      and (o.paid_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to;
+
+    select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
+    into p_cost
+    from public.order_items oi
+    where oi.unit_cost_snapshot is not null
+      and oi.order_id in (
+        select o.id from public.orders o
+        where o.payment_status = 'paid'
+          and (o.paid_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to
+      );
+
+    select coalesce(sum(e.amount), 0)
+    into p_expenses
+    from public.expenses e
+    where e.expense_date between v_prev_from and v_prev_to;
+
+    -- Mismo criterio para el credito pendiente en el periodo anterior.
+    select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
+      + coalesce((
+        select sum(o.delivery_cost) from public.orders o
+        where o.payment_status in ('credit', 'partial')
+          and (o.created_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to
+      ), 0)
+    into p_credit_pending
+    from public.order_items oi
+    join public.orders o on o.id = oi.order_id
+    where o.payment_status in ('credit', 'partial')
+      and oi.unit_cost_snapshot is not null
+      and (o.created_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to;
+
+    p_profit := (p_revenue - p_cost - p_delivery) - p_credit_pending - p_expenses;
+  else
+    p_revenue := 0; p_cost := 0; p_delivery := 0;
+    p_profit := 0; p_credit_pending := 0; p_expenses := 0;
+  end if;
 
   -- Instantaneas: no se acotan por periodo.
   select coalesce(sum(o.credit_amount), 0)
@@ -1972,15 +1987,12 @@ begin
   from public.orders o
   where o.payment_status in ('credit', 'partial');
 
-  select
-    coalesce(sum(o.credit_amount), 0),
-    count(distinct o.customer_id)
+  select coalesce(sum(o.credit_amount), 0), count(distinct o.customer_id)
   into cr_overdue, cr_overdue_clients
   from public.orders o
   where o.payment_status in ('credit', 'partial')
     and o.credit_due_date < v_today;
 
-  -- Compromisos firmados que aun no se han pagado: informa, no resta.
   select coalesce(sum(re.amount), 0)
   into cr_committed
   from public.recurring_expenses re
@@ -2007,9 +2019,12 @@ begin
     'sales_revenue', c_revenue,
     'sales_cost', c_cost,
     'sales_delivery_cost', c_delivery,
-    'sales_gross_profit', c_gross,
     'total_expenses', c_expenses,
     'committed_expenses', cr_committed,
+
+    -- Lo que ya pagaste de las ventas a fiado y sigue sin devolverte
+    'credit_cost_pending', cr_cost_pending,
+
     'sales_profit', c_profit,
     'net_margin_percent', case
       when c_revenue > 0 then round((c_profit / c_revenue) * 100, 1)
@@ -2032,7 +2047,7 @@ begin
         when p_revenue > 0 then round((p_profit / p_revenue) * 100, 1)
         else 0
       end,
-      'credit_revenue', 0
+      'credit_cost_pending', p_credit_pending
     ),
 
     -- Inventario y clientes (instantaneos)
