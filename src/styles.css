@@ -718,6 +718,10 @@ footer a { color: #111; }
    `auto-fit` con minmax bajo estiraba las tarjetas de mas en pantallas
    anchas y dejaba una huerfana en la ultima fila. */
 .metric-group .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 0; }
+/* grid-auto-rows: 1fr iguala la altura de TODAS las filas del grupo a la mas
+   alta. Sin esto cada fila crece segun si sus tarjetas traen nota o delta y
+   el grupo acaba con cajas de 72px al lado de otras de 116px. */
+.metric-group .metrics { grid-auto-rows: 1fr; }
 /* El grupo ancho reparte en 4 para aprovechar el espacio horizontal. */
 .metric-group--wide .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 1280px) {
@@ -732,6 +736,9 @@ footer a { color: #111; }
    una tarjeta de 2 filas reparte el espacio vacio de otra manera que una
    de 3 y los numeros quedan a distinta altura dentro de la misma fila. */
 .metric-group .metric { align-items: start; align-content: start; }
+/* La nota se pega al fondo de la caja para que, al igualarse las alturas,
+   el vacio quede abajo y no entre el monto y la nota. */
+.metric-group .metric-note { align-self: end; }
 .metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; align-self: center; }
 .metric-group .metric strong { font-size: 17px; white-space: nowrap; }
 .metric-group .metric span { font-size: 10px; line-height: 1.35; }
