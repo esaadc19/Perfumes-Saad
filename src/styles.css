@@ -727,7 +727,12 @@ footer a { color: #111; }
   .metric-group--wide .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .metric-group .metric { grid-template-columns: 28px 1fr; gap: 10px; padding: 13px; border-radius: 10px; }
-.metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; }
+/* align-items: start alinea cada celda arriba de su fila; align-content
+   start evita que las filas se estiren para llenar el sobrante. Sin esto,
+   una tarjeta de 2 filas reparte el espacio vacio de otra manera que una
+   de 3 y los numeros quedan a distinta altura dentro de la misma fila. */
+.metric-group .metric { align-items: start; align-content: start; }
+.metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; align-self: center; }
 .metric-group .metric strong { font-size: 17px; white-space: nowrap; }
 .metric-group .metric span { font-size: 10px; line-height: 1.35; }
 .alert-list { display: grid; }
