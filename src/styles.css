@@ -836,6 +836,11 @@ footer a { color: #111; }
 
 .credit-row .balance { font-weight: 600; }
 .credit-row .balance.overdue { color: var(--danger); }
+/* Historial: el fiado ya saldado se conserva pero se apaga, para que se lea
+   como "cerrado" y no como una deuda que sigue abierta. */
+.credit-row.is-settled { opacity: .62; }
+.credit-row.is-settled:hover { opacity: 1; }
+.credit-row.is-settled .balance { color: var(--muted); font-weight: 500; }
 
 .due-date { color: var(--muted); font-size: 11px; white-space: nowrap; }
 .due-date.soon { color: var(--cuero); font-weight: 600; }

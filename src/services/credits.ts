@@ -44,12 +44,7 @@ export interface CreditLimitCheck {
   credit_limit?: number;
 }
 
-export async function getCreditOrders(): Promise<CreditOrderSummary[]> {
-  if (!supabase) throw new Error("Supabase no está configurado.");
-
-  const { data: orders, error: ordersError } = await supabase
-    .from("orders")
-    .select(`
+const CREDIT_ORDER_FIELDS = `
       id,
       customer_id,
       total,
@@ -58,65 +53,98 @@ export async function getCreditOrders(): Promise<CreditOrderSummary[]> {
       payment_status,
       created_at,
       customers!inner(full_name, phone)
-    `)
+    `;
+
+export async function getCreditOrders(): Promise<CreditOrderSummary[]> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+
+  // Pedidos que siguen en cartera.
+  const { data: openOrders, error: openError } = await supabase
+    .from("orders")
+    .select(CREDIT_ORDER_FIELDS)
     .in("payment_status", ["credit", "partial"])
     .order("created_at", { ascending: false });
 
-  if (ordersError) {
-    console.error("Error cargando pedidos a crédito:", ordersError);
-    throw ordersError;
+  if (openError) {
+    console.error("Error cargando pedidos a crédito:", openError);
+    throw openError;
   }
 
-  if (!orders || orders.length === 0) return [];
-
-  const orderIds = orders.map((o) => o.id);
-
-  const { data: payments, error: paymentsError } = await supabase
+  // Historial: los que ya se pagaron. No se filtran por payment_status
+  // porque al quedar saldados pasan a 'paid' y se confundirian con una
+  // venta normal. La huella de que fueron a credito son los abonos: solo
+  // un pedido a credito tiene filas en customer_credit_payments. Asi el
+  // historico sobrevive sin necesidad de una columna was_credit.
+  const { data: allPayments, error: allPaymentsError } = await supabase
     .from("customer_credit_payments")
-    .select("*")
-    .in("order_id", orderIds)
+    .select("order_id, id, amount, paid_at, method, note, customer_id, recorded_by, created_at")
     .order("paid_at", { ascending: true });
 
-  if (paymentsError) {
-    console.error("Error cargando abonos:", paymentsError);
-    throw paymentsError;
+  if (allPaymentsError) {
+    console.error("Error cargando abonos:", allPaymentsError);
+    throw allPaymentsError;
   }
 
+  const openIds = new Set((openOrders ?? []).map((o) => o.id));
+  const historyIds = [
+    ...new Set((allPayments ?? []).map((p) => p.order_id)),
+  ].filter((id) => !openIds.has(id));
+
+  let historyOrders: typeof openOrders = [];
+  if (historyIds.length > 0) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select(CREDIT_ORDER_FIELDS)
+      .in("id", historyIds)
+      .order("created_at", { ascending: false });
+    if (error) {
+      console.error("Error cargando el historial de cartera:", error);
+      throw error;
+    }
+    historyOrders = data ?? [];
+  }
+
+  const orders = [...(openOrders ?? []), ...historyOrders];
+
   const paymentsByOrder = new Map<string, CreditPayment[]>();
-  (payments ?? []).forEach((p) => {
+  allPayments.forEach((p) => {
     const list = paymentsByOrder.get(p.order_id) ?? [];
-    list.push(p);
+    list.push(p as CreditPayment);
     paymentsByOrder.set(p.order_id, list);
   });
 
-  return orders.map((order) => {
-    const orderPayments = paymentsByOrder.get(order.id) ?? [];
-    const paidAmount = orderPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const creditAmount = Number(order.credit_amount);
-    const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
-    const overdue = order.credit_due_date
-      ? new Date(order.credit_due_date) < new Date() && creditAmount > paidAmount
-      : false;
-    const daysOverdue = overdue && order.credit_due_date
-      ? Math.floor((Date.now() - new Date(order.credit_due_date).getTime()) / (1000 * 60 * 60 * 24))
-      : 0;
+  return orders
+    .map((order) => {
+      const orderPayments = paymentsByOrder.get(order.id) ?? [];
+      const paidAmount = orderPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+      const creditAmount = Number(order.credit_amount);
+      const isPaid = order.payment_status === "paid";
+      const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
+      // Solo es vencido si ademas debe algo: un fiado ya saldado no mora.
+      const overdue = !isPaid && Boolean(order.credit_due_date)
+        ? new Date(order.credit_due_date) < new Date() && creditAmount > 0
+        : false;
+      const daysOverdue = overdue && order.credit_due_date
+        ? Math.floor((Date.now() - new Date(order.credit_due_date).getTime()) / (1000 * 60 * 60 * 24))
+        : 0;
 
-    return {
-      order_id: order.id,
-      order_code: order.id.slice(0, 8).toUpperCase(),
-      customer_name: customer?.full_name ?? "",
-      customer_phone: customer?.phone ?? "",
-      total: Number(order.total),
-      credit_amount: creditAmount,
-      paid_amount: paidAmount,
-      credit_due_date: order.credit_due_date,
-      overdue,
-      days_overdue: daysOverdue,
-      payments: orderPayments,
-      status: order.payment_status as "credit" | "partial" | "paid",
-      created_at: order.created_at,
-    };
-  });
+      return {
+        order_id: order.id,
+        order_code: order.id.slice(0, 8).toUpperCase(),
+        customer_name: customer?.full_name ?? "",
+        customer_phone: customer?.phone ?? "",
+        total: Number(order.total),
+        credit_amount: isPaid ? 0 : creditAmount,
+        paid_amount: paidAmount,
+        credit_due_date: order.credit_due_date,
+        overdue,
+        days_overdue: daysOverdue,
+        payments: orderPayments,
+        status: (isPaid ? "paid" : order.payment_status) as "credit" | "partial" | "paid",
+        created_at: order.created_at,
+      };
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 export async function recordCreditPayment(

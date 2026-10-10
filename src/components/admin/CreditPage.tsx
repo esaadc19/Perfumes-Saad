@@ -1,5 +1,5 @@
 import { useState, useEffect, type KeyboardEvent } from "react";
-import { Search, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Clock, X, Pencil, Trash2, Plus, ShieldCheck } from "lucide-react";
+import { Search, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Clock, X, Pencil, Trash2, Plus, ShieldCheck, CheckCircle2 } from "lucide-react";
 import {
   getCreditOrders,
   recordCreditPayment,
@@ -61,8 +61,9 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
     switch (filter) {
       case "overdue":
         return order.overdue;
+      // "Por vencer" son los que aun te deben: ni vencidos ni saldados.
       case "upcoming":
-        return !order.overdue && order.status !== "paid" && !order.overdue;
+        return !order.overdue && order.status !== "paid";
       case "paid":
         return order.status === "paid";
       default:
@@ -73,6 +74,9 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
   const totalOutstanding = orders.reduce((sum, o) => sum + o.credit_amount, 0);
   const totalOverdue = orders.filter((o) => o.overdue).reduce((sum, o) => sum + o.credit_amount, 0);
   const overdueCount = orders.filter((o) => o.overdue).length;
+  const totalCollected = orders.reduce((sum, o) => sum + o.paid_amount, 0);
+  const openCount = orders.filter((o) => o.status !== "paid").length;
+  const paidCount = orders.length - openCount;
 
   const openPaymentModal = (order: CreditOrderSummary) => {
     setPaymentModal({ order });
@@ -209,6 +213,15 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
             <strong>{overdueCount}</strong>
           </div>
         </div>
+        {/* El historial se conserva en la tabla, pero se suma aparte para
+            que "total por cobrar" siga siendo solo lo que te deben. */}
+        <div className="summary-card">
+          <CheckCircle2 size={20} />
+          <div>
+            <span>Cobrado en fiado</span>
+            <strong>{money(totalCollected)}</strong>
+          </div>
+        </div>
       </div>
 
       <div className="credit-filters">
@@ -277,7 +290,10 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
             <span></span>
           </div>
           {filteredOrders.map((order) => (
-            <div className="table-row credit-row" key={order.order_id}>
+            <div
+              className={`table-row credit-row${order.status === "paid" ? " is-settled" : ""}`}
+              key={order.order_id}
+            >
               <div className="customer-cell">
                 <strong>{order.customer_name}</strong>
                 <small>{order.customer_phone}</small>
