@@ -2295,6 +2295,11 @@ function Admin({
               icon={<BarChart3 />}
               wide
             >
+              {/* "Ventas completadas" abre el grupo: es la respuesta corta a
+                  "cuanto vendi", y de entrada da el contexto de las cifras
+                  que siguen abajo. Sin delta porque cuenta pedidos, no
+                  montos, y compararlo contra el periodo anterior mislead. */}
+              <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
               <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
               <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} icon={<Package />} />
               <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} icon={<Truck />} />
@@ -2315,7 +2320,6 @@ function Admin({
               />
               <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
               <Metric title="Ticket promedio" value={money(avgTicket)} icon={<Calculator />} hint="Venta cobrada promedio." />
-              <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
             </MetricGroup>
             <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
               <Charts orders={orders} products={metrics.top_products} />
