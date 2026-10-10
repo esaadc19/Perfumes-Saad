@@ -12,6 +12,8 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - Seguimiento de pedidos sin login: número de 8 caracteres + teléfono. Link `?track=A1B2C3D4`.
 - Cartera/fiado: abonos, límite por cliente, términos quincenal/mensual, bloqueo por mora.
 - UI del admin: botones CoreUI pill (`AdminButton`), `EmptyState`, tablas con cabecera sticky y zebra.
+- Dashboard: `MetricGroup` agrupa por dominio (Cartera, Inventario, Clientes, Ventas) con título y pista; `AlertBlock` solo aparece si hay algo > 0.
+- Cartera conserva el histórico: los fiados pagados no desaparecen, quedan con estado `Pagado`.
 
 ## Decisiones (y por qué)
 
@@ -25,6 +27,9 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - Promociones se recalculan en Supabase: evita manipulación desde el frontend.
 - Variables VITE_* solo con anon key: nunca service_role en el frontend.
 - Español en código y UI: el negocio es para Colombia.
+- La utilidad contable descuenta lo que falta: **utilidad cobrada − costo del fiado por cobrar − gastos**. No usar `credit_profit`, que se perdía al pasar a `paid`.
+- Un pedido fue a crédito si tiene filas en `customer_credit_payments`: esa es la huella, y evita agregar una columna `was_credit`.
+- `period_days` acota solo métricas de flujo; las instantáneas (stock, por cobrar, vencidos) no se acotan.
 
 ## Aprendizajes y errores a evitar
 
@@ -39,6 +44,11 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - En CoreUI v5 `CButtonProps` no se re-exporta del barrel: derivar con `ComponentProps<typeof CButton>`.
 - Los partials SCSS de CoreUI no traen `--cui-border-radius` ni `.rounded-pill`: definirlos a mano.
 - `type="button"` en todo botón dentro de un `<form>`, o dispara el submit.
+- En las tarjetas de métrica, la desalineación vertical venía de `align-content`, no de `align-items`: las filas se repartían el sobrante y una tarjeta de 2 filas lo distribuía distinto que una de 3. Con `align-content: start` los montos caen en la misma línea base.
+- Igualar el alto de **las cajas de grupo** es otra cosa que igualar el de **las tarjetas**: si falta `align-items: start` en la rejilla de grupos, cada caja queda a su alto natural y se ven de distinto tamaño.
+- Repartir N tarjetas: mejor que el número de filas salga exacto (9 en 3 columnas) que forzar un `span 2`. Si una tarjeta es más ancha, la última fila queda con hueco.
+- Al verificar CSS, **medir con el marcado real del componente**, no con HTML inventado en la consola: si no, se depura algo que no existe.
+- En PowerShell `&&` no funciona: usar `;` o el parámetro `workdir`. `git push` escribe en stderr y PowerShell lo marca como error aunque salga bien: mirar que apareceu `main -> main`.
 
 ## Próximos pasos
 
@@ -51,4 +61,9 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 ## Deuda técnica conocida
 
 - `removePromotion` usa `window.confirm()`, prohibido por `.agents/ux-experience.agents.md`. Usar el modal `onConfirm` que ya existe.
-- Migración `20261008120000_edit_credit_payments.sql` sin ejecutar en Supabase: el botón Editar de abonos no funciona sin ella.
+- **Migraciones sin ejecutar en Supabase** (el usuario las corre a mano):
+  - `20261009100000_credit_cost_in_profit.sql` ← bloqueante, sin ella el dashboard da error
+  - `20261008120000_edit_credit_payments.sql` ← sin ella no funciona Editar abonos
+- **El deploy a Vercel nunca funcionó**: las 66 ejecuciones del workflow fallaron por falta del secreto `VERCEL_TOKEN` en GitHub Actions. El sitio en producción es una build vieja, sin CoreUI.
+- Inventario y Clientes tienen 3 tarjetas donde Cartera tiene 5: al igualar las cajas queda aire al pie. Se llena agregando una métrica real a cada uno.
+- No se puede probar el admin en el navegador: la sesión de test no tiene login e `is_admin()` rechaza las llamadas RPC. Para verificar CSS hay que inyectar el marcado a mano.
