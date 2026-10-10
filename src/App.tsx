@@ -2219,27 +2219,6 @@ function Admin({
             />
             <div className="metric-groups">
               <MetricGroup
-                title="Ventas"
-                hint="Solo lo cobrado. Una venta a crédito entra aquí cuando queda saldada."
-                icon={<BarChart3 />}
-              >
-                <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} />
-                <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} icon={<Package />} />
-                <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
-                <Metric
-                  title="Utilidad neta"
-                  value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
-                  icon={<TrendingUp />}
-                  warning={metrics.sales_profit < 0}
-                  emphasis
-                />
-                <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} />
-                <Metric title="Ticket promedio" value={money(avgTicket)} icon={<Calculator />} hint="Venta cobrada promedio." />
-                <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
-                <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} icon={<Truck />} />
-              </MetricGroup>
-
-              <MetricGroup
                 title="Cartera"
                 hint="Lo vendido a fiado y lo que todavía no es tuyo."
                 icon={<DollarSign />}
@@ -2283,6 +2262,34 @@ function Admin({
                 <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ReceiptText />} />
               </MetricGroup>
             </div>
+
+            <MetricGroup
+              title="Ventas"
+              hint="Solo lo cobrado. Lo vendido a fiado se resta por su costo mientras no te lo pagan."
+              icon={<BarChart3 />}
+              wide
+            >
+              <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} />
+              <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} icon={<Package />} />
+              <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} icon={<Truck />} />
+              <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
+              <Metric
+                title="Costo del fiado por cobrar"
+                value={money(Number(metrics.credit_cost_pending))}
+                icon={<Lock />}
+                hint="Ya lo pagaste al proveedor; vuelve a tu utilidad cuando el cliente te pague."
+              />
+              <Metric
+                title="Utilidad neta"
+                value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
+                icon={<TrendingUp />}
+                warning={metrics.sales_profit < 0}
+                emphasis
+              />
+              <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} />
+              <Metric title="Ticket promedio" value={money(avgTicket)} icon={<Calculator />} hint="Venta cobrada promedio." />
+              <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
+            </MetricGroup>
             <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
               <Charts orders={orders} products={metrics.top_products} />
             </Suspense>

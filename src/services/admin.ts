@@ -14,7 +14,14 @@ export interface AdminDashboardMetrics {
   total_expenses: number;
   /** Compromisos firmados que aun no se pagan. Informa, no resta. */
   committed_expenses: number;
-  /** Utilidad neta = margen - domicilio - gastos. Solo sobre ventas cobradas. */
+  /**
+   * Costo + domicilio que ya pagaste de las ventas a fiado que siguen sin
+   * cobrarte. La utilidad lo resta mientras el fiado esta vivo, y lo
+   * recupera cuando el cliente paga (ahi entran los 320.000 completos,
+   * que ya incluyen la utilidad de esa venta).
+   */
+  credit_cost_pending: number;
+  /** Utilidad neta = cobrado - costo - domicilio - costo del fiado - gastos. */
   sales_profit: number;
   net_margin_percent: number;
 

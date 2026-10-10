@@ -663,11 +663,19 @@ footer a { color: #111; }
    align-items: start evita que el más alto estire a los demás, que es lo
    que dejaba el hueco vacío al pie de Cartera. */
 .metric-groups {
-  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start; gap: 16px; margin-bottom: 24px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start; gap: 16px; margin-bottom: 16px;
 }
-@media (max-width: 1100px) {
-  .metric-groups { grid-template-columns: minmax(0, 1fr); }
+/* Ventas va sola debajo, a todo el ancho: su desglose tiene mas numeros
+   y la utilidad neta necesita respirar. Ademas es la lectura final:
+   primero Cartera/Inventario/Clientes, luego el resultado. */
+.metric-wide { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1280px) {
+  .metric-groups { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metric-wide { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .metric-groups, .metric-wide { grid-template-columns: minmax(0, 1fr); }
 }
 .metric-group {
   padding: 20px; background: white;
@@ -687,9 +695,17 @@ footer a { color: #111; }
 /* Dentro de un grupo las tarjetas son mas compactas: ya hay un titulo
    que las enmarca y no necesitan el aire de la version suelta. */
 /* Dos columnas fijas: predecibles y siempre en pares legibles. Un
-   `auto-fit` con minmax bajo estiraba las tarjetas de más en pantallas
-   anchas y dejaba una huérfana en la última fila. */
+   `auto-fit` con minmax bajo estiraba las tarjetas de mas en pantallas
+   anchas y dejaba una huerfana en la ultima fila. */
 .metric-group .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 0; }
+/* El grupo ancho reparte en 4 para aprovechar el espacio horizontal. */
+.metric-group--wide .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1280px) {
+  .metric-group--wide .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .metric-group--wide .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .metric-group .metric { grid-template-columns: 28px 1fr; gap: 10px; padding: 13px; border-radius: 10px; }
 .metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; }
 .metric-group .metric strong { font-size: 17px; white-space: nowrap; }

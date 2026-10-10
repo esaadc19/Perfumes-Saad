@@ -13,15 +13,18 @@ export default function MetricGroup({
   title,
   hint,
   icon,
+  wide,
   children,
 }: {
   title: string;
   hint: string;
   icon: ReactNode;
+  /** Grupo a todo el ancho, con más columnas: lo usa Ventas. */
+  wide?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className="metric-group">
+    <section className={`metric-group${wide ? " metric-group--wide" : ""}`}>
       <div className="metric-group-head">
         <span className="metric-group-icon">{icon}</span>
         <div>
@@ -32,11 +35,6 @@ export default function MetricGroup({
       <div className="metrics">{children}</div>
     </section>
   );
-}
-
-/** Filtra las tarjetas con valor cero para no gastar espacio en ellas. */
-export function onlyIfPositive(value: number, child: ReactNode) {
-  return value > 0 ? child : null;
 }
 
 export { Metric };
