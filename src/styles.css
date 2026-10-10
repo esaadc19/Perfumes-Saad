@@ -656,10 +656,12 @@ footer a { color: #111; }
   letter-spacing: .06em; color: var(--muted);
 }
 
-/* La utilidad neta es el resultado del grupo Ventas: se destaca. */
+/* La utilidad neta es el resultado del grupo Ventas: se destaca por color,
+   no por tamano. Antes ocupaba 2 columnas (span 2), lo que descuadraba el
+   reparto y dejaba un hueco enorme en la ultima fila. Ocupa lo mismo que
+   sus vecinas para que las 9 tarjetas llenen 3 filas exactas. */
 .metric.is-emphasis {
   background: var(--verde); border-color: var(--verde); color: #fff;
-  grid-column: span 2;
 }
 .metric.is-emphasis .metric-icon { background: rgba(255,255,255,.14); color: #fff; }
 .metric.is-emphasis span { color: rgba(255,255,255,.72); }
@@ -729,10 +731,12 @@ footer a { color: #111; }
    alta. Sin esto cada fila crece segun si sus tarjetas traen nota o delta y
    el grupo acaba con cajas de 72px al lado de otras de 116px. */
 .metric-group .metrics { grid-auto-rows: 1fr; }
-/* El grupo ancho reparte en 4 para aprovechar el espacio horizontal. */
-.metric-group--wide .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+/* Ventas trae 9 tarjetas: en 3 columnas llenan 3 filas exactas, sin tarjeta
+   doble ni huecos. En 4 columnas la ultima fila dejaba 2 tarjetas y 1142px
+   de vacio al lado. */
+.metric-group--wide .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 @media (max-width: 1280px) {
-  .metric-group--wide .metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .metric-group--wide .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
   .metric-group--wide .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
