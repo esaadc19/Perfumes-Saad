@@ -114,6 +114,8 @@ import {
   Lock,
   CalendarClock,
   Percent,
+  Calculator,
+  Truck,
   TrendingUp,
   Upload,
   User,
@@ -1370,6 +1372,10 @@ function Admin({
     (sum, p) => sum + (p.archived ? 0 : p.variants.reduce((s, v) => s + v.stock, 0)),
     0
   );
+  // Ticket promedio: cuanto entra por venta cobrada.
+  const avgTicket = metrics && metrics.completed_sales > 0
+    ? Number(metrics.sales_revenue) / metrics.completed_sales
+    : 0;
   const stockTrackedProducts = products.filter((product) => !product.archived && product.active !== false);
   const lowStock = stockTrackedProducts.flatMap((product) =>
     product.variants.filter((variant) =>
@@ -2213,22 +2219,13 @@ function Admin({
             />
             <div className="metric-groups">
               <MetricGroup
-                title="Ventas"
-                hint="Solo lo cobrado. Una venta a crédito entra aquí cuando queda saldada."
-                icon={<BarChart3 />}
+                title="Clientes"
+                hint="Cuánta gente te ha comprado y quién te debe."
+                icon={<Users />}
               >
-                <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} />
-                <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} icon={<Package />} />
-                <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
-                <Metric
-                  title="Utilidad neta"
-                  value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
-                  icon={<TrendingUp />}
-                  warning={metrics.sales_profit < 0}
-                  emphasis
-                />
-                <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} />
-                <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
+                <Metric title="Clientes registrados" value={String(metrics.customer_count)} icon={<Users />} />
+                <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} icon={<AlertTriangle />} onClick={() => setSection("credit")} />
+                <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ReceiptText />} />
               </MetricGroup>
 
               <MetricGroup
@@ -2256,6 +2253,27 @@ function Admin({
               </MetricGroup>
 
               <MetricGroup
+                title="Ventas"
+                hint="Solo lo cobrado. Una venta a crédito entra aquí cuando queda saldada."
+                icon={<BarChart3 />}
+              >
+                <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} />
+                <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} icon={<Package />} />
+                <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
+                <Metric
+                  title="Utilidad neta"
+                  value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
+                  icon={<TrendingUp />}
+                  warning={metrics.sales_profit < 0}
+                  emphasis
+                />
+                <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} />
+                <Metric title="Ticket promedio" value={money(avgTicket)} icon={<Calculator />} hint="Venta cobrada promedio." />
+                <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
+                <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} icon={<Truck />} />
+              </MetricGroup>
+
+              <MetricGroup
                 title="Inventario"
                 hint="Lo que tienes disponible para vender hoy."
                 icon={<Package />}
@@ -2263,16 +2281,6 @@ function Admin({
                 <Metric title="Productos activos" value={String(products.filter((product) => !product.archived).length)} icon={<Package />} />
                 <Metric title="Unidades en stock" value={String(totalStock)} icon={<ShoppingBag />} />
                 <Metric title="Presentaciones agotadas" value={String(soldOut)} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
-              </MetricGroup>
-
-              <MetricGroup
-                title="Clientes"
-                hint="Cuánta gente te ha comprado y quién te debe."
-                icon={<Users />}
-              >
-                <Metric title="Clientes registrados" value={String(metrics.customer_count)} icon={<Users />} />
-                <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} icon={<AlertTriangle />} onClick={() => setSection("credit")} />
-                <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ReceiptText />} />
               </MetricGroup>
             </div>
             <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
