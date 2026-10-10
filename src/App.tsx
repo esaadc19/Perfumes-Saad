@@ -1298,6 +1298,8 @@ function Admin({
     label: string;
   } | null>(null);
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
+  /** Rango del dashboard: null = acumulado historico. */
+  const [metricsPeriod, setMetricsPeriod] = useState<7 | 30 | 90 | null>(30);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
@@ -1414,7 +1416,7 @@ function Admin({
       try {
         if (section === "overview") {
           const [metricsResult, ordersResult] = await Promise.all([
-            getAdminDashboardMetrics(),
+            getAdminDashboardMetrics(metricsPeriod),
             getAdminOrders(),
           ]);
           if (active) {
@@ -1464,7 +1466,7 @@ function Admin({
     return () => {
       active = false;
     };
-  }, [section, sectionRevision]);
+  }, [section, sectionRevision, metricsPeriod]);
 
   const saveCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2217,6 +2219,30 @@ function Admin({
                 ) : null,
               ]}
             />
+            <div className="metrics-period">
+              <span className="metrics-period-label">Período</span>
+              <div className="chart-period-switch" role="group" aria-label="Rango de tiempo del dashboard">
+                {([7, 30, 90] as const).map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    className={metricsPeriod === days ? "selected" : ""}
+                    aria-pressed={metricsPeriod === days}
+                    onClick={() => setMetricsPeriod(days)}
+                  >
+                    {days} días
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={metricsPeriod === null ? "selected" : ""}
+                  aria-pressed={metricsPeriod === null}
+                  onClick={() => setMetricsPeriod(null)}
+                >
+                  Todo
+                </button>
+              </div>
+            </div>
             <div className="metric-groups">
               <MetricGroup
                 title="Cartera"
@@ -2269,7 +2295,7 @@ function Admin({
               icon={<BarChart3 />}
               wide
             >
-              <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} />
+              <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
               <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} icon={<Package />} />
               <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} icon={<Truck />} />
               <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
@@ -2285,8 +2311,9 @@ function Admin({
                 icon={<TrendingUp />}
                 warning={metrics.sales_profit < 0}
                 emphasis
+                delta={metrics.period_days ? { current: Number(metrics.sales_profit), previous: Number(metrics.previous.sales_profit) } : undefined}
               />
-              <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} />
+              <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
               <Metric title="Ticket promedio" value={money(avgTicket)} icon={<Calculator />} hint="Venta cobrada promedio." />
               <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
             </MetricGroup>

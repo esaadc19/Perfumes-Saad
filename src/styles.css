@@ -636,6 +636,26 @@ footer a { color: #111; }
   text-transform: none !important; letter-spacing: 0 !important; color: var(--muted);
 }
 
+/* Variacion contra el periodo anterior. */
+.metric-delta {
+  grid-column: 2; display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 3px; font-size: 11px; font-weight: 600; line-height: 1.4;
+  text-transform: none !important; letter-spacing: 0 !important;
+}
+.metric-delta.is-up { color: #3d7444; }
+.metric-delta.is-down { color: var(--danger); }
+.metric-delta.is-flat { color: var(--muted); font-weight: 500; }
+.metric.is-emphasis .metric-delta { color: rgba(255,255,255,.78); }
+
+/* Selector de periodo del dashboard. */
+.metrics-period {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.metrics-period-label {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--muted);
+}
+
 /* La utilidad neta es el resultado del grupo Ventas: se destaca. */
 .metric.is-emphasis {
   background: var(--verde); border-color: var(--verde); color: #fff;

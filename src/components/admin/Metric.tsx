@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Delta from "./Delta";
 
 export default function Metric({
   title,
@@ -7,6 +8,9 @@ export default function Metric({
   warning,
   emphasis,
   hint,
+  /** Variación contra el periodo anterior. Omitir si no aplica. */
+  delta,
+  deltaFormat,
   onClick,
 }: {
   title: string;
@@ -17,6 +21,8 @@ export default function Metric({
   emphasis?: boolean;
   /** Una línea que explica el número, para cuando no es obvio. */
   hint?: string;
+  delta?: { current: number; previous: number };
+  deltaFormat?: "percent" | "points";
   onClick?: () => void;
 }) {
   const content = (
@@ -24,6 +30,9 @@ export default function Metric({
       <span className={warning ? "metric-icon warning" : "metric-icon"}>{icon}</span>
       <span>{title}</span>
       <strong>{value}</strong>
+      {delta && (
+        <Delta current={delta.current} previous={delta.previous} format={deltaFormat} />
+      )}
       {hint && <small className="metric-note">{hint}</small>}
       {onClick && <small className="metric-hint">Ver detalle</small>}
     </>
