@@ -1080,6 +1080,38 @@ footer a { color: #111; }
   .metric-icon svg { width: 16px; height: 16px; }
   .metric span { font-size: 10px; line-height: 1.35; }
   .metric strong { font-size: 15px; }
+
+  /* --- Dashboard en movil --- */
+  /* En una tarjeta de ~154px el monto de 17px con nowrap no cabia y se
+     salia de la caja. Sin nowrap, "$ 1.630.000" baja a 13px y entra. */
+  .metric-group { padding: 16px 13px; }
+  .metric-group .metrics { gap: 8px; }
+  .metric-group .metric { padding: 11px 8px; gap: 8px; grid-template-columns: 24px minmax(0, 1fr); }
+  .metric-group .metric-icon { width: 24px; height: 24px; border-radius: 7px; }
+  .metric-group .metric-icon svg { width: 14px; height: 14px; }
+  .metric-group .metric strong { font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
+  .metric-group .metric span { font-size: 9.5px; }
+  .metric-group .metric-note { font-size: 9.5px; line-height: 1.35; }
+  .metric-group-head { padding-bottom: 11px; margin-bottom: 12px; gap: 9px; }
+  .metric-group-icon { width: 28px; height: 28px; border-radius: 8px; }
+  .metric-group-head h3 { font-size: 17px; }
+  .metric-group-head p { font-size: 10.5px; }
+  /* El aire sobrante de los grupos cortos (Inventario y Clientes tienen 3
+     tarjetas donde Cartera tiene 5) solo estira las cajas en escritorio.
+     En movil la rejilla es de una columna, asi que no hay descompensacion
+     y conviene volver al alto natural. */
+  .metric-groups { gap: 12px; }
+  .metric-group .metrics { grid-auto-rows: max-content; }
+
+  /* --- Cartera en movil --- */
+  .credit-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .credit-summary .summary-card { padding: 12px 11px; gap: 9px; }
+  .credit-summary .summary-card > svg { width: 17px; height: 17px; }
+  .credit-summary .summary-card span { font-size: 9.5px; letter-spacing: .04em; }
+  .credit-summary .summary-card strong { font-size: 17px; }
+  .credit-filters { gap: 8px; }
+  .filter-tabs { gap: 6px; }
+  .filter-tabs .admin-button { padding: 8px 11px; font-size: 12px; min-height: 40px; }
   .insight-grid { gap: 0; }
   .admin-table { overflow: visible; }
   .table-row.header { display: none; }
@@ -1158,6 +1190,22 @@ footer a { color: #111; }
   .expense-row > :nth-child(3)::before { content: "Monto"; }
   .expense-row > :nth-child(4)::before { content: "Fecha"; }
   .expense-row > :nth-child(5)::before { content: "Recurrente"; }
+  /* Etiquetas de Cartera: sin esto los 8 valores de la fila salen en
+     blanco con un monto y no se sabe que es cada uno. */
+  .credit-row > :nth-child(1)::before { content: "Cliente"; }
+  .credit-row > :nth-child(2)::before { content: "Pedido"; }
+  .credit-row > :nth-child(3)::before { content: "Total"; }
+  .credit-row > :nth-child(4)::before { content: "Saldo"; }
+  .credit-row > :nth-child(5)::before { content: "Abonos"; }
+  .credit-row > :nth-child(6)::before { content: "Vence"; }
+  .credit-row > :nth-child(7)::before { content: "Estado"; }
+  /* Saldo y abonos van juntos a todo lo ancho: son los dos numeros que
+     importan y en dos columnas de 154px el monto se parte. */
+  .credit-row > :nth-child(3),
+  .credit-row > :nth-child(4),
+  .credit-row > :nth-child(5) { grid-column: 1 / -1; }
+  .credit-row .balance { justify-self: start; text-align: left; font-size: 15px; }
+  .credit-row > :nth-child(2) { font-size: 12px; }
   .profile-cell { gap: 3px; }
   .profile-cell::before { margin-bottom: 4px; }
   .admin-table select { min-width: 0; }
@@ -1191,6 +1239,13 @@ footer a { color: #111; }
   .product-grid { grid-template-columns: 1fr; gap: 24px; }
   .product-image { aspect-ratio: 1 / 1.05; }
   .metrics { grid-template-columns: 1fr; }
+  /* Hace falta repetirlo con el selector del grupo: `.metric-group .metrics`
+     tiene mayor especificidad que `.metrics`, asi que sin esto las tarjetas
+     seguian en 2 columnas a ~90px de ancho, con el monto partido. */
+  .metric-group .metrics,
+  .metric-group--wide .metrics { grid-template-columns: minmax(0, 1fr); }
+  .metric-group .metric strong { font-size: 16px; }
+  .credit-summary { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media print {
