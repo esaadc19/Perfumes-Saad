@@ -844,7 +844,9 @@ footer a { color: #111; }
 /* --- Pantalla "A quién cobrar" --- */
 /* Agrupa por persona, no por pedido: el cliente unaware que tiene tres
    fiados y no quiere recibir tres mensajes distintos. */
-.collect-page { max-width: 900px; }
+/* Sin max-width: las demas secciones ocupan todo el panel. Poner un tope
+   dejaba media pantalla en blanco a la derecha en pantallas anchas. */
+.collect-page { width: 100%; }
 .collect-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
 /* Las tarjetas de resumen viven dentro de .credit-summary en Cartera; aqui
    se reutilizan pero sin ese bloque, asi que hay que darles el layout. */
@@ -925,12 +927,17 @@ footer a { color: #111; }
 .collect-row:hover { border-color: #cbbfae; box-shadow: 0 4px 14px rgba(44, 36, 32, .06); }
 .collect-row.is-late { border-left: 3px solid var(--danger); }
 
+/* Con el panel a lo ancho, dejar la accion pegada al borde derecho
+   separaba el nombre del boton por media pantalla. El monto queda
+   emparejado con la accion, que es donde la vista va al hacer clic. */
 .collect-main {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(120px, auto);
   align-items: center;
   gap: 16px;
+  justify-content: start;
 }
+.collect-actions { justify-content: end; }
 
 .collect-who { display: grid; gap: 4px; min-width: 0; }
 .collect-who > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1514,7 +1521,7 @@ footer a { color: #111; }
    pagina, no un control alineado al borde del dashboard. */
 .report-actions-left { justify-content: flex-start; }
 
-.report-section { max-width: 780px; }
+.report-section { width: 100%; }
 
 .report-hint {
   margin: 10px 0 0;
