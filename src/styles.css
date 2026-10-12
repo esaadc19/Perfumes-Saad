@@ -1318,6 +1318,16 @@ footer a { color: #111; }
   padding: 7px 13px;
 }
 
+/* El chip "A medida" suma un boton y el pill se parte en dos filas. Con las
+   esquinas a 999px, cada fila queda con un semirredondeo raro, asi que el
+   contenedor baja a un radio de grupo cuando envuelve. */
+.report-period-switch .chart-period-switch {
+  border-radius: 26px;
+  row-gap: 4px;
+  padding: 5px;
+}
+.report-period-switch .chart-period-switch button:first-child { margin-top: 0; }
+
 .report-range {
   display: flex;
   align-items: end;
@@ -1337,6 +1347,26 @@ footer a { color: #111; }
   justify-content: flex-end;
   margin-bottom: 16px;
 }
+
+/* Las acciones de Reportes arrancan a la izquierda: son el contenido de la
+   pagina, no un control alineado al borde del dashboard. */
+.report-actions-left { justify-content: flex-start; }
+
+.report-section { max-width: 780px; }
+
+.report-hint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* El resumen del rango se alinea con el borde derecho del panel: pegado al
+   margen se leia como texto cortado. */
+.report-panel .report-hint { text-align: right; }
+
+/* Los botones y el campo de fecha se apoyan sobre la misma linea base; con
+   el label encima, el boton queda flotando. */
+.report-actions-left { align-items: flex-end; }
 
 .report-date-field {
   display: grid;

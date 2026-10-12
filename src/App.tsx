@@ -130,6 +130,7 @@ import {
   UserCheck,
   Users,
   X,
+  CalendarDays,
 } from "lucide-react";
 
 type Variant = {
@@ -1284,7 +1285,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "profiles" | "settings" | "credit">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "reports" | "profiles" | "settings" | "credit">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem("saad-admin-sidebar") === "collapsed"
   );
@@ -1424,6 +1425,7 @@ function Admin({
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "expenses", title: "Gastos", icon: <Wallet size={17} /> },
     { id: "advisors", title: "Asesores", icon: <UserCheck size={17} /> },
+    { id: "reports", title: "Reportes", icon: <BarChart3 size={17} /> },
     { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
     { id: "settings", title: "Configuración", icon: <Settings size={17} /> },
   ] as const;
@@ -2208,37 +2210,22 @@ function Admin({
           ))}
         </nav>
 
-        {error && section === "products" && <p className="form-error" role="alert">{error}</p>}
-        {section === "products" && importFeedback && <p className="import-feedback" role="status">{importFeedback}</p>}
-        {section === "products" && importError && <p className="form-error" role="alert">{importError}</p>}
-        {section === "products" && (
-          <p className="customer-import-hint">
-            Descarga la plantilla y luego importa ese archivo desde aquí. No importes este CSV directamente en la tabla
-            <code> products</code> de Supabase: la tienda también crea las presentaciones en <code>product_variants</code>.
-          </p>
-        )}
-        {section === "promotions" && promotionFeedback && <p className="import-feedback" role="status">{promotionFeedback}</p>}
-        {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
-        {sectionLoading && (
-          <div className="loading-state" role="status" aria-live="polite">
-            <span className="loading-spinner" aria-hidden="true" />
-            <span>Cargando {pageTitle.toLowerCase()}…</span>
-          </div>
-        )}
-
-        {section === "overview" && metrics && (
-          <>
+        {section === "reports" && (
+          <div className="report-section">
             <div className="report-panel">
               <div className="report-panel-head">
                 <h3>Reporte por periodo</h3>
-                <p>Elige un periodo rapido o escribe el rango que necesites.</p>
+                <p>
+                  Elige un periodo rapido o escribe el rango. Puedes tomar
+                  varios dias o varios meses: el rango es desde-hasta.
+                </p>
               </div>
 
               <div className="metrics-period report-period-switch">
                 <span className="metrics-period-label">Periodo</span>
-                {/* Cuando se edita una fecha a mano ningun preset coincide, y
-                    el pill se queda sin nada seleccionado. Este chip avisa
-                    que el rango ya no es uno de los rapidos. */}
+                {/* Cuando se edita una fecha a mano ningun preset coincide y el
+                    pill se quedaria sin seleccion. Este chip lo avisa y devuelve
+                    al ultimo preset. */}
                 <div className="chart-period-switch" role="group" aria-label="Periodo del reporte">
                   {PERIOD_PRESETS.map((preset) => (
                     <button
@@ -2257,7 +2244,7 @@ function Admin({
                       {preset.label}
                     </button>
                   ))}
-                  {reportPeriodId !== "custom" && PERIOD_PRESETS.some((p) => {
+                  {PERIOD_PRESETS.some((p) => {
                     const r = resolvePeriod(p.id);
                     return r.from === reportCustomFrom && r.to === reportCustomTo;
                   }) ? null : (
@@ -2272,7 +2259,7 @@ function Admin({
                         setReportCustomFrom(back.from);
                         setReportCustomTo(back.to);
                       }}
-                      title="Volver a un periodo rapido"
+                      title="Volver a la semana pasada"
                     >
                       A medida
                     </button>
@@ -2318,12 +2305,29 @@ function Admin({
                 </AdminButton>
               </div>
 
-              {reportRangeError && (
-                <p className="form-error" role="alert">{reportRangeError}</p>
-              )}
+              {reportRangeError && <p className="form-error" role="alert">{reportRangeError}</p>}
             </div>
 
-            <div className="report-actions">
+            {reportError && <p className="form-error" role="alert">{reportError}</p>}
+            {reportResult && (
+              <p className="report-result" role="status">
+                Reporte {reportResult.label} generado. {reportResult.emailSent
+                  ? "Correo enviado. "
+                  : `${reportResult.emailError ?? "No se pudo enviar el correo."} `}
+                <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
+              </p>
+            )}
+
+            <div className="report-actions report-actions-left">
+              <AdminButton
+                tone="secondary"
+                compact
+                type="button"
+                onClick={() => void generateReport()}
+                disabled={reportLoading}
+              >
+                <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Reporte semanal"}
+              </AdminButton>
               <label className="report-date-field">
                 Fecha del reporte diario
                 <input
@@ -2341,10 +2345,62 @@ function Admin({
                 onClick={() => void generateReport(reportDate)}
                 disabled={reportLoading || !reportDate}
               >
-                <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte diario"}
+                <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Reporte diario"}
+              </AdminButton>
+            </div>
+          </div>
+        )}
+        {error && section === "products" && <p className="form-error" role="alert">{error}</p>}
+        {section === "products" && importFeedback && <p className="import-feedback" role="status">{importFeedback}</p>}
+        {section === "products" && importError && <p className="form-error" role="alert">{importError}</p>}
+        {section === "products" && (
+          <p className="customer-import-hint">
+            Descarga la plantilla y luego importa ese archivo desde aquí. No importes este CSV directamente en la tabla
+            <code> products</code> de Supabase: la tienda también crea las presentaciones en <code>product_variants</code>.
+          </p>
+        )}
+        {section === "promotions" && promotionFeedback && <p className="import-feedback" role="status">{promotionFeedback}</p>}
+        {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
+        {sectionLoading && (
+          <div className="loading-state" role="status" aria-live="polite">
+            <span className="loading-spinner" aria-hidden="true" />
+            <span>Cargando {pageTitle.toLowerCase()}…</span>
+          </div>
+        )}
+
+        {section === "overview" && metrics && (
+          <>
+            {/* El panel completo vive en la seccion Reportes. Acá quedan solo las
+                dos acciones rapidas, sin formulario de fechas: el dashboard
+                es para mirar, no para configurar. */}
+            <div className="report-actions">
+              <AdminButton
+                tone="secondary"
+                compact
+                type="button"
+                onClick={() => void generateReport()}
+                disabled={reportLoading}
+              >
+                <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Generar reporte semanal"}
+              </AdminButton>
+              <AdminButton
+                tone="secondary"
+                compact
+                type="button"
+                onClick={() => setSection("reports")}
+              >
+                <CalendarDays size={16} /> Reportes por periodo
               </AdminButton>
             </div>
             {reportError && <p className="form-error" role="alert">{reportError}</p>}
+            {reportResult && section === "overview" && (
+              <p className="report-result" role="status">
+                Reporte {reportResult.label} generado. {reportResult.emailSent
+                  ? "Correo enviado. "
+                  : `${reportResult.emailError ?? "No se pudo enviar el correo."} `}
+                <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
+              </p>
+            )}
             {reportResult && (
               <p className="report-result" role="status">
                 Reporte {reportResult.label} generado. {reportResult.emailSent
