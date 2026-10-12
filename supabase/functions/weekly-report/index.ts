@@ -66,18 +66,23 @@ function formatReport(data: any): string {
   const periodWord = isWeek ? "SEMANA" : periodDays <= 31 ? "MES" : `${periodDays} DÍAS`;
   const prevWord = isWeek ? "Semana pasada" : "Periodo anterior";
 
+  // Igual que en el HTML: se separan la utilidad de lo cobrado y el costo
+  // de lo vendido a fiado, para que un negativo no se lea como perdida.
+  const creditCost = num(week.credit_cost);
+  const cashProfit = profit + creditCost;
+
   // Si falta el costo de alguna venta, la utilidad no es un numero que se
   // pueda defender. Se declara incompleta en vez de rellenar con cero.
   const profitComplete = missingCost === 0;
   const profitLine = profitComplete
-    ? `*Utilidad:* ${formatCurrency(profit)}`
+    ? `*Utilidad cobrada:* ${formatCurrency(cashProfit)}`
     : `⚠️ *Utilidad incompleta* — ${missingCost} ${missingCost === 1 ? "pedido no tiene" : "pedidos no tienen"} costo registrado`;
   const margin = profitComplete && num(week.sales) > 0
-    ? ` (margen ${((profit / num(week.sales)) * 100).toFixed(1)}%)`
+    ? ` (margen ${((cashProfit / num(week.sales)) * 100).toFixed(1)}%)`
     : "";
 
   const lines: string[] = [
-    `💰 *UTILIDAD DEL ${periodWord}*`,
+    `💰 *UTILIDAD COBRADA — ${periodWord}*`,
     `${data.week_start} al ${data.week_end}`,
     profitLine + margin,
     ``,
@@ -85,7 +90,6 @@ function formatReport(data: any): string {
     `− Costo productos: ${formatCurrency(num(week.product_cost))}`,
     `− Costo domicilio: ${formatCurrency(num(week.delivery_cost))}`,
     `− Gastos: ${formatCurrency(num(week.expenses))}`,
-    `− Costo del fiado no cobrado: ${formatCurrency(num(week.credit_cost))}`,
     ``,
     `📊 *INGRESOS*`,
     `${isWeek ? "Esta semana" : "Este periodo"}: ${formatCurrency(num(week.sales))} (${num(week.orders)} pedidos)`,
@@ -100,6 +104,15 @@ function formatReport(data: any): string {
     `Costo de lo que te deben: ${formatCurrency(num(credit.outstanding_cost))}`,
   ];
 
+  if (creditCost > 0) {
+    lines.push(
+      ``,
+      `ℹ️ Vendiste ${formatCurrency(num(credit.week_sales))} a fiado ${isWeek ? "esta semana" : "en el periodo"}.`,
+      `Ese producto ya te costó ${formatCurrency(creditCost)} y todavía no te lo pagan.`,
+      `_No es pérdida: es plata invertida que vuelve cuando te paguen._`,
+    );
+  }
+
   if (overdue > 0) {
     lines.push(`⚠️ *Vencido:* ${formatCurrency(overdue)} (${num(credit.customers_overdue)} clientes)`);
   }
@@ -112,6 +125,7 @@ function formatReport(data: any): string {
     `💸 *GASTOS*`,
     `${isWeek ? "Semana" : "Periodo"}: ${formatCurrency(num(week.expenses))}`,
     `Mes en curso: ${formatCurrency(num(expenses.monthly))}`,
+    creditCost > 0 ? `Inversión en fiado (vuelve al cobrar): ${formatCurrency(creditCost)}` : ``,
     ``,
     `📋 *PARA MIRAR*`,
     `Clientes nuevos: ${data.new_customers}`,
@@ -169,11 +183,33 @@ function formatReportHtml(data: any): string {
   // Sin costo completo la utilidad no se muestra como numero: por muy
   // alto que salga, es mentira.
   const profitComplete = missingCost === 0;
-  const heroValue = profitComplete ? formatCurrency(profit) : "Incompleta";
+
+  // La utilidad neta mezcla dos cosas: lo que ganaste de lo que vendiste y
+  // cobraste, mas el costo de lo que vendiste a fiado y aun no te pagan. Un
+  // numero negativo asi duele sin explicar que esa plata no se perdio, solo
+  // esta afuera. Se separan las dos cifras.
+  const creditCost = num(week.credit_cost);
+  const cashProfit = profit + creditCost;
+  const cashMargin = num(week.sales) > 0 && profitComplete
+    ? (cashProfit / num(week.sales)) * 100
+    : null;
+
+  const heroValue = profitComplete ? formatCurrency(cashProfit) : "Incompleta";
   const heroLabel = profitComplete
-    ? `Utilidad ${scopeLabel}${num(week.sales) > 0 && week.net_margin_percent != null ? ` · margen ${week.net_margin_percent}%` : ""}`
+    ? `Utilidad cobrada${scopeLabel === "de la semana" ? "" : scopeLabel}${cashMargin !== null ? ` · margen ${cashMargin.toFixed(1)}%` : ""}`
     : `${missingCost} ${missingCost === 1 ? "pedido no tiene" : "pedidos no tienen"} costo registrado`;
-  const heroColor = !profitComplete ? "#8a5a00" : profit < 0 ? "#b3261e" : "#1a5c34";
+  const heroColor = !profitComplete ? "#8a5a00" : cashProfit < 0 ? "#b3261e" : "#1a5c34";
+
+  // Solo aparece cuando hubo venta a fiado. Sin esto, un margen negativo se
+  // lee como perdida cuando en realidad es inventario parado: vendiste a
+  // credito, el producto ya salio y el costo se reconocieron, pero la plata
+  // entra cuando el cliente pague.
+  const creditImpact = creditCost > 0 ? `
+      <tr><td colspan="2" style="padding:12px;background:#fdf6e8;border-radius:8px;font-size:13px;line-height:1.55;">
+        <strong style="color:#8a5a00;">Vendiste ${escapeHtml(formatCurrency(num(credit.week_sales)))} a fiado ${escapeHtml(scopeLabel === "de la semana" ? "esta semana" : "en el periodo")}</strong><br>
+        Ese producto ya te costó ${escapeHtml(formatCurrency(creditCost))} y todavía no te lo pagan.<br>
+        <span style="color:#6b6b6b;">No es pérdida: es plata invertida, y vuelve a tu utilidad cuando el cliente te pague. Lo que ganaste de lo que sí cobraste fue ${escapeHtml(formatCurrency(cashProfit))}.</span>
+      </td></tr>` : "";
 
   const creditWarning = overdue > 0
     ? `<tr><td colspan="2" style="padding:10px 12px;background:#fdecea;border-radius:8px;color:#b3261e;font-size:13px;font-weight:600;">
@@ -222,6 +258,7 @@ function formatReportHtml(data: any): string {
         row("Costo de lo que te deben", formatCurrency(num(credit.outstanding_cost))),
         creditWarning,
       ].join(""))}
+      ${creditImpact}
 
       ${section("Más vendidos", topList || row("Sin ventas registradas", ""))}
 
@@ -230,7 +267,7 @@ function formatReportHtml(data: any): string {
         row("Mes en curso", formatCurrency(num(expenses.monthly))),
         row("Costo de productos", formatCurrency(num(week.product_cost))),
         row("Costo de domicilio", formatCurrency(num(week.delivery_cost))),
-        row("Costo del fiado no cobrado", formatCurrency(num(week.credit_cost))),
+        creditCost > 0 ? row("Inversión en fiado (vuelve al cobrar)", formatCurrency(creditCost)) : "",
       ].join(""))}
 
       ${section("Para mirar", [
