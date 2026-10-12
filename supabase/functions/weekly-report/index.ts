@@ -20,55 +20,211 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+/**
+ * Un porcentaje de variacion solo tiene sentido si hay base de comparacion.
+ * Cuando la semana anterior fue $0, el correo viejo imprimia "0%" al lado
+ * de "+$770.000": el numero grande no era 0%, era indefinido.
+ */
+function formatVariation(current: number, previous: number): string {
+  const diff = current - previous;
+  const arrow = diff >= 0 ? "📈" : "📉";
+  if (previous <= 0) {
+    return current > 0
+      ? `${arrow} Sin semana previa para comparar`
+      : `${arrow} Igual que la semana pasada`;
+  }
+  const percent = Math.abs((diff / previous) * 100).toFixed(1);
+  return `${arrow} ${diff >= 0 ? "+" : "-"}${formatCurrency(Math.abs(diff))} (${percent}%)`;
+}
+
+/**
+ * `product_name_snapshot` guarda la marca y la presentacion separadas por
+ * comas. El correo viejo armaba el nombre a mano y por eso imprimia
+ * "Ariana Grande Ariana Grande Cloud 100ml" con la marca repetida.
+ */
+function cleanProductName(raw: string | null | undefined): string {
+  if (!raw || raw === "N/A") return "Sin ventas";
+  const parts = String(raw).split(",").map((part) => part.trim()).filter(Boolean);
+  if (parts.length <= 1) return String(raw);
+  return parts
+    .filter((part, index) => index === 0 || part.toLowerCase() !== parts[0].toLowerCase())
+    .join(" ");
+}
+
+const num = (value: unknown): number => Number(value ?? 0);
+
 function formatReport(data: any): string {
-  const currentWeek = data.current_week;
-  const previousWeek = data.previous_week;
-  const lastMonth = data.last_month;
-  const bestThisWeek = data.best_product_this_week;
-  const bestLastMonth = data.best_product_last_month;
-  const expenses = data.expenses;
+  const week = data.current_week;
+  const previous = data.previous_week;
+  const credit = data.credit ?? {};
+  const expenses = data.expenses ?? {};
+  const profit = num(week.net_profit);
+  const missingCost = num(week.missing_cost_items);
+  const overdue = num(credit.overdue_balance);
 
-  const salesDiff = currentWeek.sales - previousWeek.sales;
-  const salesTrend = salesDiff >= 0 ? "📈 Subiendo" : "📉 Bajando";
-  const salesDiffPercent = previousWeek.sales > 0 
-    ? Math.abs((salesDiff / previousWeek.sales) * 100).toFixed(1)
-    : "0";
+  // Si falta el costo de alguna venta, la utilidad no es un numero que se
+  // pueda defender. Se declara incompleta en vez de rellenar con cero.
+  const profitComplete = missingCost === 0;
+  const profitLine = profitComplete
+    ? `*Utilidad:* ${formatCurrency(profit)}`
+    : `⚠️ *Utilidad incompleta* — ${missingCost} ${missingCost === 1 ? "pedido no tiene" : "pedidos no tienen"} costo registrado`;
+  const margin = profitComplete && num(week.sales) > 0
+    ? ` (margen ${((profit / num(week.sales)) * 100).toFixed(1)}%)`
+    : "";
 
+  const lines: string[] = [
+    `💰 *UTILIDAD DE LA SEMANA*`,
+    profitLine + margin,
+    ``,
+    `Ventas cobradas: ${formatCurrency(num(week.sales))}`,
+    `− Costo productos: ${formatCurrency(num(week.product_cost))}`,
+    `− Costo domicilio: ${formatCurrency(num(week.delivery_cost))}`,
+    `− Gastos: ${formatCurrency(num(week.expenses))}`,
+    `− Costo del fiado no cobrado: ${formatCurrency(num(week.credit_cost))}`,
+    ``,
+    `📊 *INGRESOS*`,
+    `Esta semana: ${formatCurrency(num(week.sales))} (${num(week.orders)} pedidos)`,
+    `Semana pasada: ${formatCurrency(num(previous.sales))} (${num(previous.orders)} pedidos)`,
+    formatVariation(num(week.sales), num(previous.sales)),
+    `Ticket promedio: ${formatCurrency(num(week.average_order_value))}`,
+    ``,
+    `💳 *FIADO Y CARTERA*`,
+    `Vendido a crédito: ${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} pedidos)`,
+    `Te pagaron de fiado: ${formatCurrency(num(credit.week_collected))}`,
+    `Por cobrar en total: ${formatCurrency(num(credit.outstanding_balance))}`,
+  ];
+
+  if (overdue > 0) {
+    lines.push(`⚠️ *Vencido:* ${formatCurrency(overdue)} (${num(credit.customers_overdue)} clientes)`);
+  }
+
+  lines.push(
+    ``,
+    `📦 *MÁS VENDIDO*`,
+    `${cleanProductName(data.best_product_this_week?.name)} (${num(data.best_product_this_week?.quantity)} und)`,
+    ``,
+    `💸 *GASTOS*`,
+    `Semana: ${formatCurrency(num(week.expenses))}`,
+    `Mes: ${formatCurrency(num(expenses.monthly))}`,
+    ``,
+    `📋 *PARA MIRAR*`,
+    `Clientes nuevos: ${data.new_customers}`,
+    `Pedidos pendientes: ${data.pending_orders}`,
+    `Stock bajo: ${data.low_stock_count} ${data.low_stock_count === 1 ? "producto" : "productos"}`,
+  );
+
+  return lines.join("\n");
+}
+
+/** Escapa texto antes de insertarlo dentro de HTML. */
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
+}
+
+function row(label: string, value: string, strong = false): string {
+  const weight = strong ? "700" : "400";
+  return `<tr>
+      <td style="padding:6px 0;color:#6b6b6b;font-size:14px;">${escapeHtml(label)}</td>
+      <td style="padding:6px 0;text-align:right;color:#1f1f1f;font-size:14px;font-weight:${weight};">${escapeHtml(value)}</td>
+    </tr>`;
+}
+
+function section(title: string, body: string): string {
   return `
-📊 *REPORTE SEMANAL - PERFUMES SAAD*
-📅 Semana del ${data.week_start} al ${data.week_end}
+    <h2 style="margin:28px 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#8a7a6a;font-weight:700;">${escapeHtml(title)}</h2>
+    <table style="width:100%;border-collapse:collapse;">${body}</table>`;
+}
 
-━━━━━━━━━━━━━━━━━━━━━━
+function formatReportHtml(data: any): string {
+  const week = data.current_week;
+  const previous = data.previous_week;
+  const credit = data.credit ?? {};
+  const expenses = data.expenses ?? {};
+  const profit = num(week.net_profit);
+  const missingCost = num(week.missing_cost_items);
+  const overdue = num(credit.overdue_balance);
 
-💰 *VENTAS*
-• Semana reportada: ${formatCurrency(currentWeek.sales)} (${currentWeek.orders} pedidos)
-• Semana pasada: ${formatCurrency(previousWeek.sales)} (${previousWeek.orders} pedidos)
-• Tendencia: ${salesTrend} ${salesDiff >= 0 ? "+" : "-"}${formatCurrency(Math.abs(salesDiff))} (${salesDiffPercent}%)
+  // Sin costo completo la utilidad no se muestra como numero: por muy
+  // alto que salga, es mentira.
+  const profitComplete = missingCost === 0;
+  const heroValue = profitComplete ? formatCurrency(profit) : "Incompleta";
+  const heroLabel = profitComplete
+    ? `Utilidad de la semana${num(week.sales) > 0 ? ` · margen ${((profit / num(week.sales)) * 100).toFixed(1)}%` : ""}`
+    : `${missingCost} ${missingCost === 1 ? "pedido no tiene" : "pedidos no tienen"} costo registrado`;
+  const heroColor = !profitComplete ? "#8a5a00" : profit < 0 ? "#b3261e" : "#1a5c34";
 
-📦 *PRODUCTO MÁS VENDIDO*
-• Semana reportada: ${bestThisWeek.name} (${bestThisWeek.quantity} unidades)
-• Mes pasado: ${bestLastMonth.name} (${bestLastMonth.quantity} unidades)
+  const creditWarning = overdue > 0
+    ? `<tr><td colspan="2" style="padding:10px 12px;background:#fdecea;border-radius:8px;color:#b3261e;font-size:13px;font-weight:600;">
+        ⚠️ Vencido: ${escapeHtml(formatCurrency(overdue))} en ${escapeHtml(String(num(credit.customers_overdue)))} clientes
+      </td></tr>`
+    : "";
 
-💵 *RESUMEN DE INGRESOS*
-• Ventas semana: ${formatCurrency(currentWeek.sales)}
-• Ventas mes pasado: ${formatCurrency(lastMonth.sales)}
-• Promedio por pedido: ${formatCurrency(currentWeek.average_order_value)}
+  const topList = (Array.isArray(data.top_products) ? data.top_products : [])
+    .map((product: any, index: number) => `<tr>
+      <td style="padding:5px 0;color:#6b6b6b;font-size:13px;width:24px;">${index + 1}.</td>
+      <td style="padding:5px 0;color:#1f1f1f;font-size:13px;">${escapeHtml(cleanProductName(product.name))}</td>
+      <td style="padding:5px 0;text-align:right;color:#1f1f1f;font-size:13px;font-weight:600;">${escapeHtml(String(num(product.quantity)))} und</td>
+    </tr>`).join("");
 
-💸 *RESUMEN DE GASTOS*
-• Gastos semana: ${formatCurrency(expenses.weekly)}
-• Gastos mes: ${formatCurrency(expenses.monthly)}
+  return `<!doctype html>
+<html lang="es">
+<body style="margin:0;padding:0;background:#faf9f7;">
+  <div style="max-width:560px;margin:0 auto;padding:24px 16px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f1f1f;">
+    <div style="background:#ffffff;border:1px solid #ece7e1;border-radius:12px;padding:24px;">
 
-━━━━━━━━━━━━━━━━━━━━━━
+      <p style="margin:0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8a7a6a;font-weight:700;">Perfumes SAAD</p>
+      <h1 style="margin:6px 0 2px;font-size:20px;font-weight:600;">Reporte semanal</h1>
+      <p style="margin:0 0 20px;font-size:13px;color:#6b6b6b;">Semana del ${escapeHtml(String(data.week_start))} al ${escapeHtml(String(data.week_end))}</p>
 
-📋 *OTROS DATOS*
-• Nuevos clientes: ${data.new_customers}
-• Productos con stock bajo: ${data.low_stock_count}
-• Pedidos pendientes: ${data.pending_orders}
+      <div style="background:#f6f5f3;border-radius:10px;padding:18px;text-align:center;">
+        <p style="margin:0 0 6px;font-size:12px;color:#6b6b6b;font-weight:600;">${escapeHtml(heroLabel)}</p>
+        <p style="margin:0;font-size:30px;font-weight:700;color:${heroColor};">${escapeHtml(heroValue)}</p>
+      </div>
 
-━━━━━━━━━━━━━━━━━━━━━━
+      ${section("Ingresos", [
+        row("Ventas cobradas", formatCurrency(num(week.sales)), true),
+        row("Pedidos", String(num(week.orders))),
+        row("Semana pasada", formatCurrency(num(previous.sales))),
+        row("Variación", formatVariation(num(week.sales), num(previous.sales))),
+        row("Ticket promedio", formatCurrency(num(week.average_order_value))),
+      ].join(""))}
 
-_Reporte generado el ${data.report_date}_
-  `.trim();
+      ${section("Fiado y cartera", [
+        row("Vendido a crédito esta semana", `${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} ped.)`),
+        row("Te pagaron de fiado", formatCurrency(num(credit.week_collected))),
+        row("Por cobrar en total", formatCurrency(num(credit.outstanding_balance)), true),
+        creditWarning,
+      ].join(""))}
+
+      ${section("Más vendidos", topList || row("Sin ventas registradas", ""))}
+
+      ${section("Gastos", [
+        row("Semana", formatCurrency(num(week.expenses))),
+        row("Mes", formatCurrency(num(expenses.monthly))),
+        row("Costo de productos", formatCurrency(num(week.product_cost))),
+        row("Costo de domicilio", formatCurrency(num(week.delivery_cost))),
+        row("Costo del fiado no cobrado", formatCurrency(num(week.credit_cost))),
+      ].join(""))}
+
+      ${section("Para mirar", [
+        row("Clientes nuevos", String(data.new_customers)),
+        row("Pedidos pendientes", String(data.pending_orders)),
+        row("Productos con stock bajo", String(data.low_stock_count)),
+      ].join(""))}
+
+      <p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #ece7e1;font-size:12px;color:#9a9189;">
+        Generado el ${escapeHtml(String(data.report_date))} · La utilidad descuenta el costo de lo vendido a crédito que aún no te pagan.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 function formatDailyReport(data: any): string {
@@ -172,14 +328,12 @@ serve(async (req) => {
     if (error) throw error;
 
     const reportText = isDailyReport ? formatDailyReport(data) : formatReport(data);
-    const escapedReport = reportText.replace(/[&<>"']/g, (character) => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    })[character] ?? character);
-    const reportHtml = `<pre style="font-family: monospace; white-space: pre-wrap;">${escapedReport}</pre>`;
+    // El correo va como HTML real, no dentro de un <pre> monoespaciado:
+    // el texto se lee bien en WhatsApp pero por correo salia como un bloque
+    // gris plano. Los dos formatos salen del mismo dato.
+    const reportHtml = isDailyReport
+      ? `<pre style="font-family: monospace; white-space: pre-wrap;">${escapeHtml(reportText)}</pre>`
+      : formatReportHtml(data);
 
     // Send email via Brevo
     const emailResult = await sendAppsScriptEmail(
