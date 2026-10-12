@@ -92,6 +92,7 @@ function formatReport(data: any): string {
     `Vendido a crédito: ${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} pedidos)`,
     `Te pagaron de fiado: ${formatCurrency(num(credit.week_collected))}`,
     `Por cobrar en total: ${formatCurrency(num(credit.outstanding_balance))}`,
+    `Costo de lo que te deben: ${formatCurrency(num(credit.outstanding_cost))}`,
   ];
 
   if (overdue > 0) {
@@ -203,6 +204,7 @@ function formatReportHtml(data: any): string {
         row("Vendido a crédito esta semana", `${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} ped.)`),
         row("Te pagaron de fiado", formatCurrency(num(credit.week_collected))),
         row("Por cobrar en total", formatCurrency(num(credit.outstanding_balance)), true),
+        row("Costo de lo que te deben", formatCurrency(num(credit.outstanding_cost))),
         creditWarning,
       ].join(""))}
 

@@ -49,7 +49,6 @@ declare
   previous_week_cost numeric;
   previous_week_delivery numeric;
   previous_week_expenses numeric;
-  previous_week_credit_cost numeric;
 
   -- Mes
   last_month_sales numeric;
@@ -74,6 +73,7 @@ declare
   credit_outstanding_balance numeric;
   credit_overdue_balance numeric;
   credit_customers_overdue integer;
+  credit_outstanding_cost numeric;
 
   avg_order_value numeric;
 
@@ -116,13 +116,21 @@ begin
     and o.paid_at >= v_from::timestamp at time zone 'America/Bogota'
     and o.paid_at <  v_to::timestamp at time zone 'America/Bogota';
 
-  -- Costo del fiado que aun no te pagan. Se resta de la utilidad: ya le
-  -- pagaste al proveedor y ese dinero no es tuyo hasta que te lo paguen.
+  -- Costo del fiado vendido ESTA semana y aun no cobrado. Se resta de la
+  -- utilidad: ya le pagaste al proveedor y ese dinero no es tuyo hasta que
+  -- te lo paguen.
+  --
+  -- OJO: va acotado por created_at a la semana reportada. Sin ese filtro
+  -- traia el costo de TODO el fiado pendiente desde siempre y lo restaba de
+  -- una sola semana, lo que hangue la utilidad en negativo por ventas a
+  -- credito de meses anteriores. El saldo total va aparte, en credit.
   select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
   into current_week_credit_cost
   from public.order_items oi
   join public.orders o on o.id = oi.order_id
   where o.payment_status in ('credit', 'partial')
+    and o.created_at >= v_from::timestamp at time zone 'America/Bogota'
+    and o.created_at <  v_to::timestamp at time zone 'America/Bogota'
     and oi.unit_cost_snapshot is not null;
 
   -- ============================================================
@@ -284,6 +292,16 @@ begin
   where payment_status in ('credit', 'partial')
     and credit_due_date < current_date;
 
+  -- Costo de producto de todo el fiado pendiente. NO entra en la utilidad
+  -- semanal (esa solo descuenta el fiado de la semana), pero conviene
+  -- mostrarlo: es plata que ya invertiste y todavia no te devolvieron.
+  select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
+  into credit_outstanding_cost
+  from public.order_items oi
+  join public.orders o on o.id = oi.order_id
+  where o.payment_status in ('credit', 'partial')
+    and oi.unit_cost_snapshot is not null;
+
   avg_order_value := case when current_week_orders > 0
                           then current_week_sales / current_week_orders
                           else 0 end;
@@ -346,7 +364,10 @@ begin
       'week_collected', credit_week_collected,
       'outstanding_balance', credit_outstanding_balance,
       'overdue_balance', credit_overdue_balance,
-      'customers_overdue', credit_customers_overdue
+      'customers_overdue', credit_customers_overdue,
+      -- Costo de lo vendido a fiado y aun no cobrado. Se muestra aparte a
+      -- proposito: es plata tuya que esta afuera, no una perdida de la semana.
+      'outstanding_cost', credit_outstanding_cost
     )
   );
 
