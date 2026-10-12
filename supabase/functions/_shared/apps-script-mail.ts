@@ -29,7 +29,10 @@ export async function sendAppsScriptEmail(
   try {
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // El charset explicito no es opcional: sin el, Apps Script puede
+      // interpretar el cuerpo como Latin-1 al hacer JSON.parse y los
+      // acentos del reporte llegan como "MÃ¡s vendidos" en vez de "Más".
+      headers: { "Content-Type": "application/json; charset=utf-8" },
       body: JSON.stringify({ secret: APPS_SCRIPT_SHARED_SECRET, subject, html }),
     });
     if (!response.ok) {

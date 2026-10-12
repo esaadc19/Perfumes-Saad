@@ -174,6 +174,10 @@ function formatReportHtml(data: any): string {
 
   return `<!doctype html>
 <html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
 <body style="margin:0;padding:0;background:#faf9f7;">
   <div style="max-width:560px;margin:0 auto;padding:24px 16px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f1f1f;">
     <div style="background:#ffffff;border:1px solid #ece7e1;border-radius:12px;padding:24px;">
