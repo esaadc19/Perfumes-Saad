@@ -67,6 +67,14 @@ import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
 import Metric from "./components/admin/Metric";
 import MetricGroup from "./components/admin/MetricGroup";
+import {
+  PERIOD_PRESETS,
+  customPeriod,
+  resolvePeriod,
+  toRpcArgs,
+  validateRange,
+  type PeriodPresetId,
+} from "./services/report-periods";
 import AlertBlock from "./components/admin/AlertBlock";
 import Pagination from "./components/admin/Pagination";
 import AdminButton from "./components/admin/AdminButton";
@@ -1291,6 +1299,22 @@ function Admin({
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportDate, setReportDate] = useState(getBogotaDate);
+  /** Periodo del reporte semanal/mensual. Por defecto, la semana pasada. */
+  const [reportPeriodId, setReportPeriodId] = useState<PeriodPresetId>("last-week");
+  const [reportRangeError, setReportRangeError] = useState<string | null>(null);
+  const [reportCustomFrom, setReportCustomFrom] = useState(() => {
+    const p = resolvePeriod("last-week");
+    return p.from;
+  });
+  const [reportCustomTo, setReportCustomTo] = useState(() => {
+    const p = resolvePeriod("last-week");
+    return p.to;
+  });
+  // Se valida mientras se escribe, para no obligar a generar un reporte
+  // entero para enterarse de que el rango estaba al revés.
+  useEffect(() => {
+    setReportRangeError(validateRange(reportCustomFrom, reportCustomTo));
+  }, [reportCustomFrom, reportCustomTo]);
   const [reportResult, setReportResult] = useState<{
     whatsappUrl: string;
     emailSent: boolean;
@@ -1528,6 +1552,26 @@ function Admin({
     setReportLoading(true);
     setReportError(null);
     setReportResult(null);
+
+    // El diario es un solo dia. El resto usa el periodo elegido.
+    let requestBody: Record<string, unknown> = {};
+    let periodLabel = "semanal";
+    if (dailyReportDate) {
+      requestBody = { report_date: dailyReportDate };
+      periodLabel = `diario del ${dailyReportDate}`;
+    } else {
+      const rangeError = validateRange(reportCustomFrom, reportCustomTo);
+      if (rangeError) {
+        setReportError(rangeError);
+        setReportLoading(false);
+        return;
+      }
+      const period = customPeriod(reportCustomFrom, reportCustomTo);
+      const args = toRpcArgs(period);
+      requestBody = { period_from: args.p_from, period_to: args.p_to };
+      periodLabel = period.label.toLowerCase();
+    }
+
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw sessionError;
@@ -1536,7 +1580,7 @@ function Admin({
         throw new Error("Tu sesión no está activa. Cierra sesión, vuelve a entrar como administrador e inténtalo nuevamente.");
       }
       const { data, error: functionError } = await supabase.functions.invoke("weekly-report", {
-        body: dailyReportDate ? { report_date: dailyReportDate } : {},
+        body: requestBody,
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (functionError) throw functionError;
@@ -1550,7 +1594,7 @@ function Admin({
         whatsappUrl,
         emailSent: data.email_sent === true,
         emailError: typeof data.email_error === "string" ? data.email_error : null,
-        label: dailyReportDate ? `diario del ${dailyReportDate}` : "semanal",
+        label: periodLabel,
       });
     } catch (reportFailure) {
       console.error("No se pudo generar el reporte:", reportFailure);
@@ -2158,6 +2202,76 @@ function Admin({
 
         {section === "overview" && metrics && (
           <>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <h3>Reporte por periodo</h3>
+                <p>Elige un periodo rapido o escribe el rango que necesites.</p>
+              </div>
+
+              <div className="report-presets" role="group" aria-label="Periodos rapidos">
+                {PERIOD_PRESETS.map((preset) => (
+                  <AdminButton
+                    key={preset.id}
+                    tone={reportPeriodId === preset.id ? "primary" : "secondary"}
+                    compact
+                    type="button"
+                    aria-pressed={reportPeriodId === preset.id}
+                    disabled={reportLoading}
+                    onClick={() => {
+                      const period = resolvePeriod(preset.id);
+                      setReportPeriodId(preset.id);
+                      setReportCustomFrom(period.from);
+                      setReportCustomTo(period.to);
+                    }}
+                  >
+                    {preset.label}
+                  </AdminButton>
+                ))}
+              </div>
+
+              <div className="report-range">
+                <label className="report-date-field">
+                  Desde
+                  <input
+                    type="date"
+                    value={reportCustomFrom}
+                    max={getBogotaDate()}
+                    disabled={reportLoading}
+                    onChange={(event) => {
+                      setReportPeriodId("custom" as PeriodPresetId);
+                      setReportCustomFrom(event.target.value);
+                    }}
+                  />
+                </label>
+                <label className="report-date-field">
+                  Hasta
+                  <input
+                    type="date"
+                    value={reportCustomTo}
+                    max={getBogotaDate()}
+                    disabled={reportLoading}
+                    onChange={(event) => {
+                      setReportPeriodId("custom" as PeriodPresetId);
+                      setReportCustomTo(event.target.value);
+                    }}
+                  />
+                </label>
+                <AdminButton
+                  tone="primary"
+                  compact
+                  type="button"
+                  onClick={() => void generateReport()}
+                  disabled={reportLoading}
+                >
+                  <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Generar reporte"}
+                </AdminButton>
+              </div>
+
+              {reportRangeError && (
+                <p className="form-error" role="alert">{reportRangeError}</p>
+              )}
+            </div>
+
             <div className="report-actions">
               <label className="report-date-field">
                 Fecha del reporte diario
@@ -2177,15 +2291,6 @@ function Admin({
                 disabled={reportLoading || !reportDate}
               >
                 <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte diario"}
-              </AdminButton>
-              <AdminButton
-                tone="secondary"
-                compact
-                type="button"
-                onClick={() => void generateReport()}
-                disabled={reportLoading}
-              >
-                <BarChart3 size={16} /> {reportLoading ? "Generando reporte..." : "Generar reporte semanal"}
               </AdminButton>
             </div>
             {reportError && <p className="form-error" role="alert">{reportError}</p>}

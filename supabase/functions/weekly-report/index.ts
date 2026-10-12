@@ -61,6 +61,10 @@ function formatReport(data: any): string {
   const profit = num(week.net_profit);
   const missingCost = num(week.missing_cost_items);
   const overdue = num(credit.overdue_balance);
+  const periodDays = num(data.period?.days ?? 7);
+  const isWeek = periodDays <= 7;
+  const periodWord = isWeek ? "SEMANA" : periodDays <= 31 ? "MES" : `${periodDays} DÍAS`;
+  const prevWord = isWeek ? "Semana pasada" : "Periodo anterior";
 
   // Si falta el costo de alguna venta, la utilidad no es un numero que se
   // pueda defender. Se declara incompleta en vez de rellenar con cero.
@@ -73,7 +77,8 @@ function formatReport(data: any): string {
     : "";
 
   const lines: string[] = [
-    `💰 *UTILIDAD DE LA SEMANA*`,
+    `💰 *UTILIDAD DEL ${periodWord}*`,
+    `${data.week_start} al ${data.week_end}`,
     profitLine + margin,
     ``,
     `Ventas cobradas: ${formatCurrency(num(week.sales))}`,
@@ -83,13 +88,13 @@ function formatReport(data: any): string {
     `− Costo del fiado no cobrado: ${formatCurrency(num(week.credit_cost))}`,
     ``,
     `📊 *INGRESOS*`,
-    `Esta semana: ${formatCurrency(num(week.sales))} (${num(week.orders)} pedidos)`,
-    `Semana pasada: ${formatCurrency(num(previous.sales))} (${num(previous.orders)} pedidos)`,
+    `${isWeek ? "Esta semana" : "Este periodo"}: ${formatCurrency(num(week.sales))} (${num(week.orders)} pedidos)`,
+    `${prevWord}: ${formatCurrency(num(previous.sales))} (${num(previous.orders)} pedidos)`,
     formatVariation(num(week.sales), num(previous.sales)),
     `Ticket promedio: ${formatCurrency(num(week.average_order_value))}`,
     ``,
     `💳 *FIADO Y CARTERA*`,
-    `Vendido a crédito: ${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} pedidos)`,
+    `Vendido a crédito ${isWeek ? "esta semana" : "en el periodo"}: ${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} pedidos)`,
     `Te pagaron de fiado: ${formatCurrency(num(credit.week_collected))}`,
     `Por cobrar en total: ${formatCurrency(num(credit.outstanding_balance))}`,
     `Costo de lo que te deben: ${formatCurrency(num(credit.outstanding_cost))}`,
@@ -105,8 +110,8 @@ function formatReport(data: any): string {
     `${cleanProductName(data.best_product_this_week?.name)} (${num(data.best_product_this_week?.quantity)} und)`,
     ``,
     `💸 *GASTOS*`,
-    `Semana: ${formatCurrency(num(week.expenses))}`,
-    `Mes: ${formatCurrency(num(expenses.monthly))}`,
+    `${isWeek ? "Semana" : "Periodo"}: ${formatCurrency(num(week.expenses))}`,
+    `Mes en curso: ${formatCurrency(num(expenses.monthly))}`,
     ``,
     `📋 *PARA MIRAR*`,
     `Clientes nuevos: ${data.new_customers}`,
@@ -150,13 +155,23 @@ function formatReportHtml(data: any): string {
   const profit = num(week.net_profit);
   const missingCost = num(week.missing_cost_items);
   const overdue = num(credit.overdue_balance);
+  const periodDays = num(data.period?.days ?? 7);
+  // El encabezado decia "Reporte semanal" y "Utilidad de la semana" aunque
+  // el rango fuera un mes o el año entero.
+  const scopeLabel = periodDays === 1
+    ? "del día"
+    : periodDays <= 7
+      ? "de la semana"
+      : periodDays <= 31
+        ? "del mes"
+        : `del periodo`;
 
   // Sin costo completo la utilidad no se muestra como numero: por muy
   // alto que salga, es mentira.
   const profitComplete = missingCost === 0;
   const heroValue = profitComplete ? formatCurrency(profit) : "Incompleta";
   const heroLabel = profitComplete
-    ? `Utilidad de la semana${num(week.sales) > 0 ? ` · margen ${((profit / num(week.sales)) * 100).toFixed(1)}%` : ""}`
+    ? `Utilidad ${scopeLabel}${num(week.sales) > 0 && week.net_margin_percent != null ? ` · margen ${week.net_margin_percent}%` : ""}`
     : `${missingCost} ${missingCost === 1 ? "pedido no tiene" : "pedidos no tienen"} costo registrado`;
   const heroColor = !profitComplete ? "#8a5a00" : profit < 0 ? "#b3261e" : "#1a5c34";
 
@@ -184,8 +199,8 @@ function formatReportHtml(data: any): string {
     <div style="background:#ffffff;border:1px solid #ece7e1;border-radius:12px;padding:24px;">
 
       <p style="margin:0;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#8a7a6a;font-weight:700;">Perfumes SAAD</p>
-      <h1 style="margin:6px 0 2px;font-size:20px;font-weight:600;">Reporte semanal</h1>
-      <p style="margin:0 0 20px;font-size:13px;color:#6b6b6b;">Semana del ${escapeHtml(String(data.week_start))} al ${escapeHtml(String(data.week_end))}</p>
+      <h1 style="margin:6px 0 2px;font-size:20px;font-weight:600;">Reporte ${periodDays <= 7 ? "semanal" : periodDays <= 31 ? "mensual" : "por periodo"}</h1>
+      <p style="margin:0 0 20px;font-size:13px;color:#6b6b6b;">Del ${escapeHtml(String(data.week_start))} al ${escapeHtml(String(data.week_end))}</p>
 
       <div style="background:#f6f5f3;border-radius:10px;padding:18px;text-align:center;">
         <p style="margin:0 0 6px;font-size:12px;color:#6b6b6b;font-weight:600;">${escapeHtml(heroLabel)}</p>
@@ -195,13 +210,13 @@ function formatReportHtml(data: any): string {
       ${section("Ingresos", [
         row("Ventas cobradas", formatCurrency(num(week.sales)), true),
         row("Pedidos", String(num(week.orders))),
-        row("Semana pasada", formatCurrency(num(previous.sales))),
+        row(periodDays <= 7 ? "Semana pasada" : "Periodo anterior", formatCurrency(num(previous.sales))),
         row("Variación", formatVariation(num(week.sales), num(previous.sales))),
         row("Ticket promedio", formatCurrency(num(week.average_order_value))),
       ].join(""))}
 
       ${section("Fiado y cartera", [
-        row("Vendido a crédito esta semana", `${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} ped.)`),
+        row(`Vendido a crédito ${scopeLabel === "de la semana" ? "esta semana" : "en el periodo"}`, `${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} ped.)`),
         row("Te pagaron de fiado", formatCurrency(num(credit.week_collected))),
         row("Por cobrar en total", formatCurrency(num(credit.outstanding_balance)), true),
         row("Costo de lo que te deben", formatCurrency(num(credit.outstanding_cost))),
@@ -211,8 +226,8 @@ function formatReportHtml(data: any): string {
       ${section("Más vendidos", topList || row("Sin ventas registradas", ""))}
 
       ${section("Gastos", [
-        row("Semana", formatCurrency(num(week.expenses))),
-        row("Mes", formatCurrency(num(expenses.monthly))),
+        row(periodDays <= 7 ? "Semana" : "Periodo", formatCurrency(num(week.expenses))),
+        row("Mes en curso", formatCurrency(num(expenses.monthly))),
         row("Costo de productos", formatCurrency(num(week.product_cost))),
         row("Costo de domicilio", formatCurrency(num(week.delivery_cost))),
         row("Costo del fiado no cobrado", formatCurrency(num(week.credit_cost))),
@@ -328,9 +343,22 @@ serve(async (req) => {
     }
 
     const isDailyReport = typeof requestedDate === "string";
+
+    // Rango del reporte. Solo aplica al semanal: el diario siempre es un
+    // unico dia. Sin rango, la RPC usa la semana completa anterior, que es
+    // lo que manda el cron los domingos.
+    const isDate = (value: unknown): value is string =>
+      typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+    const periodFrom = !isDailyReport && isDate(requestBody?.period_from) ? requestBody.period_from : null;
+    const periodTo = !isDailyReport && isDate(requestBody?.period_to) ? requestBody.period_to : null;
+
+    if ((periodFrom || periodTo) && !periodFrom) {
+      throw new Error("Para elegir un periodo se necesita la fecha de inicio.");
+    }
+
     const { data, error } = isDailyReport
       ? await serviceClient.rpc("daily_sales_report", { target_date: requestedDate })
-      : await serviceClient.rpc("weekly_sales_report");
+      : await serviceClient.rpc("weekly_sales_report", { p_from: periodFrom, p_to: periodTo });
     if (error) throw error;
 
     const reportText = isDailyReport ? formatDailyReport(data) : formatReport(data);
@@ -341,11 +369,19 @@ serve(async (req) => {
       ? `<pre style="font-family: monospace; white-space: pre-wrap;">${escapeHtml(reportText)}</pre>`
       : formatReportHtml(data);
 
+    // "Semana del" era incorrecto cuando el rango es un mes o un año.
+    const periodDays = Number(data.period?.days ?? 7);
+    const periodLabel = periodDays === 1
+      ? "Reporte diario"
+      : periodDays <= 7
+        ? `Reporte semanal - ${data.week_start} al ${data.week_end}`
+        : periodDays <= 31
+          ? `Reporte mensual - ${data.week_start} al ${data.week_end}`
+          : `Reporte de ${periodDays} días - ${data.week_start} al ${data.week_end}`;
+
     // Send email via Brevo
     const emailResult = await sendAppsScriptEmail(
-      isDailyReport
-        ? `📊 Reporte Diario - ${data.report_date}`
-        : `📊 Reporte Semanal - Semana del ${data.week_start}`,
+      isDailyReport ? `📊 Reporte Diario - ${data.report_date}` : `📊 ${periodLabel}`,
       reportHtml
     );
 

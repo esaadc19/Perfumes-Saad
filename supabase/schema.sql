@@ -2497,7 +2497,10 @@ create policy "Admins can manage expenses"
 -- ============================================
 -- FUNCIÃ“N DE REPORTE SEMANAL
 -- ============================================
-create or replace function public.weekly_sales_report()
+create or replace function public.weekly_sales_report(
+  p_from date default null,
+  p_to date default null
+)
 returns jsonb
 language plpgsql
 security definer
@@ -2506,13 +2509,12 @@ as $$
 declare
   local_today date := (now() at time zone 'America/Bogota')::date;
   this_week_start date := date_trunc('week', local_today)::date;
-  report_week_start date := this_week_start - 7;
-  report_week_end date := this_week_start - 1;
-  previous_week_start date := report_week_start - 7;
-  this_month_start date := date_trunc('month', local_today)::date;
-  last_month_start date := (this_month_start - interval '1 month')::date;
 
-  -- Semana reportada
+  v_from date;
+  v_to date;
+  v_prev_from date;
+  v_prev_to date;
+
   current_week_sales numeric;
   current_week_orders integer;
   current_week_items integer;
@@ -2521,17 +2523,14 @@ declare
   current_week_missing_cost integer;
   current_week_credit_cost numeric;
 
-  -- Semana anterior
   previous_week_sales numeric;
   previous_week_orders integer;
   previous_week_cost numeric;
   previous_week_delivery numeric;
   previous_week_expenses numeric;
 
-  -- Mes
   last_month_sales numeric;
 
-  -- Producto mas vendido
   best_product_this_week text;
   best_product_last_month text;
   best_product_week_qty integer;
@@ -2544,7 +2543,6 @@ declare
   weekly_expenses numeric;
   monthly_expenses numeric;
 
-  -- Credito (ya existia; se conserva tal cual)
   credit_week_sales numeric;
   credit_week_orders integer;
   credit_week_collected numeric;
@@ -2554,24 +2552,40 @@ declare
   credit_outstanding_cost numeric;
 
   avg_order_value numeric;
-
-  -- Lista de stock bajo
+  net_margin numeric;
   low_stock_list jsonb;
-  -- Top 5 de la semana, util si vendes poco y siempre hay un ganador
   top_products jsonb;
-
   result jsonb;
-
-  -- v_from / v_to acotan un rango semanal reutilizable
-  v_from date;
-  v_to date;
 begin
   -- ============================================================
-  -- SEMANA REPORTADA
+  -- RANGO
   -- ============================================================
-  v_from := report_week_start;
-  v_to   := this_week_start;
+  if p_from is null then
+    v_from := this_week_start - 7;
+    v_to   := this_week_start;
+  else
+    v_from := p_from;
+    v_to   := coalesce(p_to, local_today + 1);
+  end if;
 
+  -- No se puede(reportar) un rango invertido ni que termine en el futuro.
+  if v_to <= v_from then
+    raise exception 'El rango del reporte no es válido: la fecha final debe ser posterior a la inicial.';
+  end if;
+  if v_from > local_today then
+    raise exception 'No se puede generar un reporte de una fecha futura.';
+  end if;
+  if v_to > local_today + 1 then
+    v_to := local_today + 1;
+  end if;
+
+  -- El periodo anterior tiene la misma duración, hacia atrás.
+  v_prev_to   := v_from;
+  v_prev_from := v_from - (v_to - v_from);
+
+  -- ============================================================
+  -- PERIODO ELEGIDO
+  -- ============================================================
   select coalesce(sum(o.total), 0),
          count(*),
          coalesce(sum((select sum(oi.quantity) from public.order_items oi where oi.order_id = o.id)), 0),
@@ -2582,8 +2596,8 @@ begin
     and o.paid_at >= v_from::timestamp at time zone 'America/Bogota'
     and o.paid_at <  v_to::timestamp at time zone 'America/Bogota';
 
-  -- Costo de productos. Si algun item no tiene costo registrado se cuenta
-  -- aparte: es preferible decir "incompleta" a mostrar una utilidad inflada.
+  -- Costo de productos. Los items sin costo se cuentan aparte: es mejor
+  -- avisar que la utilidad no es de fiar que mostrarla inflada.
   select coalesce(sum(oi.unit_cost_snapshot * oi.quantity)
                    filter (where oi.unit_cost_snapshot is not null), 0),
          count(*) filter (where oi.unit_cost_snapshot is null)
@@ -2594,14 +2608,9 @@ begin
     and o.paid_at >= v_from::timestamp at time zone 'America/Bogota'
     and o.paid_at <  v_to::timestamp at time zone 'America/Bogota';
 
-  -- Costo del fiado vendido ESTA semana y aun no cobrado. Se resta de la
-  -- utilidad: ya le pagaste al proveedor y ese dinero no es tuyo hasta que
-  -- te lo paguen.
-  --
-  -- OJO: va acotado por created_at a la semana reportada. Sin ese filtro
-  -- traia el costo de TODO el fiado pendiente desde siempre y lo restaba de
-  -- una sola semana, lo que hangue la utilidad en negativo por ventas a
-  -- credito de meses anteriores. El saldo total va aparte, en credit.
+  -- Costo del fiado vendido en el periodo y aun no cobrado. Va acotado al
+  -- rango: el fiado de meses atras no hunde la utilidad de hoy. Ese saldo
+  -- total se reporta aparte en credit.outstanding_cost.
   select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
   into current_week_credit_cost
   from public.order_items oi
@@ -2612,17 +2621,14 @@ begin
     and oi.unit_cost_snapshot is not null;
 
   -- ============================================================
-  -- SEMANA ANTERIOR (para comparar)
+  -- PERIODO ANTERIOR (misma duracion, para comparar)
   -- ============================================================
-  v_from := previous_week_start;
-  v_to   := report_week_start;
-
   select coalesce(sum(o.total), 0), count(*), coalesce(sum(o.delivery_cost), 0)
   into previous_week_sales, previous_week_orders, previous_week_delivery
   from public.orders o
   where o.payment_status = 'paid'
-    and o.paid_at >= v_from::timestamp at time zone 'America/Bogota'
-    and o.paid_at <  v_to::timestamp at time zone 'America/Bogota';
+    and o.paid_at >= v_prev_from::timestamp at time zone 'America/Bogota'
+    and o.paid_at <  v_prev_to::timestamp at time zone 'America/Bogota';
 
   select coalesce(sum(oi.unit_cost_snapshot * oi.quantity)
                    filter (where oi.unit_cost_snapshot is not null), 0)
@@ -2630,34 +2636,34 @@ begin
   from public.order_items oi
   join public.orders o on o.id = oi.order_id
   where o.payment_status = 'paid'
-    and o.paid_at >= v_from::timestamp at time zone 'America/Bogota'
-    and o.paid_at <  v_to::timestamp at time zone 'America/Bogota';
+    and o.paid_at >= v_prev_from::timestamp at time zone 'America/Bogota'
+    and o.paid_at <  v_prev_to::timestamp at time zone 'America/Bogota';
 
   select coalesce(sum(amount), 0)
   into previous_week_expenses
   from public.expenses
-  where expense_date >= previous_week_start and expense_date < report_week_start;
+  where expense_date >= v_prev_from and expense_date < v_prev_to;
 
   -- ============================================================
-  -- MES ANTERIOR
+  -- MES ANTERIOR (se mantiene, el correo lo compara con el mes en curso)
   -- ============================================================
   select coalesce(sum(o.total), 0)
   into last_month_sales
   from public.orders o
   where o.payment_status = 'paid'
-    and o.paid_at >= last_month_start::timestamp at time zone 'America/Bogota'
-    and o.paid_at <  this_month_start::timestamp at time zone 'America/Bogota';
+    and o.paid_at >= date_trunc('month', local_today)::date::timestamp at time zone 'America/Bogota'
+    and o.paid_at <  (date_trunc('month', local_today)::date + interval '1 month')::date::timestamp at time zone 'America/Bogota';
 
   -- ============================================================
-  -- PRODUCTO MAS VENDIDO
+  -- PRODUCTOS
   -- ============================================================
   select oi.product_name_snapshot, sum(oi.quantity)
   into best_product_this_week, best_product_week_qty
   from public.order_items oi
   join public.orders o on o.id = oi.order_id
   where o.payment_status = 'paid'
-    and o.paid_at >= report_week_start::timestamp at time zone 'America/Bogota'
-    and o.paid_at <  this_week_start::timestamp at time zone 'America/Bogota'
+    and o.paid_at >= v_from::timestamp at time zone 'America/Bogota'
+    and o.paid_at <  v_to::timestamp at time zone 'America/Bogota'
   group by oi.product_name_snapshot
   order by sum(oi.quantity) desc
   limit 1;
@@ -2667,13 +2673,12 @@ begin
   from public.order_items oi
   join public.orders o on o.id = oi.order_id
   where o.payment_status = 'paid'
-    and o.paid_at >= last_month_start::timestamp at time zone 'America/Bogota'
-    and o.paid_at <  this_month_start::timestamp at time zone 'America/Bogota'
+    and o.paid_at >= date_trunc('month', local_today)::date::timestamp at time zone 'America/Bogota'
+    and o.paid_at <  (date_trunc('month', local_today)::date + interval '1 month')::date::timestamp at time zone 'America/Bogota'
   group by oi.product_name_snapshot
   order by sum(oi.quantity) desc
   limit 1;
 
-  -- Top 5 de la semana: util cuando se venden pocas unidades
   select coalesce(jsonb_agg(t), '[]'::jsonb)
   into top_products
   from (
@@ -2683,8 +2688,8 @@ begin
     from public.order_items oi
     join public.orders o on o.id = oi.order_id
     where o.payment_status = 'paid'
-      and o.paid_at >= report_week_start::timestamp at time zone 'America/Bogota'
-      and o.paid_at <  this_week_start::timestamp at time zone 'America/Bogota'
+      and o.paid_at >= v_from::timestamp at time zone 'America/Bogota'
+      and o.paid_at <  v_to::timestamp at time zone 'America/Bogota'
     group by oi.product_name_snapshot
     order by sum(oi.quantity) desc, sum(oi.subtotal) desc
     limit 5
@@ -2696,8 +2701,8 @@ begin
   select count(*)
   into new_customers_count
   from public.customers
-  where created_at >= report_week_start::timestamp at time zone 'America/Bogota'
-    and created_at <  this_week_start::timestamp at time zone 'America/Bogota';
+  where created_at >= v_from::timestamp at time zone 'America/Bogota'
+    and created_at <  v_to::timestamp at time zone 'America/Bogota';
 
   select count(*)
   into low_stock_count
@@ -2705,7 +2710,6 @@ begin
   join public.products p on p.id = pv.product_id
   where pv.active = true and p.active = true and pv.stock <= pv.min_stock;
 
-  -- Lista concreta: el total solo no dice que se compre nada
   select coalesce(jsonb_agg(t order by t.stock asc), '[]'::jsonb)
   into low_stock_list
   from (
@@ -2728,31 +2732,31 @@ begin
   select coalesce(sum(amount), 0)
   into weekly_expenses
   from public.expenses
-  where expense_date >= report_week_start and expense_date < this_week_start;
+  where expense_date >= v_from and expense_date < v_to;
 
   select coalesce(sum(amount), 0)
   into monthly_expenses
   from public.expenses
-  where expense_date >= this_month_start and expense_date < (this_month_start + interval '1 month')::date;
+  where expense_date >= date_trunc('month', local_today)::date
+    and expense_date < (date_trunc('month', local_today)::date + interval '1 month')::date;
 
   -- ============================================================
-  -- CREDITO (bloque preexistente, conservado)
+  -- CREDITO
   -- ============================================================
   select coalesce(sum(o.total), 0), count(*)
   into credit_week_sales, credit_week_orders
   from public.orders o
   where o.payment_status in ('credit', 'partial')
-    and o.status in ('confirmed', 'shipped', 'delivered')
-    and o.created_at >= report_week_start::timestamp at time zone 'America/Bogota'
-    and o.created_at <  this_week_start::timestamp at time zone 'America/Bogota';
+    and o.created_at >= v_from::timestamp at time zone 'America/Bogota'
+    and o.created_at <  v_to::timestamp at time zone 'America/Bogota';
 
   select coalesce(sum(cp.amount), 0)
   into credit_week_collected
   from public.customer_credit_payments cp
-  join public.orders o on o.id = cp.order_id
-  where cp.paid_at >= report_week_start::timestamp at time zone 'America/Bogota'
-    and cp.paid_at <  this_week_start::timestamp at time zone 'America/Bogota';
+  where cp.paid_at >= v_from::timestamp at time zone 'America/Bogota'
+    and cp.paid_at <  v_to::timestamp at time zone 'America/Bogota';
 
+  -- Inventario: lo que te deben hoy, independiente del periodo elegido.
   select coalesce(sum(credit_amount), 0)
   into credit_outstanding_balance
   from public.orders
@@ -2770,9 +2774,6 @@ begin
   where payment_status in ('credit', 'partial')
     and credit_due_date < current_date;
 
-  -- Costo de producto de todo el fiado pendiente. NO entra en la utilidad
-  -- semanal (esa solo descuenta el fiado de la semana), pero conviene
-  -- mostrarlo: es plata que ya invertiste y todavia no te devolvieron.
   select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
   into credit_outstanding_cost
   from public.order_items oi
@@ -2784,13 +2785,30 @@ begin
                           then current_week_sales / current_week_orders
                           else 0 end;
 
+  -- Margen: solo si no falta ningun costo. Dividir por cero daria null.
+  net_margin := case
+    when current_week_sales > 0 and current_week_missing_cost = 0
+      then round(((current_week_sales - current_week_cost
+                   - current_week_delivery - weekly_expenses
+                   - current_week_credit_cost) / current_week_sales) * 100, 1)
+    else null
+  end;
+
   -- ============================================================
   -- RESULTADO
   -- ============================================================
   result := jsonb_build_object(
     'report_date', local_today,
-    'week_start', report_week_start,
-    'week_end', report_week_end,
+    'week_start', v_from,
+    'week_end', (v_to - 1)::date,
+    'period', jsonb_build_object(
+      'from', v_from,
+      'to', (v_to - 1)::date,
+      'days', (v_to - v_from),
+      'previous_from', v_prev_from,
+      'previous_to', (v_prev_to - 1)::date,
+      'custom', p_from is not null
+    ),
     'current_week', jsonb_build_object(
       'sales', current_week_sales,
       'orders', current_week_orders,
@@ -2801,8 +2819,7 @@ begin
       'credit_cost', current_week_credit_cost,
       'expenses', weekly_expenses,
       'missing_cost_items', current_week_missing_cost,
-      -- Utilidad con la misma formula del dashboard:
-      --   ventas - costo productos - domicilio - gastos - costo del fiado
+      'net_margin_percent', net_margin,
       'net_profit', current_week_sales - current_week_cost
                       - current_week_delivery - weekly_expenses
                       - current_week_credit_cost
@@ -2843,8 +2860,6 @@ begin
       'outstanding_balance', credit_outstanding_balance,
       'overdue_balance', credit_overdue_balance,
       'customers_overdue', credit_customers_overdue,
-      -- Costo de lo vendido a fiado y aun no cobrado. Se muestra aparte a
-      -- proposito: es plata tuya que esta afuera, no una perdida de la semana.
       'outstanding_cost', credit_outstanding_cost
     )
   );
@@ -2854,9 +2869,9 @@ end;
 $$;
 
 
-revoke all on function public.weekly_sales_report() from public;
-revoke all on function public.weekly_sales_report() from anon, authenticated;
-grant execute on function public.weekly_sales_report() to authenticated, service_role;
+revoke all on function public.weekly_sales_report(date, date) from public;
+revoke all on function public.weekly_sales_report(date, date) from anon, authenticated;
+grant execute on function public.weekly_sales_report(date, date) to authenticated, service_role;
 
 create or replace function public.daily_sales_report(target_date date)
 returns jsonb
