@@ -841,6 +841,155 @@ footer a { color: #111; }
    contenido, el encabezado (que la tiene vacía) y la fila de datos
    (que trae dos botones) se dimensionarían distinto y se desalinearían
    todas las columnas anteriores. */
+/* --- Pantalla "A quién cobrar" --- */
+/* Agrupa por persona, no por pedido: el cliente unaware que tiene tres
+   fiados y no quiere recibir tres mensajes distintos. */
+.collect-page { max-width: 900px; }
+.collect-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+/* Las tarjetas de resumen viven dentro de .credit-summary en Cartera; aqui
+   se reutilizan pero sin ese bloque, asi que hay que darles el layout. */
+.collect-summary .summary-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.collect-summary .summary-card > svg { flex: 0 0 auto; color: var(--cuero); }
+.collect-summary .summary-card > div { display: grid; gap: 2px; min-width: 0; }
+.collect-summary .summary-card span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.collect-summary .summary-card strong { font-size: 22px; line-height: 1.15; }
+.collect-summary .summary-card.warning { background: var(--danger-soft); border-color: var(--danger-line); }
+.collect-summary .summary-card.warning > svg,
+.collect-summary .summary-card.warning strong { color: var(--danger); }
+
+.collect-note {
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.collect-group { margin-bottom: 26px; }
+.collect-group-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.collect-group-head h3 { margin: 0; font: 500 18px "Playfair Display", serif; color: var(--black); }
+.collect-group-head p { margin: 4px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.collect-group-head > strong { font-size: 17px; font-weight: 700; white-space: nowrap; }
+
+.collect-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--marfil);
+  color: var(--cuero);
+  font: 600 11px Poppins, sans-serif;
+  vertical-align: middle;
+}
+
+.collect-group.is-overdue .collect-group-head > strong { color: var(--danger); }
+.collect-group.is-overdue .collect-count { background: var(--danger-soft); color: var(--danger); }
+
+.collect-list { display: grid; gap: 8px; }
+
+.collect-row {
+  padding: 13px 15px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.collect-row:hover { border-color: #cbbfae; box-shadow: 0 4px 14px rgba(44, 36, 32, .06); }
+.collect-row.is-late { border-left: 3px solid var(--danger); }
+
+.collect-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.collect-who { display: grid; gap: 4px; min-width: 0; }
+.collect-who > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.collect-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.collect-due.is-late { color: var(--danger); font-weight: 600; }
+
+.collect-amount { display: grid; gap: 3px; text-align: right; }
+.collect-amount strong { font-size: 16px; font-weight: 700; white-space: nowrap; }
+.collect-amount span { color: var(--muted); font-size: 11px; }
+
+.collect-actions { display: flex; align-items: center; gap: 7px; }
+
+.collect-no-phone {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.collect-warning {
+  margin: 11px 0 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #fdf6e8;
+  color: #8a5a00;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.collect-orders {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 12px 0 0;
+  border-top: 1px dashed var(--border);
+  display: grid;
+  gap: 7px;
+}
+.collect-orders li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 14px;
+  font-size: 12.5px;
+}
+.collect-order-code { color: var(--muted); font-weight: 600; }
+.collect-order-date { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+
 .credit-row { min-width: 1020px; grid-template-columns: 2fr .8fr .8fr .9fr .8fr 1fr .9fr 205px; gap: 12px; }
 /* Cliente y acciones se alinean a los extremos; el resto al centro para
    que las cifras queden alineadas entre sí. */
@@ -1110,6 +1259,19 @@ footer a { color: #111; }
   .credit-summary .summary-card span { font-size: 9.5px; letter-spacing: .04em; }
   .credit-summary .summary-card strong { font-size: 17px; }
   .credit-filters { gap: 8px; }
+  /* Cobrar en movil: cada fila se apila en tres lineas, porque en dos
+     columnas el nombre y el monto se pisan. */
+  .collect-summary { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .collect-main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 11px;
+  }
+  .collect-amount { text-align: left; }
+  .collect-actions { justify-content: stretch; }
+  .collect-actions .admin-button { flex: 1; min-height: 44px; }
+  .collect-group-head { flex-direction: column; gap: 8px; }
+  .collect-orders li { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+  .collect-order-date { grid-column: 1 / -1; }
   .filter-tabs { gap: 6px; }
   .filter-tabs .admin-button { padding: 8px 11px; font-size: 12px; min-height: 40px; }
   .insight-grid { gap: 0; }

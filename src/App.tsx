@@ -85,6 +85,7 @@ import { Toaster, useToasts } from "./components/Toast";
 // para que los visitantes de la tienda descarguen un bundle inicial más pequeño.
 const Charts = lazy(() => import("./components/admin/Charts"));
 const CreditPage = lazy(() => import("./components/admin/CreditPage"));
+const CollectPage = lazy(() => import("./components/admin/CollectPage"));
 const OrderEditorModal = lazy(() => import("./components/admin/OrderEditorModal"));
 const OrdersPage = lazy(() => import("./components/admin/OrdersPage"));
 const SettingsPage = lazy(() => import("./components/admin/SettingsPage"));
@@ -131,6 +132,7 @@ import {
   Users,
   X,
   CalendarDays,
+  MessageCircle,
 } from "lucide-react";
 
 type Variant = {
@@ -1285,7 +1287,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "reports" | "profiles" | "settings" | "credit">("overview");
+  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "reports" | "collect" | "collect" | "profiles" | "settings" | "credit">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem("saad-admin-sidebar") === "collapsed"
   );
@@ -1421,6 +1423,7 @@ function Admin({
     { id: "products", title: "Productos", icon: <Package size={17} /> },
     { id: "promotions", title: "Promociones", icon: <Tag size={17} /> },
     { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
+    { id: "collect", title: "Cobrar", icon: <MessageCircle size={17} /> },
     { id: "credit", title: "Cartera", icon: <DollarSign size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
     { id: "expenses", title: "Gastos", icon: <Wallet size={17} /> },
@@ -2565,6 +2568,12 @@ function Admin({
               </div>
             </section>
           </>
+        )}
+
+        {section === "collect" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando quién debe…</span></div>}>
+            <CollectPage sectionRevision={sectionRevision} />
+          </Suspense>
         )}
 
         {section === "credit" && (

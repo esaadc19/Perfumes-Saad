@@ -14,6 +14,7 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - UI del admin: botones CoreUI pill (`AdminButton`), `EmptyState`, tablas con cabecera sticky y zebra.
 - Dashboard: `MetricGroup` agrupa por dominio (Cartera, Inventario, Clientes, Ventas) con título y pista; `AlertBlock` solo aparece si hay algo > 0.
 - Cartera conserva el histórico: los fiados pagados no desaparecen, quedan con estado `Pagado`.
+- Pantalla **Cobrar**: quién debe, agrupado por cliente (no por pedido) con botón de WhatsApp y mensaje escrito.
 
 ## Decisiones (y por qué)
 
@@ -48,7 +49,10 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - Igualar el alto de **las cajas de grupo** es otra cosa que igualar el de **las tarjetas**: si falta `align-items: start` en la rejilla de grupos, cada caja queda a su alto natural y se ven de distinto tamaño.
 - Repartir N tarjetas: mejor que el número de filas salga exacto (9 en 3 columnas) que forzar un `span 2`. Si una tarjeta es más ancha, la última fila queda con hueco.
 - Al verificar CSS, **medir con el marcado real del componente**, no con HTML inventado en la consola: si no, se depura algo que no existe.
-- En PowerShell `&&` no funciona: usar `;` o el parámetro `workdir`. `git push` escribe en stderr y PowerShell lo marca como error aunque salga bien: mirar que apareceu `main -> main`.
+- - Un recordatorio de cobro va **un mensaje por cliente**, no uno por pedido: quien tiene tres fiados unaware que los tiene y no quiere recibir tres mensajes distintos. Por eso `getCustomersToCollect()` agrupa.
+- `wa.me` exige el n��mero con código de país: un móvil colombiano de 10 dígitos necesita el `57` delante o el link no abre.
+- El panel admin no se abre solo: hay que entrar por el botón "Cuenta" -> "Abrir panel de administraci��n". `userRole` sale de la tabla `profiles`.
+En PowerShell `&&` no funciona: usar `;` o el parámetro `workdir`. `git push` escribe en stderr y PowerShell lo marca como error aunque salga bien: mirar que apareceu `main -> main`.
 
 ## Próximos pasos
 

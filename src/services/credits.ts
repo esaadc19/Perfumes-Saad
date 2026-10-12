@@ -23,6 +23,8 @@ export interface NewCreditPayment {
 export interface CreditOrderSummary {
   order_id: string;
   order_code: string;
+  /** Necesario para agrupar los fiados de un mismo cliente. */
+  customer_id: string;
   customer_name: string;
   customer_phone: string;
   total: number;
@@ -131,6 +133,7 @@ export async function getCreditOrders(): Promise<CreditOrderSummary[]> {
       return {
         order_id: order.id,
         order_code: order.id.slice(0, 8).toUpperCase(),
+        customer_id: order.customer_id,
         customer_name: customer?.full_name ?? "",
         customer_phone: customer?.phone ?? "",
         total: Number(order.total),
@@ -316,3 +319,140 @@ export const CREDIT_METHODS = [
   { value: "transferencia" as const, label: "Transferencia" },
   { value: "otro" as const, label: "Otro" },
 ];
+
+/** Cliente con al menos un pedido a credito sin saldar. */
+export interface CustomerToCollect {
+  customer_id: string;
+  customer_name: string;
+  customer_phone: string;
+  /** Numero listo para wa.me, o "" si el cliente no dio telefono. */
+  whatsapp_number: string;
+  /** Telefono incompleto: existe pero no parece un movil. */
+  phone_incomplete: boolean;
+  /** Suma de todos sus saldos pendientes. */
+  total_due: number;
+  order_count: number;
+  /** El atraso mas viejo de sus pedidos, en dias. 0 si ninguno. */
+  days_overdue: number;
+  /** true si al menos uno de sus pedidos ya vencio. */
+  overdue: boolean;
+  /** Fecha de vencimiento mas proxima. null si no tiene fecha. */
+  next_due_date: string | null;
+  /** Dias hasta la proxima vencimiento. Negativo = ya paso. */
+  days_until_due: number | null;
+  orders: Array<{
+    order_id: string;
+    order_code: string;
+    credit_amount: number;
+    credit_due_date: string | null;
+  }>;
+}
+
+/**
+ * Colombianos a los que hay que cobrar, agrupados por persona.
+ *
+ * `getCreditOrders` devuelve una fila por PEDIDO, asi que un cliente con
+ * tres fiados aparece tres veces. Para escribirle por WhatsApp hay que
+ * mandarle un solo mensaje con la suma, no tres que lo hacen verse
+ * desorganizado.
+ *
+ * Solo entran los que deben algo: los fiados ya saldados no se consultan.
+ */
+export async function getCustomersToCollect(today: string): Promise<CustomerToCollect[]> {
+  const orders = await getCreditOrders();
+  const openOrders = orders.filter((order) => order.status !== "paid" && order.credit_amount > 0);
+
+  if (openOrders.length === 0) return [];
+
+  const byCustomer = new Map<string, CustomerToCollect>();
+
+  for (const order of openOrders) {
+    const existing = byCustomer.get(order.customer_id);
+    const detail = {
+      order_id: order.order_id,
+      order_code: order.order_code,
+      credit_amount: order.credit_amount,
+      credit_due_date: order.credit_due_date,
+    };
+
+    if (!existing) {
+      const digits = order.customer_phone.replace(/\D/g, "");
+      // wa.me exige el numero con codigo de pais. Un movil colombiano sin
+      // el 57 no abre el chat.
+      const whatsappNumber = digits.length === 10 ? `57${digits}` : digits;
+      byCustomer.set(order.customer_id, {
+        customer_id: order.customer_id,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        whatsapp_number: whatsappNumber,
+        phone_incomplete: digits.length > 0 && digits.length < 10,
+        total_due: order.credit_amount,
+        order_count: 1,
+        days_overdue: order.days_overdue,
+        overdue: order.overdue,
+        next_due_date: order.credit_due_date,
+        days_until_due: null,
+        orders: [detail],
+      });
+      continue;
+    }
+
+    existing.total_due += order.credit_amount;
+    existing.order_count += 1;
+    existing.orders.push(detail);
+    existing.overdue = existing.overdue || order.overdue;
+    existing.days_overdue = Math.max(existing.days_overdue, order.days_overdue);
+
+    // La proxima vencimiento es la mas cercana que aun no paso. Si ya
+    // vencio algo, se muestra el atraso y no una fecha futura.
+    if (order.credit_due_date) {
+      const isFuture = order.credit_due_date >= today;
+      if (isFuture && (!existing.next_due_date || order.credit_due_date < existing.next_due_date)) {
+        existing.next_due_date = order.credit_due_date;
+      }
+    }
+  }
+
+  return Array.from(byCustomer.values()).map((customer) => {
+    const daysUntilDue = customer.next_due_date
+      ? Math.round(
+          (new Date(`${customer.next_due_date}T12:00:00Z`).getTime() -
+            new Date(`${today}T12:00:00Z`).getTime()) / 86400000,
+        )
+      : null;
+    return { ...customer, days_until_due: daysUntilDue };
+  });
+}
+
+/**
+ * Mensaje de recordatorio. Va uno por cliente con la suma total, no uno por
+ * pedido. Se incluye el atraso porque un mensaje generico no genera
+ * respuesta: la persona necesita ver cuanto debe y desde cuando.
+ */
+export function buildCollectionMessage(customer: CustomerToCollect): string {
+  const monto = new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency: "COP",
+    maximumFractionDigits: 0,
+  }).format(customer.total_due);
+
+  const pedidos = customer.order_count === 1
+    ? "1 pedido"
+    : `${customer.order_count} pedidos`;
+
+  let estado = "";
+  if (customer.overdue) {
+    const dias = customer.days_overdue;
+    estado = dias === 1
+      ? " que venció ayer"
+      : ` que venció hace ${dias} días`;
+  } else if (customer.days_until_due !== null && customer.days_until_due === 0) {
+    estado = " que vence hoy";
+  } else if (customer.days_until_due !== null && customer.days_until_due === 1) {
+    estado = " que vence mañana";
+  } else if (customer.days_until_due !== null && customer.days_until_due > 1) {
+    estado = ` que vence en ${customer.days_until_due} días`;
+  }
+
+  return `Hola ${customer.customer_name.split(" ")[0]}, te recordamos que tenés un saldo pendiente de ${monto} en Perfumes SAAD, correspondiente a ${pedidos}${estado}. Cuando puedas te lo agradecemos. ¡Gracias!`;
+}
