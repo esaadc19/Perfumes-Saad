@@ -1229,6 +1229,9 @@ footer a { color: #111; }
   .report-panel { padding: 15px 13px; }
   .report-presets { gap: 6px; }
   .report-presets .admin-button { padding: 8px 10px; font-size: 11.5px; min-height: 40px; }
+  .report-period-switch { flex-direction: column; align-items: stretch; gap: 8px; }
+  .report-period-switch .chart-period-switch { border-radius: 12px; }
+  .report-period-switch .chart-period-switch button { padding: 9px 10px; font-size: 12px; min-height: 40px; flex: 1 1 auto; }
   .report-range { flex-direction: column; align-items: stretch; }
   .report-range .report-date-field { min-width: 0; }
   .report-range .report-date-field input { width: 100%; min-height: 44px; }
@@ -1292,13 +1295,27 @@ footer a { color: #111; }
   line-height: 1.5;
 }
 
-/* Los presets se alinean en una fila y pasan a varias si no cabe, en vez de
-   dejar el ultimo boton colgando en un borde raro. */
-.report-presets {
+/* Los presets usan el mismo pill que el filtro del dashboard (PERIODO
+   7/30/90 dias), no botones sueltos: son la misma accion conceptualmente y
+   asi el usuario no tiene que aprender dos estilos. */
+.report-presets,
+.report-period-switch .chart-period-switch {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  margin-bottom: 14px;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #faf9f7;
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* Con seis periodos el pill se pasa de ancho: al envolver, las esquinas
+   redondeadas de los extremos quedan Rare. */
+.report-period-switch .chart-period-switch button {
+  font-size: 12px;
+  padding: 7px 13px;
 }
 
 .report-range {

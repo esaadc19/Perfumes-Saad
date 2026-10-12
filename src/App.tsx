@@ -1300,7 +1300,8 @@ function Admin({
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportDate, setReportDate] = useState(getBogotaDate);
   /** Periodo del reporte semanal/mensual. Por defecto, la semana pasada. */
-  const [reportPeriodId, setReportPeriodId] = useState<PeriodPresetId>("last-week");
+  // "custom" aparece cuando el usuario escribe las fechas a mano.
+  const [reportPeriodId, setReportPeriodId] = useState<PeriodPresetId | "custom">("last-week");
   const [reportRangeError, setReportRangeError] = useState<string | null>(null);
   const [reportCustomFrom, setReportCustomFrom] = useState(() => {
     const p = resolvePeriod("last-week");
@@ -2233,25 +2234,50 @@ function Admin({
                 <p>Elige un periodo rapido o escribe el rango que necesites.</p>
               </div>
 
-              <div className="report-presets" role="group" aria-label="Periodos rapidos">
-                {PERIOD_PRESETS.map((preset) => (
-                  <AdminButton
-                    key={preset.id}
-                    tone={reportPeriodId === preset.id ? "primary" : "secondary"}
-                    compact
-                    type="button"
-                    aria-pressed={reportPeriodId === preset.id}
-                    disabled={reportLoading}
-                    onClick={() => {
-                      const period = resolvePeriod(preset.id);
-                      setReportPeriodId(preset.id);
-                      setReportCustomFrom(period.from);
-                      setReportCustomTo(period.to);
-                    }}
-                  >
-                    {preset.label}
-                  </AdminButton>
-                ))}
+              <div className="metrics-period report-period-switch">
+                <span className="metrics-period-label">Periodo</span>
+                {/* Cuando se edita una fecha a mano ningun preset coincide, y
+                    el pill se queda sin nada seleccionado. Este chip avisa
+                    que el rango ya no es uno de los rapidos. */}
+                <div className="chart-period-switch" role="group" aria-label="Periodo del reporte">
+                  {PERIOD_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      className={reportPeriodId === preset.id ? "selected" : ""}
+                      aria-pressed={reportPeriodId === preset.id}
+                      disabled={reportLoading}
+                      onClick={() => {
+                        const period = resolvePeriod(preset.id);
+                        setReportPeriodId(preset.id);
+                        setReportCustomFrom(period.from);
+                        setReportCustomTo(period.to);
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                  {reportPeriodId !== "custom" && PERIOD_PRESETS.some((p) => {
+                    const r = resolvePeriod(p.id);
+                    return r.from === reportCustomFrom && r.to === reportCustomTo;
+                  }) ? null : (
+                    <button
+                      type="button"
+                      className="selected"
+                      aria-pressed="true"
+                      disabled={reportLoading}
+                      onClick={() => {
+                        const back = resolvePeriod("last-week");
+                        setReportPeriodId("last-week");
+                        setReportCustomFrom(back.from);
+                        setReportCustomTo(back.to);
+                      }}
+                      title="Volver a un periodo rapido"
+                    >
+                      A medida
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="report-range">
@@ -2263,7 +2289,7 @@ function Admin({
                     max={getBogotaDate()}
                     disabled={reportLoading}
                     onChange={(event) => {
-                      setReportPeriodId("custom" as PeriodPresetId);
+                      setReportPeriodId("custom");
                       setReportCustomFrom(event.target.value);
                     }}
                   />
@@ -2276,7 +2302,7 @@ function Admin({
                     max={getBogotaDate()}
                     disabled={reportLoading}
                     onChange={(event) => {
-                      setReportPeriodId("custom" as PeriodPresetId);
+                      setReportPeriodId("custom");
                       setReportCustomTo(event.target.value);
                     }}
                   />
