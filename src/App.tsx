@@ -1583,7 +1583,32 @@ function Admin({
         body: requestBody,
         headers: { Authorization: `Bearer ${accessToken}` },
       });
-      if (functionError) throw functionError;
+      if (functionError) {
+        // supabase-js solo dice "returned a non-2xx status code": el motivo
+        // real viene en el cuerpo de la respuesta, que es lo que dice si
+        // falta correr la migracion o si hay otro problema.
+        const context = (functionError as { context?: Response }).context;
+        let detail = "";
+        if (context) {
+          try {
+            const raw = await context.clone().text();
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw) as { error?: unknown };
+                detail = typeof parsed.error === "string" ? parsed.error : raw;
+              } catch {
+                detail = raw;
+              }
+            }
+          } catch {
+            detail = "";
+          }
+        }
+        console.error("Fallo al invocar weekly-report:", functionError, detail);
+        throw new Error(detail
+          ? `El servidor rechazó el reporte: ${detail}`
+          : `El servidor rechazó el reporte (${functionError.message}). Revisa que hayas corrido la migracion 20261012110000 y redesplegado la funcion.`);
+      }
       const whatsappUrl = Array.isArray(data?.whatsapp_links)
         ? data.whatsapp_links.find((link: unknown) => typeof link === "string")
         : null;

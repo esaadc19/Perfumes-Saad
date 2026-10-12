@@ -409,11 +409,26 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Error generating report:", error);
+
+    // `error.message` no siempre existe: si viene de Postgres o de un fetch,
+    // el mensaje vive en otra propiedad y el panel terminaba mostrando
+    // "undefined".
+    const rawMessage =
+      error instanceof Error
+        ? error.message
+        : typeof (error as { message?: unknown })?.message === "string"
+          ? String((error as { message?: unknown }).message)
+          : String(error);
+
+    // Si la RPC no acepta p_from/p_to es que la migracion de periodos no
+    // esta aplicada. Es el error mas probable y el mas facil de arreglar.
+    const hint = rawMessage.includes("weekly_sales_report") &&
+        (rawMessage.includes("p_from") || rawMessage.includes("Could not find the function"))
+      ? " Corre la migracion supabase/migrations/20261012110000_weekly_report_period.sql."
+      : "";
+
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message,
-      }),
+      JSON.stringify({ success: false, error: rawMessage + hint }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
