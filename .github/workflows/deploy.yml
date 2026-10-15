@@ -8,10 +8,29 @@ on:
     branches:
       - main
 
+# El token de Vercel y los ids del proyecto se leen de los secretos de GitHub.
+# Si falta alguno, se avisa con el nombre exacto en vez de fallar con un error
+# de Vercel que no dice qué falta.
+env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Comprobar secretos
+        run: |
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Falta el secreto $name en GitHub Actions."
+            fi
+          done
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            exit 1
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -23,14 +42,16 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      # Sin estos dos, `vercel pull` responde "No Project Settings found
+      # locally": la carpeta .vercel/ está en .gitignore y nunca viaja al runner.
       - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build Project Artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
 
   deploy-supabase-functions:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

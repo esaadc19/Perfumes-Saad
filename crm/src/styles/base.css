@@ -1,0 +1,83 @@
+/* ==========================================================================
+   CRM Perfumes SAAD — tokens y base
+   Paleta tomada de la referencia (ACF SAS): fondo gris muy claro, tarjetas
+   blancas con borde, sidebar azul noche y un único color de datos (cian) que
+   se escala por opacidad en lugar de usar una paleta de gráficos.
+   ========================================================================== */
+
+:root {
+  --crm-bg: #f5f6f8;
+  --crm-surface: #ffffff;
+  --crm-border: #e5e7eb;
+  --crm-border-strong: #d1d5db;
+
+  --crm-sidebar: #1b2436;
+  --crm-sidebar-hover: #232e44;
+  --crm-sidebar-active: #ffffff;
+  --crm-sidebar-muted: #8b93a5;
+
+  --crm-primary: #2563eb;
+  --crm-primary-hover: #1d4ed8;
+  --crm-primary-soft: #eff6ff;
+
+  --crm-data: #00bcd4;
+  --crm-data-strong: #00acc1;
+
+  --crm-text: #1f2937;
+  --crm-text-soft: #6b7280;
+  --crm-text-faint: #9ca3af;
+
+  --crm-success: #10b981;
+  --crm-danger: #ef4444;
+  --crm-warning: #f59e0b;
+
+  --crm-radius: 8px;
+  --crm-radius-sm: 6px;
+
+  --crm-sidebar-w: 216px;
+  --crm-topbar-h: 52px;
+
+  --crm-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--crm-bg);
+  color: var(--crm-text);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--crm-primary);
+  text-decoration: none;
+}
+
+/* Foco visible solo por teclado: el mouse no debe dejarlo sucio. */
+:focus-visible {
+  outline: 2px solid var(--crm-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

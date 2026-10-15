@@ -99,6 +99,9 @@ export default function AccountDialog({
             Abrir panel de administración
           </button>
         )}
+        <a className="secondary full" href="/crm/" target="_blank" rel="noopener noreferrer">
+          Abrir el CRM
+        </a>
         <button className="secondary full" onClick={() => void onSignOut()}>
           Cerrar sesión
         </button>

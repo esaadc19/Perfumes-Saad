@@ -1,8 +1,10 @@
 node_modules/
 dist/
 
-.env
-.env.*
+# Todo lo que empiece por .env, y después las excepciones explícitas.
+# El orden importa: en .gitignore gana la última regla que coincide, así que
+# las excepciones tienen que ir DESPUÉS de `.env*`, no antes.
+.env*
 !.env.example
 
 *.tsbuildinfo

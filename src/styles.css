@@ -1153,6 +1153,15 @@ footer a { color: #111; }
   .admin-actions button { flex: 1 1 45%; }
   .admin-section-tabs { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 -16px 18px; padding: 0 16px 6px; overflow: visible; }
   .admin-section-tabs .admin-button { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+  /* Acceso al CRM: es un enlace a otra app, no un botón de sección, pero tiene
+     que verse igual que los demás para no romper la fila. */
+  .admin-section-tabs .crm-admin-link {
+    display: flex; align-items: center; gap: 7px; flex: 0 0 auto;
+    height: 31px; padding: 0 12px; border-radius: 999px;
+    border: 1px solid transparent; background: transparent;
+    color: var(--ink, #111); font-size: 14px; font-weight: 500; text-decoration: none;
+  }
+  .admin-section-tabs .crm-admin-link:hover { background: rgba(0, 0, 0, 0.05); }
   .admin-search { width: 100%; }
   .admin-search input { flex: 1; min-width: 0; }
   .product-list-tools { flex-wrap: wrap; justify-content: flex-start; }
@@ -1839,6 +1848,8 @@ footer a { color: #111; }
   transition: all .2s ease;
   position: relative;
   text-align: left;
+  /* También se usa en un <a> (acceso al CRM), no solo en <button>. */
+  text-decoration: none;
 }
 
 .admin-nav-item-label {

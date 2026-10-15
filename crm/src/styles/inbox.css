@@ -1,0 +1,226 @@
+/* ==========================================================================
+   Bandeja: lista de conversaciones + hilo abierto al lado.
+   Dos paneles como en la referencia; en móvil solo uno a la vez.
+   ========================================================================== */
+
+/* `.crm-inbox` (bandeja) y `.crm-split` (contactos) comparten el mismo
+   esqueleto de dos paneles: lista angosta a la izquierda, detalle a la
+   derecha, y en movil solo uno a la vez. */
+.crm-inbox,
+.crm-split {
+  display: grid;
+  align-items: start;
+  grid-template-columns: minmax(280px, 340px) 1fr;
+  gap: 14px;
+  height: calc(100vh - var(--crm-topbar-h) - 36px);
+}
+
+.crm-inbox > .crm-card,
+.crm-split > .crm-card {
+  height: 100%;
+  min-height: 0;
+}
+
+/* El cuerpo de la tarjeta lista no lleva padding propio: la fila de filtros y
+   las filas de la lista ya traen el suyo, y el padding de `.crm-card__body`
+   dejaba un hueco visible entre la cabecera y el buscador. */
+.crm-card__body.crm-inbox__list {
+  padding: 0;
+  overflow-y: auto;
+}
+
+.crm-inbox__filters {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.crm-conv {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--crm-border);
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crm-conv:hover {
+  background: var(--crm-bg);
+}
+
+.crm-conv.is-active {
+  background: var(--crm-primary-soft);
+  box-shadow: inset 3px 0 0 var(--crm-primary);
+}
+
+.crm-conv__body {
+  min-width: 0;
+  flex: 1;
+}
+
+.crm-conv__top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.crm-conv__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crm-conv__time {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--crm-text-faint);
+}
+
+.crm-conv__preview {
+  margin-top: 1px;
+  font-size: 12.5px;
+  color: var(--crm-text-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Avatar con la inicial: el mismo circulo cian del bloque de usuario. */
+.crm-avatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--crm-data);
+  color: #06232a;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.crm-avatar--in {
+  background: var(--crm-primary);
+  color: #ffffff;
+}
+
+/* ------------------------------------------------------------- Hilo ------ */
+
+.crm-thread {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.crm-thread__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.crm-bubble {
+  max-width: min(72%, 560px);
+  padding: 8px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.crm-bubble--out {
+  align-self: flex-end;
+  background: var(--crm-primary);
+  border-color: var(--crm-primary);
+  color: #ffffff;
+}
+
+.crm-bubble--failed {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.crm-bubble__meta {
+  margin-top: 4px;
+  font-size: 10.5px;
+  opacity: 0.75;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crm-thread__composer {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 10px 12px;
+  border-top: 1px solid var(--crm-border);
+}
+
+.crm-thread__composer textarea {
+  flex: 1;
+  min-height: 38px;
+  max-height: 120px;
+}
+
+.crm-thread__empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+
+.crm-back {
+  display: none;
+}
+
+/* ------------------------------------------------------------- Móvil ----- */
+
+@media (max-width: 860px) {
+  .crm-inbox {
+    grid-template-columns: 1fr;
+    height: calc(100vh - var(--crm-topbar-h) - 28px);
+  }
+
+  /* Por defecto se ve la lista; al elegir una conversacion, el hilo. */
+  .crm-inbox__thread,
+  .crm-split__detail {
+    display: none;
+  }
+
+  .crm-inbox.is-thread-open .crm-inbox__list,
+  .crm-split.is-detail-open .crm-inbox__list {
+    display: none;
+  }
+
+  .crm-inbox.is-thread-open .crm-inbox__thread,
+  .crm-split.is-detail-open .crm-split__detail {
+    display: flex;
+  }
+
+  .crm-back {
+    display: inline-flex;
+  }
+
+  .crm-bubble {
+    max-width: 86%;
+  }
+}

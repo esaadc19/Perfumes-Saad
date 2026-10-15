@@ -133,6 +133,7 @@ import {
   X,
   CalendarDays,
   MessageCircle,
+  KanbanSquare,
 } from "lucide-react";
 
 type Variant = {
@@ -1426,6 +1427,9 @@ function Admin({
     { id: "collect", title: "Cobrar", icon: <MessageCircle size={17} /> },
     { id: "credit", title: "Cartera", icon: <DollarSign size={17} /> },
     { id: "customers", title: "Clientes", icon: <Users size={17} /> },
+    // El CRM es una app aparte servida en `/crm`, no una sección de este panel:
+    // se abre en otra pestaña en vez de renderizarse dentro del admin.
+    { id: "crm", title: "CRM", icon: <KanbanSquare size={17} />, external: true },
     { id: "expenses", title: "Gastos", icon: <Wallet size={17} /> },
     { id: "advisors", title: "Asesores", icon: <UserCheck size={17} /> },
     { id: "reports", title: "Reportes", icon: <BarChart3 size={17} /> },
@@ -2094,19 +2098,37 @@ function Admin({
           </button>
         </div>
         <nav className="admin-navigation">
-          {sections.map((item) => (
-            <button
-              key={item.id}
-              className={`admin-nav-item${section === item.id ? " active" : ""}`}
-              onClick={() => { setSection(item.id); setSearch(""); }}
-              data-tooltip={item.title}
-              title={sidebarCollapsed ? item.title : undefined}
-              aria-current={section === item.id ? "page" : undefined}
-            >
-              {item.icon}
-              <span className="admin-nav-item-label">{item.title}</span>
-            </button>
-          ))}
+          {sections.map((item) =>
+            "external" in item ? (
+              <a
+                key={item.id}
+                className="admin-nav-item"
+                href="/crm/"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-tooltip={item.title}
+                title={sidebarCollapsed ? item.title : undefined}
+              >
+                {item.icon}
+                <span className="admin-nav-item-label">{item.title}</span>
+              </a>
+            ) : (
+              <button
+                key={item.id}
+                className={`admin-nav-item${section === item.id ? " active" : ""}`}
+                onClick={() => {
+                  setSection(item.id);
+                  setSearch("");
+                }}
+                data-tooltip={item.title}
+                title={sidebarCollapsed ? item.title : undefined}
+                aria-current={section === item.id ? "page" : undefined}
+              >
+                {item.icon}
+                <span className="admin-nav-item-label">{item.title}</span>
+              </button>
+            )
+          )}
         </nav>
         <div className="admin-sidebar-footer">
           <button className="admin-store-button" onClick={onBack} title="Volver a la tienda">
@@ -2195,22 +2217,34 @@ function Admin({
           </div>
         </div>
         <nav className="admin-section-tabs" aria-label="Secciones de administración">
-          {sections.map((item) => (
-            <AdminButton
-              key={item.id}
-              tone={section === item.id ? "primary" : "secondary"}
-              compact
-              variant={section === item.id ? undefined : "ghost"}
-              aria-current={section === item.id ? "page" : undefined}
-              onClick={() => {
-                setSection(item.id);
-                setSearch("");
-                if (item.id === "transactions") setShowPendingOrdersOnly(false);
-              }}
-            >
-              {item.icon}{item.title}
-            </AdminButton>
-          ))}
+          {sections.map((item) =>
+            "external" in item ? (
+              <a
+                key={item.id}
+                className="crm-admin-link"
+                href="/crm/"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {item.icon}{item.title}
+              </a>
+            ) : (
+              <AdminButton
+                key={item.id}
+                tone={section === item.id ? "primary" : "secondary"}
+                compact
+                variant={section === item.id ? undefined : "ghost"}
+                aria-current={section === item.id ? "page" : undefined}
+                onClick={() => {
+                  setSection(item.id);
+                  setSearch("");
+                  if (item.id === "transactions") setShowPendingOrdersOnly(false);
+                }}
+              >
+                {item.icon}{item.title}
+              </AdminButton>
+            )
+          )}
         </nav>
 
         {section === "reports" && (
