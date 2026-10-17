@@ -26,6 +26,7 @@ import {
 } from "./services/promotions";
 import {
   getAdminCustomers,
+  getProductProfitability,
   getAdminDashboardMetrics,
   getAdminOrders,
   getAdminProfiles,
@@ -43,6 +44,7 @@ import {
   updateAdminProfileRole,
   type AdminCustomer,
   type AdminDashboardMetrics,
+  type ProductProfitability,
   type AdminOrder,
   type AdminProfile,
   type SalesAdvisor,
@@ -86,6 +88,8 @@ import { Toaster, useToasts } from "./components/Toast";
 const Charts = lazy(() => import("./components/admin/Charts"));
 const CreditPage = lazy(() => import("./components/admin/CreditPage"));
 const CollectPage = lazy(() => import("./components/admin/CollectPage"));
+const ProfitabilityTable = lazy(() => import("./components/admin/ProfitabilityTable"));
+const MovementModal = lazy(() => import("./components/admin/MovementModal"));
 const OrderEditorModal = lazy(() => import("./components/admin/OrderEditorModal"));
 const OrdersPage = lazy(() => import("./components/admin/OrdersPage"));
 const SettingsPage = lazy(() => import("./components/admin/SettingsPage"));
@@ -1375,12 +1379,18 @@ function Admin({
   const [customerImportFeedback, setCustomerImportFeedback] = useState<string | null>(null);
   const [customerImportError, setCustomerImportError] = useState<string | null>(null);
   const customerImportInput = useRef<HTMLInputElement>(null);
-  const [dashboardDetail, setDashboardDetail] = useState<"sold-out" | "low-stock" | "pending" | null>(null);
+  const [dashboardDetail, setDashboardDetail] = useState<"sold-out" | "low-stock" | "pending" | "profitability" | null>(null);
+  // Rentabilidad por producto. Se pide solo si el usuario abre el detalle:
+  // es una consulta pesada y el dashboard no siempre la necesita.
+  const [profitability, setProfitability] = useState<ProductProfitability | null>(null);
+  const [profitabilityLoading, setProfitabilityLoading] = useState(false);
+  const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
   const [showPendingOrdersOnly, setShowPendingOrdersOnly] = useState(false);
   const [orderEditor, setOrderEditor] = useState<{ order: AdminOrder | null } | null>(null);
   const [orderSaving, setOrderSaving] = useState(false);
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [movementEditor, setMovementEditor] = useState<{ productId: string; variant: { id: string; size: number; stock: number } } | null>(null);
   const [promotionEditor, setPromotionEditor] = useState<Promotion | null | "new">(null);
   const [promotionSaving, setPromotionSaving] = useState(false);
   const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
@@ -1415,6 +1425,31 @@ function Admin({
       variant.stock <= (variant.minStock ?? 2)
     )
   ).length;
+  // La rentabilidad se pide al abrir el detalle, no siempre: es una consulta
+// que cruza todos los pedidos del periodo y el dashboard no la necesita para
+// pintar las metricas.
+  useEffect(() => {
+    if (dashboardDetail !== "profitability" || profitability) return;
+    let cancelled = false;
+    setProfitabilityLoading(true);
+    setProfitabilityError(null);
+    void getProductProfitability(metricsPeriod)
+      .then((data) => {
+        if (!cancelled) setProfitability(data);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProfitabilityError(err instanceof Error ? err.message : "No se pudo cargar la rentabilidad.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setProfitabilityLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboardDetail, metricsPeriod, profitability]);
+
   const soldOut = stockTrackedProducts.filter((product) => {
     const activeVariants = product.variants.filter((variant) => variant.active !== false);
     return activeVariants.length > 0 && activeVariants.every((variant) => variant.stock <= 0);
@@ -2573,6 +2608,50 @@ function Admin({
             <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
               <Charts orders={orders} products={metrics.top_products} />
             </Suspense>
+
+            {/* Rentabilidad por producto: no dice cuanto se vendio, sino que
+                perfume deja mas utilidad. Se abre a pedido porque la consulta
+                es pesada. */}
+            <div className="profitability-toggle">
+              <AdminButton
+                tone="secondary"
+                compact
+                type="button"
+                aria-expanded={dashboardDetail === "profitability"}
+                onClick={() =>
+                  setDashboardDetail(dashboardDetail === "profitability" ? null : "profitability")
+                }
+              >
+                <BarChart3 size={16} />
+                {dashboardDetail === "profitability" ? "Ocultar rentabilidad" : "Ver rentabilidad por producto"}
+              </AdminButton>
+            </div>
+
+            {dashboardDetail === "profitability" && (
+              <div className="admin-card profitability-card">
+                <div className="card-title">
+                  <div>
+                    <h2>Que perfume deja mas utilidad</h2>
+                    <span>
+                      {metricsPeriod
+                        ? `Ultimos ${metricsPeriod} dias`
+                        : "Todo el historial"}
+                    </span>
+                  </div>
+                  <Percent size={18} />
+                </div>
+                {profitabilityLoading && (
+                  <div className="loading-state" role="status">
+                    <span className="loading-spinner" aria-hidden="true" />
+                    <span>Calculando rentabilidad…</span>
+                  </div>
+                )}
+                {profitabilityError && <p className="form-error" role="alert">{profitabilityError}</p>}
+                {!profitabilityLoading && !profitabilityError && (
+                  <ProfitabilityTable data={profitability} />
+                )}
+              </div>
+            )}
             <section className="insight-grid">
               <div className="admin-card">
                 <div className="card-title"><div><h2>Consejo</h2><span>Lectura inicial del inventario</span></div><Sparkles size={18}/></div>
@@ -3011,7 +3090,8 @@ function Admin({
                       </label>
                     ))}
                     {product.variants.map((variant) => (
-                      <label className="stock-control" key={`stock-${variant.id}`}>
+                      <div className="stock-control-group" key={`stock-${variant.id}`}>
+                      <label className="stock-control">
                         <span>Stock disponible · {variant.size} ml</span>
                         <input
                           type="number"
@@ -3052,6 +3132,18 @@ function Admin({
                         />
                         {savingStockVariantId === variant.id && <small>Guardando…</small>}
                       </label>
+                      {/* Escribir el stock a mano borra el rastro de por que
+                          bajo. Este boton deja el motivo registrado. */}
+                      <AdminButton
+                        tone="secondary"
+                        compact
+                        variant="ghost"
+                        type="button"
+                        onClick={() => setMovementEditor({ productId: product.id, variant })}
+                      >
+                        <Package size={14} /> Merma o ingreso
+                      </AdminButton>
+                      </div>
                     ))}
                   </div>
                   <span className="cell-center">{stock}</span>
@@ -3338,6 +3430,19 @@ function Admin({
           </section>
         </div>
       )}
+      {movementEditor && ((
+        <Suspense fallback={null}>
+          <MovementModal
+            variantId={movementEditor.variant.id}
+            productName={products.find((p) => p.id === movementEditor.productId)?.name ?? "Producto"}
+            sizeMl={movementEditor.variant.size}
+            currentStock={movementEditor.variant.stock}
+            onClose={() => setMovementEditor(null)}
+            onSaved={() => void onProductsRefresh()}
+          />
+        </Suspense>
+      ))}
+
       {orderEditor && (
         <Suspense fallback={null}>
         <OrderEditorModal

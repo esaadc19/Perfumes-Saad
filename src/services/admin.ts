@@ -147,6 +147,54 @@ export async function getAdminDashboardMetrics(
   return data as AdminDashboardMetrics;
 }
 
+export interface ProductProfit {
+  /** Nombre del producto tal como quedo en el pedido. */
+  nombre: string;
+  size_ml: number;
+  unidades: number;
+  ventas: number;
+  costo: number;
+  /** null cuando alguna unidad no tiene costo registrado. */
+  utilidad: number | null;
+  /** Unidades de este producto sin costo snapshot. */
+  faltantes: number;
+}
+
+export interface ProductProfitability {
+  period_days: number | null;
+  from: string;
+  to: string;
+  products: ProductProfit[];
+  totals: {
+    sales: number;
+    cost: number;
+    profit: number;
+    missing_cost_items: number;
+    /** false si algun producto quedo sin utilidad calculable. */
+    complete: boolean;
+    margin_percent: number | null;
+  };
+}
+
+/**
+ * Utilidad por producto. La RPC usa los snapshots del pedido, asi que
+ * cambiar el precio de un perfume despues no mueve la utilidad de una
+ * venta ya cerrada.
+ */
+export async function getProductProfitability(
+  periodDays?: number | null
+): Promise<ProductProfitability> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc("admin_product_profitability", {
+    p_period_days: periodDays ?? null,
+  });
+  if (error) {
+    console.error("No se pudo cargar la rentabilidad por producto:", error);
+    throw error;
+  }
+  return data as ProductProfitability;
+}
+
 export async function getAdminCustomers(): Promise<AdminCustomer[]> {
   const client = requireSupabase();
   const { data, error } = await client

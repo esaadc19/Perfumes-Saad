@@ -314,6 +314,112 @@ export async function getCustomersWithCredit(): Promise<{
   }));
 }
 
+/** Motivos por los que el stock baja. `ingreso` y `devolucion` suman. */
+export type StockMovementType =
+  | "merma"
+  | "ingreso"
+  | "devolucion_proveedor"
+  | "rotura"
+  | "robo"
+  | "vencimiento";
+
+export const STOCK_MOVEMENTS: Array<{
+  value: StockMovementType;
+  label: string;
+  /** Si suma stock en vez de restar. */
+  adds: boolean;
+}> = [
+  { value: "ingreso", label: "Ingreso de mercancia", adds: true },
+  { value: "devolucion_proveedor", label: "Devolucion al proveedor", adds: true },
+  { value: "merma", label: "Merma", adds: false },
+  { value: "rotura", label: "Rotura o empaque danado", adds: false },
+  { value: "robo", label: "Robo o perdida", adds: false },
+  { value: "vencimiento", label: "Vencimiento", adds: false },
+];
+
+export interface StockMovementResult {
+  variant_id: string;
+  previous_stock: number;
+  new_stock: number;
+  delta: number;
+  movement_type: StockMovementType;
+}
+
+/**
+ * Registra una merma o un ingreso. El stock nunca queda negativo: si la
+ * cantidad supera lo que hay, la RPC lo rechaza.
+ */
+export async function registerStockMovement(
+  variantId: string,
+  type: StockMovementType,
+  quantity: number,
+  reason?: string
+): Promise<StockMovementResult> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error("La cantidad debe ser un número entero mayor que cero.");
+  }
+  const { data, error } = await supabase.rpc("register_stock_movement", {
+    target_variant_id: variantId,
+    movement: type,
+    movement_quantity: quantity,
+    movement_reason: reason?.trim() || null,
+  });
+  if (error) {
+    console.error("Error registrando movimiento de inventario:", error);
+    throw new Error(error.message);
+  }
+  return data as StockMovementResult;
+}
+
+export interface VariantMovement {
+  movement_id: string;
+  movement_type: string;
+  quantity: number;
+  reason: string | null;
+  order_id: string | null;
+  created_at: string;
+}
+
+/** Historial de movimientos de una presentacion, del mas nuevo al viejo. */
+export async function getVariantMovements(
+  variantId: string,
+  limit = 50
+): Promise<VariantMovement[]> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.rpc("get_variant_movements", {
+    target_variant_id: variantId,
+    movement_limit: limit,
+  });
+  if (error) {
+    console.error("Error cargando movimientos:", error);
+    throw new Error(error.message);
+  }
+  return (data ?? []) as VariantMovement[];
+}
+
+export interface WasteRow {
+  product_name: string;
+  size_ml: number;
+  units_lost: number;
+  cost_per_unit: number;
+  total_lost: number;
+  last_movement: string;
+}
+
+/** Valor perdido en merma, agrupado por producto. */
+export async function getWasteSummary(daysBack = 30): Promise<WasteRow[]> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+  const { data, error } = await supabase.rpc("get_waste_summary", {
+    days_back: daysBack,
+  });
+  if (error) {
+    console.error("Error cargando el resumen de merma:", error);
+    throw new Error(error.message);
+  }
+  return (data ?? []) as WasteRow[];
+}
+
 export const CREDIT_METHODS = [
   { value: "efectivo" as const, label: "Efectivo" },
   { value: "transferencia" as const, label: "Transferencia" },
