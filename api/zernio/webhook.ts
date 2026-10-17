@@ -3,6 +3,7 @@ import {
   SUBSCRIBED_EVENTS,
   ZERNIO_EVENT,
   phoneFromSender,
+  senderIdentity,
   toProvider,
   verifySignature,
 } from "../_lib/zernio.js";
@@ -112,6 +113,7 @@ export async function POST(request: Request): Promise<Response> {
         direction: event.message?.direction,
         sender: event.message?.sender,
         phoneFromSender: phoneFromSender(event.message?.sender),
+        identity: provider ? senderIdentity(event.message?.sender, provider) : null,
         status: event.message?.status,
         text: event.message?.text,
         supported: provider !== null,
@@ -209,30 +211,53 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // 5. Contacto. Solo los entrantes crean contacto: un saliente llega a una
-    // conversacion que ya existe y no trae un teléfono del remitente util.
+    //    conversacion que ya existe y no trae un remitente util.
+    //
+    //    La plataforma manda la identidad de forma distinta: WhatsApp da el
+    //    numero, Instagram da un id numerico que NO es telefono y hay que usar
+    //    el `contactId` de Zernio o el `@usuario`.
     let contactId: string | null = null;
     if (eventName === ZERNIO_EVENT.MESSAGE_RECEIVED) {
-      const phone = phoneFromSender(event.message?.sender);
-      if (phone) {
-        const { data: existing } = await supabase
+      const who = senderIdentity(event.message?.sender, provider);
+
+      if (who.contactId) {
+        const { data } = await supabase
           .from("crm_contacts")
           .select("id")
-          .eq("phone_e164", phone)
+          .eq("zernio_contact_id", who.contactId)
           .maybeSingle();
-        contactId = existing?.id ?? null;
-        if (!contactId) {
-          const { data: created, error: contactError } = await supabase
-            .from("crm_contacts")
-            .insert({
-              phone_e164: phone,
-              full_name: event.message?.sender?.name ?? null,
-              instagram_handle: event.message?.sender?.username ?? null,
-            })
-            .select("id")
-            .single();
-          if (contactError) throw contactError;
-          contactId = created.id;
-        }
+        contactId = data?.id ?? null;
+      }
+      if (!contactId && who.phone) {
+        const { data } = await supabase
+          .from("crm_contacts")
+          .select("id")
+          .eq("phone_e164", who.phone)
+          .maybeSingle();
+        contactId = data?.id ?? null;
+      }
+      if (!contactId && who.username) {
+        const { data } = await supabase
+          .from("crm_contacts")
+          .select("id")
+          .eq("instagram_handle", who.username)
+          .maybeSingle();
+        contactId = data?.id ?? null;
+      }
+
+      if (!contactId && (who.contactId || who.phone || who.username)) {
+        const { data: created, error: contactError } = await supabase
+          .from("crm_contacts")
+          .insert({
+            zernio_contact_id: who.contactId,
+            phone_e164: who.phone,
+            instagram_handle: who.username,
+            full_name: who.name,
+          })
+          .select("id")
+          .single();
+        if (contactError) throw contactError;
+        contactId = created.id;
       }
     }
 

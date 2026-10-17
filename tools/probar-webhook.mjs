@@ -5,8 +5,10 @@
 // y deduplicacion en modo persistencia.
 //
 // Uso: npx esbuild api/zernio/webhook.ts --bundle --platform=node
-//      --format=esm --outfile=<tmp>/webhook.mjs
-//      node <tmp>/probar-webhook.mjs <tmp>
+//         --format=esm --outfile=<tmp>/webhook.mjs
+//      npx esbuild api/_lib/zernio.ts  --bundle --platform=node
+//         --format=esm --outfile=<tmp>/zernio.mjs
+//      node tools/probar-webhook.mjs <tmp>
 
 import { createHmac } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -150,6 +152,34 @@ const check = (name, pass, detail = "") => {
     `status ${r.status}`,
   );
   process.env.ZERNIO_OBSERVE = "1";
+}
+
+// --- 8. Identidad de remitente por plataforma ---
+// Payload REAL de un DM de Instagram que llego a produccion el 2026-10-17.
+// El id de Instagram (1152905440512086) NO es un telefono: si se tratara como
+// tal se guardaria un contacto falso y el mensaje se descartaria en silencio.
+{
+  const { senderIdentity } = await import(pathToFileURL(join(dir, "zernio.mjs")).href);
+  const instagramSender = {
+    id: "1152905440512086",
+    name: "Elias David Saad",
+    username: "eliassaadc",
+    contactId: "6ad3da3b06890d0565eaa78f",
+    instagramProfile: { isFollower: true, isFollowing: true, followerCount: 559 },
+  };
+
+  const ig = senderIdentity(instagramSender, "instagram");
+  check("Instagram: no inventa un telefono", ig.phone === null, `phone=${ig.phone}`);
+  check("Instagram: usa el @usuario", ig.username === "eliassaadc", `username=${ig.username}`);
+  check("Instagram: guarda el contactId estable", ig.contactId === "6ad3da3b06890d0565eaa78f");
+
+  // El mismo payload en WhatsApp si trae numero: ahi si debe salir telefono.
+  const wa = senderIdentity({ id: "3016303982" }, "whatsapp");
+  check("WhatsApp: arma el E.164", wa.phone === "573016303982", `phone=${wa.phone}`);
+
+  // Y en Instagram, un id numerico NUCA debe convertirse en telefono.
+  const trap = senderIdentity({ id: "1152905440512086" }, "instagram");
+  check("Instagram: no convierte un id en telefono", trap.phone === null, `phone=${trap.phone}`);
 }
 
 const failed = results.filter((r) => !r.pass);

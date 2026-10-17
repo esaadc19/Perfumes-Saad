@@ -40,7 +40,20 @@ export type ZernioMessage = {
   /** Zernio usa "incoming" / "outgoing", no "in" / "out". */
   direction?: "incoming" | "outgoing" | string;
   text?: string;
-  sender?: { id?: string; name?: string; username?: string } | null;
+  /**
+   * Forma real observada el 2026-10-17 en un DM de Instagram:
+   *   { id: "1152905440512086", name: "Elias David Saad",
+   *     username: "eliassaadc", contactId: "6ad3da3b06890d0565eaa78f",
+   *     instagramProfile: {...} }
+   * `id` es el id de usuario de Instagram, NO un telefono. En WhatsApp si
+   * llega el numero. `contactId` es el identificador estable de Zernio.
+   */
+  sender?: {
+    id?: string;
+    name?: string;
+    username?: string;
+    contactId?: string;
+  } | null;
   status?: string;
 };
 
@@ -103,10 +116,9 @@ export function toProvider(platform: string | undefined): "whatsapp" | "instagra
 /**
  * Telefono del remitente.
  *
- * En el ejemplo de la documentacion el `sender` de Instagram trae
- * `{ id, name, username }`, sin telefono. En WhatsApp el `id` es el numero.
- * Por eso se mira el primero que parezca un telefono y no se assume: el
- * endpoint en modo observacion sirve justamente para confirmar cual es.
+ * Solo aplica a WhatsApp. En Instagram el `sender.id` es el id numerico del
+ * usuario (1152905440512086), no un numero: si se tratara como telefono se
+ * guardaria un contacto falso de 13 digitos.
  */
 export function phoneFromSender(sender: ZernioMessage["sender"]): string | null {
   if (!sender?.id) return null;
@@ -115,4 +127,34 @@ export function phoneFromSender(sender: ZernioMessage["sender"]): string | null 
   if (digits.length === 12 && digits.startsWith("57")) return digits;
   if (digits.length === 10) return `57${digits}`;
   return null;
+}
+
+/**
+ * Identidad de un remitente segun la plataforma.
+ *
+ * El orden importa: primero el `contactId` de Zernio, que es estable aunque
+ * la persona se renombre; despues el numero (WhatsApp) o el `@usuario`
+ * (Instagram). El id crudo de Instagram NO sirve como llave.
+ */
+export type SenderIdentity = {
+  /** Llave estable: `zernio_contact_id`. */
+  contactId: string | null;
+  /** Telefono en formato E.164, solo en WhatsApp. */
+  phone: string | null;
+  /** `@usuario` de Instagram, sin la arroba. */
+  username: string | null;
+  /** Nombre que muestra la plataforma, si viene. */
+  name: string | null;
+};
+
+export function senderIdentity(
+  sender: ZernioMessage["sender"],
+  platform: "whatsapp" | "instagram" | "messenger",
+): SenderIdentity {
+  return {
+    contactId: sender?.contactId ?? null,
+    phone: platform === "whatsapp" ? phoneFromSender(sender) : null,
+    username: platform === "instagram" ? (sender?.username ?? null) : null,
+    name: sender?.name ?? null,
+  };
 }
