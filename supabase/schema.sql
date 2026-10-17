@@ -2996,6 +2996,240 @@ $$;
 
 
 revoke all on function public.weekly_sales_report(date, date) from public;
+
+-- === MOVIMIENTOS DE INVENTARIO Y RENTABILIDAD ===
+
+create or replace function public.register_stock_movement(
+  target_variant_id uuid,
+  movement text,
+  movement_quantity integer,
+  movement_reason text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  variant_record public.product_variants%rowtype;
+  previous_stock integer;
+  new_stock integer;
+  delta integer;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  if movement not in ('merma', 'ingreso', 'devolucion_proveedor', 'rotura', 'robo', 'vencimiento') then
+    raise exception 'Tipo de movimiento inválido: %', movement;
+  end if;
+  if movement_quantity is null or movement_quantity <= 0 then
+    raise exception 'La cantidad debe ser mayor que cero';
+  end if;
+
+  -- for update: dos movimientos sobre la misma presentacion a la vez
+  -- tienen que ver el mismo stock inicial, o el segundo sobrescribe al
+  -- primero y se pierde mercancia sin registro.
+  select * into variant_record
+  from public.product_variants
+  where id = target_variant_id
+  for update;
+  if not found then
+    raise exception 'Presentación no encontrada';
+  end if;
+
+  previous_stock := coalesce(variant_record.stock, 0);
+  -- Los movimientos negativos restan; los positivos suman.
+  delta := case
+    when movement in ('ingreso', 'devolucion_proveedor') then movement_quantity
+    else -movement_quantity
+  end;
+
+  new_stock := previous_stock + delta;
+  -- No se permite stock negativo: si la merma es mayor que lo que hay,
+  -- algo quedo mal registrado antes.
+  if new_stock < 0 then
+    raise exception
+      'No hay stock suficiente: % unidades disponibles, % solicitadas',
+      previous_stock, movement_quantity;
+  end if;
+
+  update public.product_variants
+  set stock = new_stock
+  where id = target_variant_id;
+
+  insert into public.inventory_movements (variant_id, movement_type, quantity, reason)
+  values (target_variant_id, movement, delta, coalesce(movement_reason, movement));
+
+  return jsonb_build_object(
+    'variant_id', target_variant_id,
+    'previous_stock', previous_stock,
+    'new_stock', new_stock,
+    'delta', delta,
+    'movement_type', movement
+  );
+end;
+$$;
+
+revoke all on function public.register_stock_movement(uuid, text, integer, text) from public;
+revoke all on function public.register_stock_movement(uuid, text, integer, text) from anon, authenticated;
+grant execute on function public.register_stock_movement(uuid, text, integer, text) to authenticated, service_role;
+
+-- --- Historial de una presentacion ---
+-- Para auditar un perfume puntual: que entró, que salio y por que.
+create or replace function public.get_variant_movements(
+  target_variant_id uuid,
+  movement_limit integer default 50
+)
+returns table (
+  movement_id uuid,
+  movement_type text,
+  quantity integer,
+  reason text,
+  order_id uuid,
+  created_at timestamptz
+)
+language sql
+security definer
+set search_path = ''
+as $$
+  select im.id, im.movement_type, im.quantity, im.reason, im.order_id, im.created_at
+  from public.inventory_movements im
+  where im.variant_id = target_variant_id
+  order by im.created_at desc
+  limit greatest(coalesce(movement_limit, 50), 1);
+$$;
+
+revoke all on function public.get_variant_movements(uuid, integer) from public;
+revoke all on function public.get_variant_movements(uuid, integer) from anon, authenticated;
+grant execute on function public.get_variant_movements(uuid, integer) to authenticated, service_role;
+
+-- --- Valor perdido en merma ---
+-- La pregunta que nadie puede responder hoy: "cuanto se me perdio este mes".
+-- Usa unit_cost_snapshot del costo actual de la presentacion, porque para
+-- saber la perdida real hay que valorar a lo que costo, no a lo que vendio.
+create or replace function public.get_waste_summary(days_back integer default 30)
+returns table (
+  product_name text,
+  size_ml integer,
+  units_lost integer,
+  cost_per_unit numeric,
+  total_lost numeric,
+  last_movement timestamptz
+)
+language sql
+security definer
+set search_path = ''
+as $$
+  select p.name,
+         pv.size_ml,
+         sum(-im.quantity)::integer,
+         coalesce(pv.cost, 0),
+         sum(-im.quantity * coalesce(pv.cost, 0)),
+         max(im.created_at)
+  from public.inventory_movements im
+  join public.product_variants pv on pv.id = im.variant_id
+  join public.products p on p.id = pv.product_id
+  where im.movement_type in ('merma', 'rotura', 'robo', 'vencimiento')
+    and im.quantity < 0
+    and im.created_at >= now() - make_interval(days => greatest(coalesce(days_back, 30), 1))
+  group by p.name, pv.size_ml, pv.cost
+  having sum(-im.quantity) > 0
+  order by 5 desc;
+$$;
+
+revoke all on function public.get_waste_summary(integer) from public;
+revoke all on function public.get_waste_summary(integer) from anon, authenticated;
+grant execute on function public.get_waste_summary(integer) to authenticated, service_role;
+
+create or replace function public.admin_product_profitability(
+  p_period_days integer default 30
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  local_today date := (now() at time zone 'America/Bogota')::date;
+  v_from timestamptz;
+  v_to timestamptz := (local_today + 1)::timestamp at time zone 'America/Bogota';
+  filas jsonb;
+  total_utilidad numeric;
+  total_ventas numeric;
+  total_costo numeric;
+  total_faltantes integer;
+  resultado jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  if p_period_days is not null and p_period_days > 0 then
+    v_from := v_to - make_interval(days => p_period_days);
+  else
+    v_from := timestamptz '2000-01-01 00:00:00';
+  end if;
+
+  select
+    coalesce(jsonb_agg(t), '[]'::jsonb),
+    coalesce(sum(t.utilidad), 0),
+    coalesce(sum(t.ventas), 0),
+    coalesce(sum(t.costo), 0),
+    coalesce(sum(t.faltantes), 0)
+  into filas, total_utilidad, total_ventas, total_costo, total_faltantes
+  from (
+    select
+      oi.product_name_snapshot as nombre,
+      oi.size_ml,
+      sum(oi.quantity) as unidades,
+      sum(oi.subtotal) as ventas,
+      sum(oi.unit_cost_snapshot * oi.quantity)
+        filter (where oi.unit_cost_snapshot is not null) as costo,
+      count(*) filter (where oi.unit_cost_snapshot is null) as faltantes,
+      -- Solo es calculable si TODAS las unidades tienen costo conocido.
+      case
+        when count(*) filter (where oi.unit_cost_snapshot is null) = 0
+          then sum(oi.subtotal) - sum(oi.unit_cost_snapshot * oi.quantity)
+        else null
+      end as utilidad
+    from public.order_items oi
+    join public.orders o on o.id = oi.order_id
+    where o.payment_status = 'paid'
+      and o.paid_at >= v_from
+      and o.paid_at <  v_to
+    group by oi.product_name_snapshot, oi.size_ml
+  ) t;
+
+  resultado := jsonb_build_object(
+    'period_days', p_period_days,
+    'from', v_from,
+    'to', v_to,
+    'products', filas,
+    'totals', jsonb_build_object(
+      'sales', total_ventas,
+      'cost', total_costo,
+      'profit', total_utilidad,
+      'missing_cost_items', total_faltantes,
+      -- Utilidad total solo si no falta ningun costo en ningun producto.
+      -- Con costos incompletos, el margen seria una estimacion sin base.
+      'complete', total_faltantes = 0,
+      'margin_percent', case
+        when total_faltantes = 0 and total_ventas > 0
+          then round((total_utilidad / total_ventas) * 100, 1)
+        else null
+      end
+    )
+  );
+
+  return resultado;
+end;
+$$;
+
+revoke all on function public.admin_product_profitability(integer) from public;
+revoke all on function public.admin_product_profitability(integer) from anon, authenticated;
+grant execute on function public.admin_product_profitability(integer) to authenticated, service_role;
+
 revoke all on function public.weekly_sales_report(date, date) from anon, authenticated;
 grant execute on function public.weekly_sales_report(date, date) to authenticated, service_role;
 
