@@ -1,0 +1,201 @@
+/* ==========================================================================
+   Tablero Kanban del pipeline y la pantalla de configuración de etapas.
+   ========================================================================== */
+
+.crm-board {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  /* El tablero se desplaza horizontalmente a propósito: es un tablero, no una
+     tabla, y meter las columnas en una rejilla obligaría a apretarlas. */
+  min-height: calc(100vh - var(--crm-topbar-h) - 90px);
+}
+
+.crm-col {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 268px;
+  width: 268px;
+  background: #eef0f3;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius);
+  max-height: calc(100vh - var(--crm-topbar-h) - 90px);
+}
+
+.crm-col.is-over {
+  border-color: var(--crm-primary);
+  background: var(--crm-primary-soft);
+}
+
+.crm-col.is-drop {
+  border-color: var(--crm-data);
+  background: #e0f7fb;
+}
+
+.crm-col__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.crm-col__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.crm-col__name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crm-col__count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-border);
+  color: var(--crm-text-soft);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+.crm-col__body {
+  flex: 1;
+  min-height: 90px;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crm-card-deal {
+  background: var(--crm-surface);
+  border: 1px solid var(--crm-border);
+  border-radius: var(--crm-radius-sm);
+  box-shadow: var(--crm-shadow);
+  padding: 10px;
+  cursor: grab;
+}
+
+.crm-card-deal:active {
+  cursor: grabbing;
+}
+
+.crm-card-deal.is-dragging {
+  opacity: 0.4;
+}
+
+.crm-card-deal__title {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.crm-card-deal__foot {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.crm-card-deal__value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--crm-text);
+}
+
+.crm-card-deal__who {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--crm-text-faint);
+}
+
+/* ------------------------------------------------- Configuración etapas -- */
+
+.crm-stage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+}
+
+.crm-stage-row.is-dragging {
+  opacity: 0.4;
+}
+
+.crm-stage-row.is-drop {
+  box-shadow: inset 0 -2px 0 var(--crm-primary);
+}
+
+.crm-stage-row__grip {
+  cursor: grab;
+  color: var(--crm-text-faint);
+  display: grid;
+  place-items: center;
+}
+
+.crm-stage-row__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.crm-stage-row input[type="text"] {
+  width: 100%;
+}
+
+.crm-stage-row.is-inactive .crm-stage-row__name {
+  opacity: 0.55;
+}
+
+.crm-color {
+  width: 30px;
+  height: 30px;
+  padding: 2px;
+  border: 1px solid var(--crm-border-strong);
+  border-radius: var(--crm-radius-sm);
+  background: var(--crm-surface);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.crm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--crm-text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.crm-stage-row__deals {
+  font-size: 11px;
+  color: var(--crm-text-faint);
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .crm-col {
+    flex-basis: 82vw;
+    width: 82vw;
+  }
+
+  .crm-stage-row {
+    flex-wrap: wrap;
+  }
+}

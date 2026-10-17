@@ -8,6 +8,8 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Inbox from "./pages/Inbox";
 import Contacts from "./pages/Contacts";
+import Board from "./pages/Board";
+import PipelineSettings from "./pages/PipelineSettings";
 import Placeholder from "./pages/Placeholder";
 
 /** Fase de cada módulo, para el mensaje de "pantalla pendiente". */
@@ -101,11 +103,18 @@ export default function App() {
       {activeSection === "dashboard" && <Dashboard />}
       {activeSection === "conversaciones" && <Inbox userId={user.id} />}
       {activeSection === "contactos" && <Contacts />}
-      {activeSection !== "dashboard" &&
-        activeSection !== "conversaciones" &&
-        activeSection !== "contactos" && (
-          <Placeholder title={TITLES[activeSection]} phase={PHASE[activeSection] ?? "una fase posterior"} />
-        )}
+      {activeSection === "tablero" && <Board userId={user.id} />}
+      {activeSection === "configuracion" && (
+        <>
+          <div className="crm-page-head">
+            <h1 className="crm-page-title">Configuración</h1>
+          </div>
+          <PipelineSettings />
+        </>
+      )}
+      {!["dashboard", "conversaciones", "contactos", "tablero", "configuracion"].includes(activeSection) && (
+        <Placeholder title={TITLES[activeSection]} phase={PHASE[activeSection] ?? "una fase posterior"} />
+      )}
     </Shell>
   );
 }
