@@ -20,16 +20,35 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # Falla aqui, antes de instalar nada, y dice qué falta y dónde
+      # conseguirlo. Sin esto el fallo real es un error de Vercel que no
+      # menciona los secretos, y se pierde tiempo buscando el problema
+      # equivocado.
       - name: Comprobar secretos
         run: |
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Falta el secreto $name en GitHub Actions."
-            fi
-          done
-          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+          faltan=""
+          [ -z "$VERCEL_TOKEN" ]      && faltan="$faltan VERCEL_TOKEN"
+          [ -z "$VERCEL_ORG_ID" ]     && faltan="$faltan VERCEL_ORG_ID"
+          [ -z "$VERCEL_PROJECT_ID" ] && faltan="$faltan VERCEL_PROJECT_ID"
+          if [ -n "$faltan" ]; then
+            {
+              echo "::error::Faltan estos secretos en GitHub Actions:$faltan"
+              echo ""
+              echo "Donde conseguirlos:"
+              echo "  VERCEL_TOKEN      -> Vercel > tu cuenta > Settings > Tokens > Create."
+              echo "                      Marcá 'Full Account' si el proyecto es de una organizacion."
+              echo "  VERCEL_ORG_ID     -> Vercel > el proyecto > Settings > General."
+              echo "  VERCEL_PROJECT_ID -> Vercel > el proyecto > Settings > General."
+              echo ""
+              echo "Donde pegarlos: este repositorio > Settings > Secrets and variables"
+              echo "> Actions > New repository secret. Repetir una vez por cada nombre."
+              echo ""
+              echo "Con eso esta todo. No hace falta configurar nada mas."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "Faltan:$faltan"
             exit 1
           fi
+          echo "Secretos completos."
 
       - name: Checkout code
         uses: actions/checkout@v4
