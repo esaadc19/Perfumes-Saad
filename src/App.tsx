@@ -50,6 +50,10 @@ import {
   type SalesAdvisor,
 } from "./services/admin";
 import {
+  getWasteSummary,
+  type WasteRow,
+} from "./services/credits";
+import {
   getExpenses,
   getRecurringExpenses,
   createExpense,
@@ -1385,6 +1389,12 @@ function Admin({
   const [profitability, setProfitability] = useState<ProductProfitability | null>(null);
   const [profitabilityLoading, setProfitabilityLoading] = useState(false);
   const [profitabilityError, setProfitabilityError] = useState<string | null>(null);
+  // Merma: cuanto se perdio, no solo cuantas unidades faltaron. Se carga
+  // junto con el resto del dashboard porque son pocas filas.
+  const [wasteDays] = useState(30);
+  const [waste, setWaste] = useState<WasteRow[] | null>(null);
+  const [wasteLoading, setWasteLoading] = useState(true);
+  const [wasteError, setWasteError] = useState<string | null>(null);
   const [showPendingOrdersOnly, setShowPendingOrdersOnly] = useState(false);
   const [orderEditor, setOrderEditor] = useState<{ order: AdminOrder | null } | null>(null);
   const [orderSaving, setOrderSaving] = useState(false);
@@ -1425,6 +1435,27 @@ function Admin({
       variant.stock <= (variant.minStock ?? 2)
     )
   ).length;
+  // La merma se carga una vez al entrar al dashboard: son pocas filas y es el
+  // dato que responde "por que el stock no cuadra".
+  useEffect(() => {
+    let cancelled = false;
+    void getWasteSummary(wasteDays)
+      .then((rows) => {
+        if (!cancelled) setWaste(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setWasteError(err instanceof Error ? err.message : "No se pudo calcular la merma.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setWasteLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wasteDays]);
+
   // La rentabilidad se pide al abrir el detalle, no siempre: es una consulta
 // que cruza todos los pedidos del periodo y el dashboard no la necesita para
 // pintar las metricas.
@@ -2653,6 +2684,55 @@ function Admin({
               </div>
             )}
             <section className="insight-grid">
+              {/* Merma: la pregunta que sin registro no tiene respuesta.
+                  Dice cuanto se perdio, no solo cuantas unidades faltaron. */}
+              <div className="admin-card waste-card">
+                <div className="card-title">
+                  <div>
+                    <h2>Merma</h2>
+                    <span>Valor perdido ultimos {wasteDays} dias</span>
+                  </div>
+                  <Package size={18} />
+                </div>
+                {wasteLoading && (
+                  <div className="loading-state" role="status">
+                    <span className="loading-spinner" aria-hidden="true" />
+                    <span>Calculando…</span>
+                  </div>
+                )}
+                {wasteError && <p className="form-error" role="alert">{wasteError}</p>}
+                {!wasteLoading && !wasteError && waste && waste.length === 0 && (
+                  <p className="insight">
+                    Sin merma registrada. Cuando registres una rotura, un robo o un
+                    vencimiento desde el boton "Merma o ingreso" de cada presentacion, aqui
+                    aparece cuanto se perdio.
+                  </p>
+                )}
+                {!wasteLoading && !wasteError && waste && waste.length > 0 && (
+                  <>
+                    <p className="waste-total">
+                      <span>Perdido</span>
+                      <strong>{money(waste.reduce((sum, row) => sum + Number(row.total_lost), 0))}</strong>
+                    </p>
+                    <div className="waste-list">
+                      {waste.slice(0, 6).map((row) => (
+                        <div className="waste-row" key={`${row.product_name}-${row.size_ml}`}>
+                          <span className="waste-name">
+                            {row.product_name}
+                            <small>{row.size_ml} ml</small>
+                          </span>
+                          <span className="waste-units">{row.units_lost} und</span>
+                          <span className="waste-money">{money(Number(row.total_lost))}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {waste.length > 6 && (
+                      <p className="report-hint">y {waste.length - 6} presentations mas</p>
+                    )}
+                  </>
+                )}
+              </div>
+
               <div className="admin-card">
                 <div className="card-title"><div><h2>Consejo</h2><span>Lectura inicial del inventario</span></div><Sparkles size={18}/></div>
                 <p className="insight">{metrics.top_products[0]
