@@ -43,6 +43,39 @@ const check = (name, pass, detail = "") => {
   console.log(`${pass ? "PASA" : "FALLA"}  ${name}${detail ? `  -> ${detail}` : ""}`);
 };
 
+// --- 0. Importes relativos con extension ---
+// Vercel compila las funciones pero NO las empaqueta, asi que Node ESM exige
+// la extension explicita en los imports relativos. Las pruebas de runtime de
+// abajo pasan igual porque esbuild si empaqueta: sin este chequeo, un import
+// sin extensión llega bien al test y revienta en produccion con
+// ERR_MODULE_NOT_FOUND.
+{
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const dir = join(process.cwd(), "api");
+  const files = [];
+  const walk = (d) => {
+    for (const entry of readdirSync(d, { withFileTypes: true })) {
+      const full = join(d, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith(".ts")) files.push(full);
+    }
+  };
+  walk(dir);
+
+  const bad = [];
+  for (const file of files) {
+    const src = readFileSync(file, "utf8");
+    for (const m of src.matchAll(/from\s+["'](\.[^"']*)["']/g)) {
+      if (!/\.(js|json|mjs)$/.test(m[1])) bad.push(`${file.replace(process.cwd(), ".")} -> ${m[1]}`);
+    }
+  }
+  check(
+    "todos los imports relativos llevan extension",
+    bad.length === 0,
+    bad.length ? bad.join(" | ") : `${files.length} archivos revisados`,
+  );
+}
+
 // --- 1. Sin firma: tiene que rechazar ---
 {
   const r = await post("{}", { signature: undefined });

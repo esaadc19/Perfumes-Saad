@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { verifySignature } from "../_lib/zernio";
+import { verifySignature } from "../_lib/zernio.js";
 
 /**
  * Envio de mensajes salientes por Zernio.

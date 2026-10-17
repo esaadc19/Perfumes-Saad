@@ -5,8 +5,8 @@ import {
   phoneFromSender,
   toProvider,
   verifySignature,
-} from "../_lib/zernio";
-import type { ZernioEvent } from "../_lib/zernio";
+} from "../_lib/zernio.js";
+import type { ZernioEvent } from "../_lib/zernio.js";
 
 /**
  * Webhook entrante de Zernio.
