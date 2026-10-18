@@ -1,0 +1,125 @@
+/* ==========================================================================
+   Panel: donuts, embudo y la lista de "para atender hoy".
+   ========================================================================== */
+
+.crm-donut {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.crm-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+  min-width: 118px;
+}
+
+.crm-legend li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.crm-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.crm-legend__label {
+  color: var(--crm-text-soft);
+  white-space: nowrap;
+}
+
+.crm-legend__value {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------- Embudo --- */
+
+.crm-funnel {
+  min-width: 620px;
+}
+
+.crm-funnel td:first-child {
+  width: 44%;
+}
+
+/* La barra lleva el nombre dentro y crece desde el ancho real de los deals:
+   el ancho de la columna no cambia al filtrar, solo el de la barra. */
+.crm-funnel__bar {
+  display: block;
+  padding: 7px 10px;
+  border-radius: 5px;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: width 0.18s ease;
+}
+
+/* ---------------------------------------------------- Para atender hoy -- */
+
+.crm-todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-todo-list li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 0;
+  font-size: 13px;
+  color: var(--crm-text);
+  /* Separador que no necesita otro elemento en el DOM. */
+  border-bottom: 1px solid var(--crm-border);
+}
+
+.crm-todo-list li:last-child {
+  border-bottom: 0;
+}
+
+.crm-todo-list svg {
+  color: var(--crm-text-soft);
+  flex: 0 0 auto;
+}
+
+.crm-todo-list strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.crm-todo-list__aside {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--crm-text-faint);
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .crm-donut {
+    justify-content: center;
+  }
+
+  .crm-todo-list li {
+    flex-wrap: wrap;
+  }
+
+  .crm-todo-list__aside {
+    margin-left: 24px;
+  }
+}
