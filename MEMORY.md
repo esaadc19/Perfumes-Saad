@@ -23,6 +23,7 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - Interfaz: sidebar oscuro `#1B2436` con `mark.png`, tarjetas blancas, datos en cian `#00BCD4` por opacidad.
 - 9 tablas `crm_*` + rol `asesor` en `profiles` (única tabla existente tocada).
 - **CRM Fase 4: tablero Kanban + pipeline editable** (`Board.tsx`, `PipelineSettings.tsx`). Las etapas se editan desde Configuración y el tablero se ajusta solo.
+- **CRM Fase 7: panel con embudo y KPIs** (`Dashboard.tsx`, `services/dashboard.ts`, `Donut.tsx`, `Funnel.tsx`). Las cifras de la tienda salen de `admin_dashboard_metrics()`, no de una fórmula duplicada.
 - **Zernio funcionando en producción**: recibe mensajes reales de Instagram, los guarda y deduplica. Persistencia activa (`ZERNIO_OBSERVE=0`). Verificado por el usuario.
 - Endpoints en `api/zernio/`: `webhook.ts` (entrante) y `enviar.ts` (saliente). Contrato en `api/_lib/zernio.ts`.
 - El logo de la marca es un JPEG 1254x1254 con mucho fondo blanco: a 30px no se lee. `crm/public/mark.png` es el recorte.
@@ -66,16 +67,18 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - `wa.me` exige el número con código de país: un móvil colombiano necesita el `57` delante.
 - El CRM **no puede reusar clases de la tienda** (`.overlay`, `.auth-modal`): no carga su CSS y el elemento sale sin estilos. Cada app tiene sus propias.
 - En un input controlado que escribe directo en el estado, al hacer el guardado **no se puede comparar contra el estado actual**: ya tiene el valor nuevo y la comprobación "cambió algo?" siempre da falso. Comparar contra lo último persistido (un ref).
+- Un `width: X%` en línea no siempre cede ante un `min-width` de CSS: calcular el mínimo en JS para que las barras vacías no dejen el texto ilegible.
+- Formatear porcentajes con `Intl.NumberFormat("es-CO")`, no con `toFixed`: el punto decimal no es el de Colombia.
+- La tasa de conversión va sobre lo **decidido** (ganados + perdidos), no sobre el total: contar los deals abiertos en el denominador la hunde sin sentido.
 - `type="button"` en todo botón dentro de un `<form>`.
 - En PowerShell `&&` no funciona: usar `;`. `git push` escribe en stderr y parece error aunque salga bien: mirar `main -> main`.
 - `npx vercel@latest` falla a veces con `notarget`: usar la fija `npx vercel@64.0.2`.
 
 ## Próximos pasos
 
-- **CRM Fase 7**: dashboard con embudo y KPIs (las 4 tarjetas del panel siguen con "—").
 - **CRM Fase 6**: que la ruta de salida funcione. `ZERNIO_SEND_PATH=/v1/inbox/messages` está por defecto, **sin confirmar** contra la documentación. Fase 8: PWA y push.
 - **Probar WhatsApp**: solo se verificó Instagram. Falta confirmar que Zernio mande el número en `sender.id`.
-- Correr `supabase/SEMILLA-CRM-TEST.sql` para tener datos de prueba (es idempotente).
+- Correr `supabase/SEMILLA-CRM-TEST.sql` para tener deals repartidos en varias etapas y ver el embudo con datos (es idempotente).
 - Persistencia del carrito; pasarela de pago; avisos de stock bajo.
 
 ## Deuda técnica conocida
