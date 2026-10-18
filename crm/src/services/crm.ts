@@ -253,55 +253,43 @@ export async function assignConversation(id: string, assigned_to: string | null)
 }
 
 /**
- * Firma la peticion a `api/zernio/enviar`.
- *
- * El navegador nunca ve `ZERNIO_API_KEY` (no lleva prefijo VITE_). Lo que hace
- * es firmar el cuerpo con esa misma clave para que el servidor pueda comprobar
- * que la llamada viene del CRM y no de cualquier pagina.
- *
- * En desarrollo el endpoint no existe, asi que se resuelve la misma URL contra
- * el servidor de Vite: por eso la funcion devuelve `null` en vez de fallar.
- */
-async function signForServer(body: string): Promise<string | null> {
-  const secret = (import.meta as ImportMeta & { env: { ZERNIO_API_KEY?: string } }).env
-    .ZERNIO_API_KEY;
-  if (!secret) return null;
-
-  const bytes = new TextEncoder().encode(secret);
-  const key = await crypto.subtle.importKey("raw", bytes, { name: "HMAC", hash: "SHA-256" }, false, [
-    "sign",
-  ]);
-  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body));
-  return Array.from(new Uint8Array(signature))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-/**
  * Envia el mensaje de verdad por Zernio.
  *
- * Devuelve `{ ok: false }` cuando no hay servidor de por medio (desarrollo),
- * y el mensaje queda guardado en `sending` para no perder lo escrito.
+ * Se autentica con el **token de sesión de Supabase**, que el usuario ya tiene
+ * porque está logged in. La API key nunca llega al navegador: antes esta
+ * función firmaba el cuerpo con `VITE_ZERNIO_API_KEY`, lo que además de
+ * exponer el secreto obligaba a mandarlo al bundle. La firma la hace el
+ * servidor con su propia key.
+ *
+ * Devuelve `false` cuando no hay servidor de por medio (desarrollo): el
+ * mensaje queda guardado en `sending` para no perder lo escrito.
  */
 export async function sendMessageViaZernio(conversationId: string, text: string): Promise<boolean> {
-  const body = JSON.stringify({ conversationId, text });
-  const signature = await signForServer(body);
+  const client = requireSupabase();
+  const { data } = await client.auth.getSession();
+  const token = data.session?.access_token;
 
-  // En desarrollo el serverless no existe: se salta el envio y el mensaje se
-  // queda en la bandeja como `sending`, igual que antes de la Fase 5.
-  if (signature === null && (import.meta as ImportMeta & { env: { DEV?: boolean } }).env.DEV) {
-    return false;
-  }
+  // Sin sesión o en desarrollo el serverless no está: se deja el mensaje
+  // guardado en `sending`, igual que antes de la Fase 5.
+  if (!token || (import.meta as ImportMeta & { env: { DEV?: boolean } }).env.DEV) return false;
 
   const response = await fetch("/api/zernio/enviar", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(signature ? { "x-crm-signature": signature } : {}),
+      Authorization: `Bearer ${token}`,
     },
-    body,
+    body: JSON.stringify({ conversationId, text }),
   });
-  if (!response.ok) throw new Error(`El envio fallo (${response.status}).`);
+
+  if (!response.ok) {
+    // El cuerpo trae el motivo real de Zernio; un "fallo (502)" a secas no
+    // sirve para saber si fue la ventana de 24h, una plantilla o el saldo.
+    const detail = await response.json().catch(() => null);
+    const motivo =
+      detail?.detail ?? detail?.error ?? `El envio fallo con codigo ${response.status}.`;
+    throw new Error(motivo);
+  }
   return true;
 }
 
