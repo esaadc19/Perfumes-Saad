@@ -92,6 +92,7 @@ import { Toaster, useToasts } from "./components/Toast";
 const Charts = lazy(() => import("./components/admin/Charts"));
 const CreditPage = lazy(() => import("./components/admin/CreditPage"));
 const CollectPage = lazy(() => import("./components/admin/CollectPage"));
+const ConfirmDialog = lazy(() => import("./components/admin/ConfirmDialog"));
 const ProfitabilityTable = lazy(() => import("./components/admin/ProfitabilityTable"));
 const MovementModal = lazy(() => import("./components/admin/MovementModal"));
 const OrderEditorModal = lazy(() => import("./components/admin/OrderEditorModal"));
@@ -1106,6 +1107,7 @@ function App() {
           savingCostVariantId={savingCostVariantId}
           onVariantStockChange={handleVariantStockChange}
           savingStockVariantId={savingStockVariantId}
+            onDeletingProductIdChange={setDeletingProductId}
           onBack={() => {
             setView("store");
             void getProducts().then(setProducts).catch((loadError: unknown) => {
@@ -1263,6 +1265,7 @@ function Admin({
   savingCostVariantId,
   onVariantStockChange,
   savingStockVariantId,
+  onDeletingProductIdChange,
   onBack,
   onAdd,
   onProductActiveChange,
@@ -1288,6 +1291,7 @@ function Admin({
   savingCostVariantId: string | null;
   onVariantStockChange: (variantId: string, stock: number) => Promise<void>;
   savingStockVariantId: string | null;
+  onDeletingProductIdChange: (id: string | null) => void;
   onBack: () => void;
   onAdd: () => void;
   onProductActiveChange: (product: Product) => void;
@@ -1401,6 +1405,39 @@ function Admin({
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [movementEditor, setMovementEditor] = useState<{ productId: string; variant: { id: string; size: number; stock: number } } | null>(null);
+  /**
+   * Acción pendiente de confirmar. Reemplaza a `window.confirm()`, que
+   * está prohibido en .agents/ux-experience.agents.md: sus botones son
+   * nativos del sistema, no se pueden estilizar y en móvil tapan la
+   * pantalla sin poder cerrarse con Escape.
+   */
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    run: () => Promise<void>;
+  } | null>(null);
+
+  /** Borra el producto. Se ejecuta desde el diálogo de confirmación. */
+  const deleteProductConfirmed = async (product: Product) => {
+    setProductActionFeedback(null);
+    setProductActionError(null);
+    onDeletingProductIdChange(product.id);
+    try {
+      const result = await onDeleteProduct(product);
+      setProductActionFeedback(
+        result === "archived"
+          ? `${product.brand} ${product.name} se archivó y se quitó de los productos activos.`
+          : `${product.brand} ${product.name} se eliminó.`
+      );
+    } catch (deleteError) {
+      setProductActionError(deleteError instanceof Error
+        ? deleteError.message
+        : "No se pudo eliminar el producto. Revisa los permisos de administrador y la conexión con Supabase.");
+    } finally {
+      onDeletingProductIdChange(null);
+    }
+  };
   const [promotionEditor, setPromotionEditor] = useState<Promotion | null | "new">(null);
   const [promotionSaving, setPromotionSaving] = useState(false);
   const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
@@ -1879,7 +1916,15 @@ function Admin({
   };
 
   const removePendingOrder = async (order: AdminOrder) => {
-    if (!window.confirm(`¿Eliminar el pedido #${order.id.slice(0, 8).toUpperCase()}? Esta acción no se puede deshacer.`)) return;
+    setConfirmAction({
+      title: "Eliminar pedido",
+      message: `Se eliminará el pedido #${order.id.slice(0, 8).toUpperCase()}. Esta acción no se puede deshacer.`,
+      confirmLabel: "Eliminar pedido",
+      run: () => deletePendingOrderConfirmed(order),
+    });
+  };
+
+  const deletePendingOrderConfirmed = async (order: AdminOrder) => {
     setDeletingOrderId(order.id);
     setSectionError(null);
     try {
@@ -2013,7 +2058,15 @@ function Admin({
   };
 
   const removePromotion = async (promotion: Promotion) => {
-    if (!window.confirm(`¿Eliminar la promoción «${promotion.name}»? Los productos asociados quedarán sin promoción.`)) return;
+    setConfirmAction({
+      title: "Eliminar promoción",
+      message: `Se eliminará la promoción «${promotion.name}». Los productos asociados quedarán sin promoción.`,
+      confirmLabel: "Eliminar promoción",
+      run: () => deletePromotionConfirmed(promotion),
+    });
+  };
+
+  const deletePromotionConfirmed = async (promotion: Promotion) => {
     setSectionError(null);
     setPromotionFeedback(null);
     try {
@@ -2052,7 +2105,24 @@ function Admin({
       const { parseProductImportFile } = await import("./services/product-import");
       const parsedProducts = await parseProductImportFile(file);
       const variantCount = parsedProducts.reduce((sum, item) => sum + item.variants.length, 0);
-      if (!window.confirm(`Se importarán ${parsedProducts.length} productos y ${variantCount} presentaciones. ¿Continuar?`)) return;
+      setImportFeedback(null);
+      setImportError(null);
+      setConfirmAction({
+        title: "Importar productos",
+        message: `Se importarán ${parsedProducts.length} productos y ${variantCount} presentaciones.`,
+        confirmLabel: "Importar",
+        run: () => importProductsConfirmed(parsedProducts),
+      });
+      return;
+    } catch (importError) {
+      console.error("No se pudo leer el archivo de productos:", importError);
+      setImportError(importError instanceof Error ? importError.message : "No se pudo leer el archivo.");
+    }
+  };
+
+  const importProductsConfirmed = async (parsedProducts: ImportedProduct[]) => {
+      setImportingProducts(true);
+      try {
       const result = await onImportProducts(parsedProducts);
       const skipped = parsedProducts.length - result.imported;
       setImportFeedback(
@@ -2082,7 +2152,29 @@ function Admin({
     try {
       const { parseCustomerImportFile } = await import("./services/product-import");
       const importedCustomers: ImportedCustomer[] = await parseCustomerImportFile(file);
-      if (!window.confirm(`Se importarán ${importedCustomers.length} clientes. Los ya registrados por correo o teléfono se omitirán. ¿Continuar?`)) return;
+      setConfirmAction({
+        title: "Importar clientes",
+        message: `Se importarán ${importedCustomers.length} clientes. Los ya registrados por correo o teléfono se omitirán.`,
+        confirmLabel: "Importar",
+        run: () => importCustomersConfirmed(importedCustomers),
+      });
+      return;
+    } catch (customerImportError) {
+      console.error("No se pudo leer el archivo de clientes:", customerImportError);
+      setCustomerImportError(
+        customerImportError instanceof Error
+          ? customerImportError.message
+          : "No se pudo leer el archivo de clientes."
+      );
+    }
+  };
+
+  /** Se ejecuta desde el diálogo de confirmación, no al elegir el archivo. */
+  const importCustomersConfirmed = async (importedCustomers: ImportedCustomer[]) => {
+    setImportingCustomers(true);
+    setCustomerImportFeedback(null);
+    setCustomerImportError(null);
+    try {
       const result = await importAdminCustomers(importedCustomers.map((customer) => ({
         full_name: customer.full_name,
         phone: customer.phone,
@@ -3260,23 +3352,12 @@ function Admin({
                           type="button"
                           disabled={deletingProductId === product.id}
                           onClick={() => {
-                            const confirmed = window.confirm(
-                              `¿Eliminar ${product.brand} ${product.name}? Si tiene pedidos o movimientos de inventario, se quitará de la tienda y se archivará para proteger ese historial.`
-                            );
-                            if (!confirmed) return;
-                            setProductActionFeedback(null);
-                            setProductActionError(null);
-                            void onDeleteProduct(product)
-                              .then((result) => setProductActionFeedback(
-                                result === "archived"
-                                  ? `${product.brand} ${product.name} se archivó y se quitó de los productos activos.`
-                                  : `${product.brand} ${product.name} se eliminó.`
-                              ))
-                              .catch((deleteError: unknown) => {
-                                setProductActionError(deleteError instanceof Error
-                                  ? deleteError.message
-                                  : "No se pudo eliminar el producto. Revisa los permisos de administrador y la conexión con Supabase.");
-                              });
+                            setConfirmAction({
+                              title: "Eliminar producto",
+                              message: `¿Eliminar ${product.brand} ${product.name}? Si tiene pedidos o movimientos de inventario, se quita de la tienda y se archiva para proteger ese historial.`,
+                              confirmLabel: "Eliminar producto",
+                              run: () => deleteProductConfirmed(product),
+                            });
                           }}
                       >
                           <Trash2 size={14}/>{deletingProductId === product.id ? "Eliminando..." : "Eliminar"}
@@ -3510,6 +3591,22 @@ function Admin({
           </section>
         </div>
       )}
+      {confirmAction && (
+        <Suspense fallback={null}>
+          <ConfirmDialog
+            title={confirmAction.title}
+            message={confirmAction.message}
+            confirmLabel={confirmAction.confirmLabel}
+            busy={deletingOrderId !== null || deletingProductId !== null || importingProducts || importingCustomers}
+            onCancel={() => setConfirmAction(null)}
+            onConfirm={() => {
+              const { run } = confirmAction;
+              void run().finally(() => setConfirmAction(null));
+            }}
+          />
+        </Suspense>
+      )}
+
       {movementEditor && ((
         <Suspense fallback={null}>
           <MovementModal

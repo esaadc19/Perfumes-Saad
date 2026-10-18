@@ -116,8 +116,14 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .brand-filter select { min-width: 190px; min-height: 40px; padding: 0 12px; border: 1px solid var(--border); background: white; color: var(--black); }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: grid; place-items: center; padding: 20px; }
+/* El diálogo va por encima de todo: `.overlay` normal usa z-index 50, pero
+   el sidebar del admin llega a 120 y el header movil a 90, asi que con 50
+   el menú quedaba por encima del diálogo. */
+.overlay:has(.confirm-dialog) { z-index: 200; }
+
 .confirm-dialog { background: white; border-radius: 12px; padding: 28px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
-.confirm-dialog h3 { margin: 0 0 12px; font-size: 18px; font-weight: 600; color: var(--black); }
+.confirm-dialog h3 { margin: 0 0 12px; font-size: 18px; font-weight: 600; color: var(--black); display: flex; align-items: center; gap: 8px; }
+.confirm-dialog h3 svg { color: var(--danger); flex: 0 0 auto; }
 .confirm-dialog p { margin: 0 0 24px; color: #666; line-height: 1.5; }
 .confirm-dialog-actions { display: flex; gap: 12px; justify-content: flex-end; }
 .confirm-dialog-actions button { min-height: 44px; padding: 0 20px; border-radius: 8px; font-weight: 500; cursor: pointer; transition: all .2s ease; }
