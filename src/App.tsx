@@ -93,6 +93,8 @@ const Charts = lazy(() => import("./components/admin/Charts"));
 const CreditPage = lazy(() => import("./components/admin/CreditPage"));
 const CollectPage = lazy(() => import("./components/admin/CollectPage"));
 const ConfirmDialog = lazy(() => import("./components/admin/ConfirmDialog"));
+const AdminDock = lazy(() => import("./components/admin/AdminDock"));
+import type { DockSection } from "./components/admin/AdminDock";
 const ProfitabilityTable = lazy(() => import("./components/admin/ProfitabilityTable"));
 const MovementModal = lazy(() => import("./components/admin/MovementModal"));
 const OrderEditorModal = lazy(() => import("./components/admin/OrderEditorModal"));
@@ -2374,6 +2376,19 @@ function Admin({
             )}
           </div>
         </div>
+        {/* En movil la navegación vive en el dock fijo al pie. Los tabs
+            de aqui son la version de escritorio, que se esconden por CSS. */}
+        <AdminDock
+          sections={sections}
+          current={section}
+          onSelect={(id) => {
+            setSection(id as typeof section);
+            setSearch("");
+            if (id === "transactions") setShowPendingOrdersOnly(false);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
+
         <nav className="admin-section-tabs" aria-label="Secciones de administración">
           {sections.map((item) =>
             "external" in item ? (
@@ -3012,11 +3027,11 @@ function Admin({
               </>
             ) : (
               !sectionLoading && (
-                <p className="empty-state">
-                  <Wallet size={22} />
-                  <strong>Todavía no registras gastos</strong>
-                  <span>Usa el formulario de arriba para agregar tu primer gasto. También puedes marcarlo como recurrente para recibir recordatorios.</span>
-                </p>
+                <EmptyState
+                  icon={<Wallet size={26} />}
+                  title="Todavía no registras gastos"
+                  hint="Usa el formulario de arriba para agregar tu primer gasto. También puedes marcarlo como recurrente para recibir recordatorios."
+                />
               )
             )}
           </section>

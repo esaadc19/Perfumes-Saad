@@ -1,3 +1,4 @@
+import { PackageOpen } from "lucide-react";
 import type { ProductProfitability } from "../../services/admin";
 
 const money = (value: number) =>
@@ -16,6 +17,20 @@ export default function ProfitabilityTable({
   data: ProductProfitability | null;
 }) {
   if (!data) return null;
+  // Un reporte de rentabilidad sin filas es un dato, no un fallo: el
+  // periodo elegido simplemente no tiene ventas cobradas.
+  if (data.products.length === 0) {
+    return (
+      <p className="empty-state">
+        <span className="empty-state-icon"><PackageOpen size={26} /></span>
+        <strong>Sin ventas cobradas en este periodo</strong>
+        <span>
+          La utilidad por producto se calcula sobre lo cobrado. Cuando haya pedidos
+          pagados en el periodo elegido, aquí aparece el detalle.
+        </span>
+      </p>
+    );
+  }
 
   const { products, totals } = data;
   const rows = [...products].sort((a, b) => {
