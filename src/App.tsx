@@ -921,6 +921,7 @@ function App() {
                     </p>
                   )}
                   <p className="description">{selectedProduct.description}</p>
+                  <div className="product-rating">
                   <PeekRating
                     key={selectedProduct.id}
                     defaultValue={3}
@@ -942,6 +943,7 @@ function App() {
                     showLabels
                     readOnly={false}
                   />
+                  </div>
 
                   <div className="detail-block">
                     <label>Presentación</label>
@@ -965,14 +967,23 @@ function App() {
                     <div><b>Clima</b><span>{selectedProduct.climate.join(" · ")}</span></div>
                   </div>
 
-                  <button
-                    className="primary full"
-                    disabled={!selectedVariant || selectedVariant.stock <= 0}
-                    onClick={addToCart}
-                  >
-                    <ShoppingBag size={17} />
-                    {selectedVariant?.stock ? "Agregar al pedido" : "Agotado"}
-                  </button>
+                  {/* En movil esta barra queda fija al pie del modal: el precio y el
+                      boton conviven y se compra sin scrollear hasta el
+                      final de una ficha larga. */}
+                  <div className="buy-bar">
+                    <div className="buy-bar-price">
+                      <span>Total</span>
+                      <strong>{selectedVariant ? money(selectedVariant.price) : "—"}</strong>
+                    </div>
+                    <button
+                      className="primary full"
+                      disabled={!selectedVariant || selectedVariant.stock <= 0}
+                      onClick={addToCart}
+                    >
+                      <ShoppingBag size={17} />
+                      {selectedVariant?.stock ? "Agregar al pedido" : "Agotado"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

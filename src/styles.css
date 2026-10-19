@@ -177,6 +177,14 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .detail-meta { border-top: 1px solid var(--border); margin-top: 28px; padding-top: 18px; display: grid; gap: 12px; }
 .detail-meta div { display: grid; grid-template-columns: 90px 1fr; gap: 12px; font-size: 12px; }
 .detail-meta span { color: #666; }
+/* La barra de compra. En escritorio el precio ya esta arriba, asi que
+   aqui solo se muestra el boton como antes; en movil aparece el precio
+   tambien, porque el precio tiene que estar junto a la decision. */
+.buy-bar { display: flex; align-items: center; gap: 14px; }
+.buy-bar-price { display: none; flex: 0 0 auto; }
+.buy-bar-price span { display: block; font-size: 10px; color: var(--muted); line-height: 1.2; }
+.buy-bar-price strong { font-size: 18px; color: var(--verde); }
+.product-rating { margin-bottom: 4px; }
 .full { width: 100%; margin-top: 24px; }
 
 .cart-drawer { position: absolute; right: 0; top: 0; height: 100%; width: min(460px, 100%); background: white; padding: 34px; overflow: auto; }
@@ -1579,8 +1587,50 @@ footer a { color: #111; }
   .overlay { padding: 10px; align-items: center; }
   .product-modal { max-height: 96dvh; overflow-y: auto; }
   .product-detail-image { min-height: 0; height: min(34dvh, 270px); }
-  .product-detail-copy { padding: 26px 20px 28px; }
-  .product-detail-copy h2 { font-size: 30px; }
+  /* FICHA DEL PRODUCTO EN MOVIL
+
+     En escritorio la ficha se lee de arriba abajo y que el boton este
+     al final tiene sentido. En un telefono no: hay que scrollear pasando
+     por la descripcion, las estrellas y la ficha tecnica para llegar a
+     el. Con una pantalla de 667px el boton directamente no cabe.
+
+     La ficha pasa a ser una columna flex y se reordena con `order`:
+     primero lo que se necesita para decidir (nombre, precio,
+     presentacion) y despues lo que se lee por interes. */
+
+  .product-modal { max-height: 100dvh; }
+  .product-detail-image { height: min(30dvh, 230px); }
+  .product-detail-copy { display: flex; flex-direction: column; padding: 22px 20px 0; }
+  .product-detail-copy h2 { font-size: 27px; }
+  /* El precio lo lleva la barra de compra, que siempre esta a la vista.
+     Dejarlo tambien arriba lo mostraba dos veces a 190px de distancia,
+     y se leia como un error. */
+  .price { display: none; }
+  .gender { font-size: 13px; margin-bottom: 2px; }
+
+  .detail-block { margin-top: 14px; }
+  .variant { flex: 1 1 0; min-width: 0; min-height: 48px; }
+  .variant.active { border-width: 1px; box-shadow: inset 0 0 0 1px var(--black); }
+
+  /* El `order` baja la descripcion, la ficha tecnica y las estrellas
+     debajo de la eleccion de presentacion. Los que no llevan `order`
+     (marca, titulo, genero, presentaciones) se quedan en 0 y conservan
+     su orden original entre si. */
+  .description { order: 6; margin: 22px 0 18px; font-size: 14px; line-height: 1.6; }
+  .detail-meta { order: 7; margin-top: 0; }
+  .product-rating { order: 8; }
+
+  /* La barra de compra queda fija al pie del modal. Es lo que convierte
+     una ficha larga en una ficha donde se compra sin scrollear. */
+  .buy-bar {
+    order: 9; position: sticky; bottom: 0; z-index: 3;
+    margin: 0 -20px;
+    padding: 12px 20px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: #fff; border-top: 1px solid var(--border);
+  }
+  .buy-bar-price { display: block; }
+  .buy-bar .primary { flex: 1; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
   .detail-meta div { grid-template-columns: 72px minmax(0, 1fr); }
   .cart-drawer { width: 100%; padding: 26px 18px; }
   .auth-modal, .add-modal { max-height: calc(100dvh - 20px); overflow-y: auto; padding: 30px 22px; }
