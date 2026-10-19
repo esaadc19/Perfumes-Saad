@@ -24,10 +24,18 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 
 - **Capa 1, el rol:** `admin` y `asesor` entran al panel; `customer` no.
 - **Capa 2, las secciones:** tabla `admin_section_permissions`. Una sección es visible **si y solo si** hay fila con `allowed = true`. Sin filas, no ve nada. Aplica a admins y asesores por igual.
-- **La cuenta del propietario es `aadc19@gmail.com`**: rol admin y las 13 secciones. Los demás quedan sin acceso hasta que se les asigne. Se cambia en la migración `20261019100000_admin_section_permissions.sql`.
-- La UI para repartir está en **Configuración > Permisos**. Cada casilla se guarda sola. **No te puedes cambiar tus propios permisos** (la RPC lo bloquea): si te los quitas, no queda nadie para devolvértelos.
+- **La cuenta del propietario es `esaadc19@gmail.com`**: rol admin y las 13 secciones. Los demás quedan sin acceso hasta que se les asigne.
+- **El enforcement es de verdad, no solo de pantalla.** Las 22 funciones `admin_*` exigían `is_admin()`; ahora exigen la sección que corresponde, y las políticas RLS de cada tabla preguntan por sección. Sin esto, esconder Cartera del menú no escondía nada: se pedía por la API.
+- La UI para repartir está en **Configuración > Permisos**. Cada casilla se guarda sola. **No te puedes cambiar tus propios permisos** (la RPC lo bloquea): si te los quitas, no queda nadie para devolvértelos. Solo quien ve **todas** las secciones puede repartir.
 - La lista de secciones vive en `admin_sections` (base) **y** en el array `sections` de `App.tsx` (títulos e iconos). **Las dos tienen que coincidir**: agregar una en una sola deja esa sección sin repartir.
 - Si la tabla de permisos no existe (migración sin correr), la app **degrada a "ve todo"** en vez de dejar al dueño fuera de su panel.
+
+## Probar en local (Postgres de verdad)
+
+- `supabase start` levanta el stack local de Supabase con Docker (Postgres en `127.0.0.1:54322`).
+- El `supabase db reset` **no sirve**: aplica solo `migrations/`, y la base vive en `schema.sql`. Aplicar a mano: `Get-Content supabase\schema.sql -Raw | docker exec -i supabase_db_Perfume_SAAD psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f -` y después cada migración en orden.
+- `supabase/PRUEBA-PERMISOS.sql` simula tres cuentas con claims de sesión reales y comprueba permisos, RLS y reparto. Salida esperada: el asesor ve `pedidos=1 gastos=0`, el dueño `1/1` y el que no tiene nada `0/0`.
+- Para probar la app contra el local hay que cambiar `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` en `.env.local` (tiene prioridad sobre `.env`).
 
 ## Decisiones que no se deducen del código
 
@@ -59,6 +67,9 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - `npm run dev` levanta las dos apps en 5173 y 5174 con `strictPort`: fallan en vez de corresse y romper el proxy que expone `/crm`.
 - Formatear montos con `Intl.NumberFormat("es-CO")`, nunca con `toFixed`: el punto decimal no es el de Colombia.
 - En PowerShell `&&` no funciona: usar `;`. `git push` escribe en stderr y parece error aunque salga bien.
+- **Un `.env` con BOM rompe el CLI de Supabase**: "unexpected character ﻿ in variable name". Vite lo tolera, el CLI no. Se quita con `[System.IO.File]::WriteAllBytes($p, $bytes[3..])`.
+- **`schema.sql` no se puede aplicar desde cero si tiene un error de orden**: `alter table` de una tabla que se crea después. Con `ON_ERROR_STOP=1` revienta; sin él, el error se pasa por alto y el archivo "parece funcionar". Por eso el `supabase db reset` fallaba en la primera migración.
+- **Un `revoke`/`grant` con la firma equivocada falla en silencio** y deja la función ejecutable por quien sea. `admin_save_pending_order` tenia 7 argumentos y la funcion 9.
 - `resize_page` cambia la ventana, no el viewport CSS: para probar móvil de verdad hay que emular dispositivo.
 
 ## Pendiente
@@ -66,7 +77,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - **CRM Fase 6**: que la ruta de salida funcione. `ZERNIO_SEND_PATH=/v1/inbox/messages` está por defecto, **sin confirmar** contra la documentación. Fase 8: PWA y push.
 - **WhatsApp saliente sin probar**: solo se verificó Instagram. Falta confirmar que Zernio mande el número en `sender.id`.
 - **Aislamiento admin/asesor sin probar**: la RLS está activa pero `crm_deals`, `crm_conversations` y `crm_tasks` nunca se abrieron con una sesión de asesor. Necesita una segunda cuenta con `role = 'asesor'`.
-- **Probar el panel con una cuenta de asesor**: la cuenta de pruebas es `aadc19@gmail.com` (es el propietario, con todo). Para probar el aislamiento hace falta una **cuenta aparte** con rol asesor, sin secciones asignadas.
+- **Probar el panel con una cuenta de asesor**: la cuenta de pruebas es `esaadc19@gmail.com` (es el propietario, con todo). Para probar el aislamiento hace falta una **cuenta aparte** con rol asesor, sin secciones asignadas.
 - Correr `supabase/SEMILLA-CRM-TEST.sql` para ver el embudo con datos (es idempotente).
 - Dos migraciones comparten prefijo (`20261017130000_crm_zernio_contact_identity` e `inventory_movements`): si NeonCore corre por nombre de archivo, la segunda puede saltarse.
 - Persistencia del carrito; pasarela de pago; avisos de stock bajo.

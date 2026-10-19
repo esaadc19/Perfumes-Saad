@@ -99,11 +99,6 @@ create table if not exists public.sales_advisors (
   updated_at timestamptz not null default now()
 );
 
-alter table public.orders
-  add column if not exists sales_advisor_id uuid references public.sales_advisors(id) on delete set null;
-create index if not exists orders_sales_advisor_id_idx
-  on public.orders(sales_advisor_id);
-
 do $$
 begin
   if exists (
@@ -159,6 +154,14 @@ alter table public.orders add column if not exists paid_at timestamptz;
 alter table public.orders add column if not exists credit_due_date date;
 alter table public.orders add column if not exists credit_limit_snapshot numeric(12,2);
 alter table public.orders add column if not exists credit_amount numeric(12,2) not null default 0 check (credit_amount >= 0);
+-- El asesor que atendio el pedido. Va aqui y no antes, porque alterar
+-- una tabla que todavia no existe hace fallar TODO el schema desde
+-- cero: el error es "relation public.orders does not exist" y, si se
+-- aplica sin ON_ERROR_STOP, se sigue y el archivo parece funcionar.
+alter table public.orders
+  add column if not exists sales_advisor_id uuid references public.sales_advisors(id) on delete set null;
+create index if not exists orders_sales_advisor_id_idx
+  on public.orders(sales_advisor_id);
 update public.orders
 set paid_at = created_at
 where payment_status = 'paid' and paid_at is null;
@@ -2329,7 +2332,7 @@ revoke all on function public.admin_set_profile_role(uuid, text) from public, an
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
 revoke all on function public.admin_get_products() from public, anon;
 revoke all on function public.admin_update_order_transaction(uuid, text, text, date, numeric) from public, anon;
-revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid) from public, anon;
+revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid, text, text) from public, anon;
 revoke all on function public.admin_delete_pending_order(uuid) from public, anon;
 revoke all on function public.admin_update_variant_stock(uuid, integer) from public, anon;
 revoke all on function public.admin_record_credit_payment(uuid, numeric, text, text, timestamptz) from public, anon;
@@ -2342,7 +2345,7 @@ grant execute on function public.admin_set_profile_role(uuid, text) to authentic
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
 grant execute on function public.admin_get_products() to authenticated;
 grant execute on function public.admin_update_order_transaction(uuid, text, text, date, numeric) to authenticated;
-grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid) to authenticated;
+grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid, text, text) to authenticated;
 grant execute on function public.admin_delete_pending_order(uuid) to authenticated;
 grant execute on function public.admin_update_variant_stock(uuid, integer) to authenticated;
 grant execute on function public.admin_record_credit_payment(uuid, numeric, text, text, timestamptz) to authenticated;
@@ -2359,7 +2362,6 @@ alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.inventory_movements enable row level security;
 alter table public.sales_advisors enable row level security;
-alter table public.expenses enable row level security;
 alter table public.customer_credit_payments enable row level security;
 
 grant select on public.products to anon, authenticated;
@@ -2511,6 +2513,11 @@ create table if not exists public.expenses (
   expense_date date not null default current_date,
   created_at timestamptz not null default now()
 );
+
+-- La RLS se activa aqui y no en el bloque de arriba: esta tabla se crea
+-- despues, y alterar una tabla que todavia no existe rompe el schema
+-- entero desde cero.
+alter table public.expenses enable row level security;
 
 create table if not exists public.recurring_expenses (
   id uuid primary key default gen_random_uuid(),

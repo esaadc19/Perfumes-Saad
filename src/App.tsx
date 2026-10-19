@@ -359,6 +359,11 @@ function App() {
   // se consulto; un arreglo vacio = la cuenta no tiene ninguna seccion
   // asignada y el panel le muestra un aviso, no una pantalla en blanco.
   const [allowedSections, setAllowedSections] = useState<string[] | null>(null);
+  // `allowedSections === null` significa dos cosas distintas: que
+  // todavia no se consulto, o que el sistema de permisos no esta
+  // disponible. El panel carga datos en el segundo caso, asi que hace
+  // falta saber cual de los dos es.
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingProductEdit, setSavingProductEdit] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
@@ -462,21 +467,28 @@ function App() {
 
   useEffect(() => {
     if (view !== "admin" || !isStaff) return;
+    // Se espera a saber que secciones puede ver la cuenta antes de pedir
+    // nada: pedir de mas hace que la base responda con un error.
+    if (!permissionsLoaded) return;
     let active = true;
     setAdminError(null);
-    void Promise.all([getAdminProducts(), getPromotions(true)])
-      .then(([data, loadedPromotions]) => {
-        if (active) setProducts(data);
-        if (active) setPromotions(loadedPromotions);
-      })
+    const puedeVerProductos = allowedSections === null || allowedSections.includes("products");
+    const puedeVerPromociones = allowedSections === null || allowedSections.includes("promotions");
+    const pendientes: Promise<unknown>[] = [];
+    if (puedeVerProductos) pendientes.push(getAdminProducts().then((data) => { if (active) setProducts(data); }));
+    if (puedeVerPromociones) pendientes.push(getPromotions(true).then((loaded) => { if (active) setPromotions(loaded); }));
+
+    if (pendientes.length === 0) return;
+
+    void Promise.all(pendientes)
       .catch((loadError: unknown) => {
         console.error("No se pudo cargar el inventario administrativo:", loadError);
-        if (active) setAdminError("No se pudieron cargar el inventario y las promociones. Revisa la conexión.");
+        if (active) setAdminError("No se pudieron cargar los datos del panel. Revisa la conexión.");
       });
     return () => {
       active = false;
     };
-  }, [view, userRole]);
+  }, [view, userRole, allowedSections, permissionsLoaded]);
 
   // Los permisos se cargan una vez que sabemos quien esta conectado.
   // Se vuelven a leer cuando el panel se abre, para que un cambio hecho
@@ -484,6 +496,7 @@ function App() {
   useEffect(() => {
     if (!isStaff || !user) {
       setAllowedSections(null);
+      setPermissionsLoaded(false);
       return;
     }
     let active = true;
@@ -491,6 +504,7 @@ function App() {
       .then((rows) => {
         if (!active) return;
         setAllowedSections(rows.filter((row) => row.allowed).map((row) => row.section_id));
+        setPermissionsLoaded(true);
       })
       .catch((loadError: unknown) => {
         console.error("No se pudieron cargar los permisos de la cuenta:", loadError);
@@ -507,6 +521,7 @@ function App() {
         const faltaLaTabla = code === "42P01" || code === "PGRST205"
           || /does not exist|schema cache/i.test(mensaje);
         setAllowedSections(faltaLaTabla ? null : []);
+        setPermissionsLoaded(true);
       });
     return () => {
       active = false;
@@ -1185,6 +1200,7 @@ function App() {
           onPromotionsChange={setPromotions}
           currentUserId={user?.id ?? ""}
           allowedSections={allowedSections}
+          permissionsLoaded={permissionsLoaded}
           onImportProducts={handleProductImport}
           onEditProduct={handleProductEdit}
           onDeleteProduct={handleProductDelete}
@@ -1268,7 +1284,7 @@ function App() {
       {showAccount && user && (
         <AccountDialog
           user={user}
-          isAdmin={userRole === "admin"}
+          isAdmin={isStaff}
           onClose={() => setShowAccount(false)}
           onOpenAdmin={() => {
             setShowAccount(false);
@@ -1344,6 +1360,7 @@ function Admin({
   onProductsRefresh,
   currentUserId,
   allowedSections,
+  permissionsLoaded,
   onImportProducts,
   onEditProduct,
   onDeleteProduct,
@@ -1375,6 +1392,8 @@ function Admin({
    * se consulto. Un arreglo vacio = la cuenta no tiene ninguna.
    */
   allowedSections: string[] | null;
+  /** `true` cuando ya se consultaron los permisos (o cuando no hay sistema). */
+  permissionsLoaded: boolean;
   onImportProducts: (items: ImportedProduct[]) => Promise<{ imported: number; failures: string[] }>;
   onEditProduct: (product: Product, imageFiles: File[]) => Promise<void>;
   onDeleteProduct: (product: Product) => Promise<"deleted" | "archived">;
@@ -1675,6 +1694,13 @@ function Admin({
         setSectionError(null);
         return;
       }
+      // Antes de los permisos no se pide nada: la base todavia no sabe
+      // que puede ver esta cuenta y responderia con un error.
+      if (!permissionsLoaded) {
+        setSectionLoading(false);
+        setSectionError(null);
+        return;
+      }
       if (section === "products") {
         setSectionLoading(false);
         setSectionError(null);
@@ -1755,7 +1781,7 @@ function Admin({
     return () => {
       active = false;
     };
-  }, [section, sectionRevision, metricsPeriod, hasNoSections]);
+  }, [section, sectionRevision, metricsPeriod, hasNoSections, permissionsLoaded]);
 
   const saveCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

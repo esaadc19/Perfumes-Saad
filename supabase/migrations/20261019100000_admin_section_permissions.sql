@@ -214,7 +214,7 @@ grant select on public.admin_section_permissions to authenticated;
 insert into public.profiles (id, role, email)
 select u.id, 'admin', u.email
 from auth.users u
-where lower(u.email) = lower('aadc19@gmail.com')
+where lower(u.email) = lower('esaadc19@gmail.com')
 on conflict (id) do update
   set role = 'admin',
       email = excluded.email;
@@ -229,7 +229,7 @@ select p.id, s.id, true
 from public.profiles p
 join auth.users u on u.id = p.id
 cross join public.admin_sections s
-where lower(u.email) = lower('aadc19@gmail.com')
+where lower(u.email) = lower('esaadc19@gmail.com')
 on conflict (profile_id, section_id)
 do update set allowed = true, updated_at = now();
 
@@ -239,7 +239,7 @@ do update set allowed = true, updated_at = now();
 
 do $$
 declare
-  owner_email text := 'aadc19@gmail.com';
+  owner_email text := 'esaadc19@gmail.com';
   owner_id uuid;
   owner_sections integer;
 begin
