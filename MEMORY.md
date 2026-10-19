@@ -18,6 +18,7 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - **Dock de navegación en móvil**: 5 secciones fijas al pie + hoja "Más" con las otras 8. Antes no había nada visible en móvil: los tabs están en `display: none` por debajo de 900px.
 - **`ConfirmDialog`** sustituye a `window.confirm()`: cierra con Escape y atrapa el foco.
 - **Catálogo en móvil: 2 columnas, sin repetir el precio.** El problema nunca fue el número de columnas sino la densidad: a ~171px por tarjeta cabían 7 cosas apiladas. Los chips muestran solo el tamaño y el precio va una sola vez a 17px. "Agregar" ocupa el ancho completo a 44px. La tarjeta es columna flex con las acciones en `margin-top: auto`, si no dos productos de una fila quedan desalineados.
+- **Ficha de producto en móvil: la compra va al alcance del pulgar.** El botón estaba debajo de descripción, estrellas y ficha técnica: con 667px de alto no cabía. La ficha es columna flex reordenada con `order` (decidir primero, leer después) y lleva una barra fija al pie con precio y botón. El precio de arriba se oculta porque la barra lo lleva.
 
 ## CRM (Fases 1-5)
 
