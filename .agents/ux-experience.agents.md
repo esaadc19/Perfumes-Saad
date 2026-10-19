@@ -47,6 +47,9 @@ npm run preview   # Preview del build
 - **El panel admin solo es accesible** con rol `admin` en la tabla `profiles`.
 - **NO usar `alert()` ni `confirm()`.** Usar modales y feedback inline.
 - **Los recordatorios de cobro van agrupados por cliente, no por pedido.** Quien tiene tres fiados unaware que los tiene: recibir tres mensajes distintos lo hace ver desorganizado. La pantalla "Cobrar" suma los saldos y arma un solo mensaje con el total y el atraso.
+- **Toda confirmación va por `ConfirmDialog`.** `window.confirm()` está prohibido: sus botones son nativos del sistema, no se pueden estilizar y en móvil tapan la pantalla sin poder cerrarse con Escape. El diálogo además cierra con Escape y atrapa el foco.
+- **En móvil la navegación es el dock fijo al pie**, no los tabs de sección (esos están en `display: none` por debajo de 900px). Cinco secciones frecuentes + "Más" con el resto agrupado. Ítems de 56px mínimo, `env(safe-area-inset-bottom)` para la barra del iPhone, y `padding-bottom` en el contenido para que el dock no tape la última fila.
+- **Estados vacíos: usar siempre el componente `EmptyState`.** No escribir un `<p className="empty-state">` a mano: el markup queda distinto al del resto y el estilo se desvía.
 - **El logo y los textos de la tienda** vienen de `store_settings` (configurable por el admin).
 - **El número de WhatsApp** se configura en `VITE_WHATSAPP_NUMBER` y en `store_settings`.
 - **El seguimiento de pedidos** se accede desde el footer ("Rastrear pedido"). El cliente ingresa número de pedido (8 caracteres) + teléfono. No requiere login. Muestra línea de tiempo: Pedido recibido → Confirmado → Enviado → Entregado. El link de seguimiento (`?track=A1B2C3D4`) se puede enviar por WhatsApp desde el recibo o el modal de rastreo.

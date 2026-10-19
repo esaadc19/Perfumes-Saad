@@ -2411,7 +2411,7 @@ footer a { color: #111; }
 }
 
 @media (max-width: 900px) {
-  /* Con el dock fijo al pie, los tabs de seccion sobran en movil.
+  /* Con el dock fijo al pie, los tabs de seccion sobran en movil. */
   .admin-section-tabs { display: none; }
 
   .admin-mobile-header {

@@ -14,6 +14,9 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - Dashboard: `MetricGroup` agrupa por dominio; `AlertBlock` solo aparece si hay algo > 0.
 - Cartera conserva el histórico: los fiados pagados quedan con estado `Pagado`.
 - Pantalla **Cobrar**: quién debe, agrupado por cliente (no por pedido), con botón de WhatsApp.
+- **Merma de inventario**: 6 motivos (merma, rotura, robo, vencimiento, ingreso, devolución) e historial por presentación. **Rentabilidad por producto**, ordenada por utilidad y no por unidades.
+- **Dock de navegación en móvil**: 5 secciones fijas al pie + hoja "Más" con las otras 8. Antes no había nada visible en móvil: los tabs están en `display: none` por debajo de 900px.
+- **`ConfirmDialog`** sustituye a `window.confirm()`: cierra con Escape y atrapa el foco.
 
 ## CRM (Fases 1-5)
 
@@ -73,6 +76,11 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - `type="button"` en todo botón dentro de un `<form>`.
 - En PowerShell `&&` no funciona: usar `;`. `git push` escribe en stderr y parece error aunque salga bien: mirar `main -> main`.
 - `npx vercel@latest` falla a veces con `notarget`: usar la fija `npx vercel@64.0.2`.
+- **Una función SQL sin migración no existe en la base.** `admin_record_credit_payment` vivía solo en `schema.sql`; por eso los abonos no descontaban el saldo mientras el archivo ya decía que sí. Si una RPC importa, tiene su migración.
+- **Un comentario CSS sin cerrar se come reglas.** `/* ...` sin `*/` hace que todo lo que sigue dentro del media query desaparezca en silencio: compila, no tira error, y la regla simplemente no está.
+- **`.admin-dock` ya existe** y es el contenedor del sidebar (`flex-direction: column`). La navegación móvil nueva se llama `.admin-navdock` para no chocar.
+- Los modales usan la clase `.overlay`. `.modal-overlay` no existe: el diálogo salía pegado en la esquina y detrás del sidebar (que tiene z-index 120).
+- `resize_page` cambia la ventana, no el viewport CSS: para probar móvil de verdad hay que usar emulación de dispositivo.
 
 ## Próximos pasos
 
@@ -84,6 +92,5 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 ## Deuda técnica conocida
 
 - **No se ha probado el aislamiento entre admin y asesor.** La RLS está activa, pero `crm_deals`/`crm_conversations`/`crm_tasks` nunca se han abierto con una sesión de asesor. Necesita una segunda cuenta con `role = 'asesor'`.
-- `removePromotion` usa `window.confirm()`, prohibido por `.agents/ux-experience.agents.md`. Usar el modal `onConfirm`.
 - Inventario y Clientes tienen 3 tarjetas donde Cartera tiene 5: al igualar las cajas queda aire al pie.
 - `crm/serve.mjs` sirve `dist/` en local (`node crm/serve.mjs 4174`). Es solo herramienta de desarrollo.
