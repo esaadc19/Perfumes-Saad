@@ -42,6 +42,10 @@ import {
   updateAdminOrderWithCredit,
   updateAdminOrderStatus,
   updateAdminProfileRole,
+  getAdminSectionPermissions,
+  getAllAdminSectionPermissions,
+  setAdminSectionPermission,
+  type AdminSectionPermission,
   type AdminCustomer,
   type AdminDashboardMetrics,
   type ProductProfitability,
@@ -240,7 +244,10 @@ const productNameCollator = new Intl.Collator("es", { sensitivity: "base" });
 function App() {
   const [view, setView] = useState<"store" | "admin">("store");
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [userRole, setUserRole] = useState<"customer" | "admin" | null>(null);
+  const [userRole, setUserRole] = useState<"customer" | "admin" | "asesor" | null>(null);
+  // `admin` y `asesor` pueden entrar al panel. Lo que puede VER dentro
+  // lo decide la tabla de permisos por seccion, no el rol.
+  const isStaff = userRole === "admin" || userRole === "asesor";
   const [authLoading, setAuthLoading] = useState(true);
   const [adminAccessPending, setAdminAccessPending] = useState(false);
   const [loginFeedback, setLoginFeedback] = useState<string | null>(null);
@@ -348,6 +355,10 @@ function App() {
     return params.get("track") ?? "";
   });
   const [adminError, setAdminError] = useState<string | null>(null);
+  // Secciones del panel que puede ver esta cuenta. `null` = todavia no
+  // se consulto; un arreglo vacio = la cuenta no tiene ninguna seccion
+  // asignada y el panel le muestra un aviso, no una pantalla en blanco.
+  const [allowedSections, setAllowedSections] = useState<string[] | null>(null);
   const [savingProduct, setSavingProduct] = useState(false);
   const [savingProductEdit, setSavingProductEdit] = useState(false);
   const [deletingProductId, setDeletingProductId] = useState<string | null>(null);
@@ -406,7 +417,9 @@ function App() {
         setLoginFeedback("No se pudo verificar el rol de la cuenta. Vuelve a iniciar sesión.");
         setUserRole(null);
       } else {
-        setUserRole(data?.role === "admin" ? "admin" : "customer");
+        setUserRole(
+          data?.role === "admin" ? "admin" : data?.role === "asesor" ? "asesor" : "customer"
+        );
       }
       setAuthLoading(false);
     };
@@ -437,7 +450,7 @@ function App() {
   useEffect(() => {
     if (!adminAccessPending || authLoading || !user || !userRole) return;
     setAdminAccessPending(false);
-    if (userRole === "admin") {
+    if (isStaff) {
       setView("admin");
       setShowLogin(false);
       setLoginFeedback(null);
@@ -448,7 +461,7 @@ function App() {
   }, [adminAccessPending, authLoading, user, userRole]);
 
   useEffect(() => {
-    if (view !== "admin" || userRole !== "admin") return;
+    if (view !== "admin" || !isStaff) return;
     let active = true;
     setAdminError(null);
     void Promise.all([getAdminProducts(), getPromotions(true)])
@@ -465,6 +478,41 @@ function App() {
     };
   }, [view, userRole]);
 
+  // Los permisos se cargan una vez que sabemos quien esta conectado.
+  // Se vuelven a leer cuando el panel se abre, para que un cambio hecho
+  // en Configuracion > Permisos se vea al volver a entrar.
+  useEffect(() => {
+    if (!isStaff || !user) {
+      setAllowedSections(null);
+      return;
+    }
+    let active = true;
+    void getAdminSectionPermissions(user.id)
+      .then((rows) => {
+        if (!active) return;
+        setAllowedSections(rows.filter((row) => row.allowed).map((row) => row.section_id));
+      })
+      .catch((loadError: unknown) => {
+        console.error("No se pudieron cargar los permisos de la cuenta:", loadError);
+        if (!active) return;
+        // Si la tabla de permisos todavia no existe (la migracion no se ha
+        // corrido), se deja entrar a todo el que tenga rol, como antes de
+        // que existiera el sistema de permisos. Fallar cerrado ahi
+        // dejaria al dueno fuera de su propio panel.
+        //
+        // Cualquier otro error si falla cerrado: es preferible que alguien
+        // no vea de mas a que vea datos que no le tocan.
+        const code = (loadError as { code?: string } | null)?.code;
+        const mensaje = loadError instanceof Error ? loadError.message : "";
+        const faltaLaTabla = code === "42P01" || code === "PGRST205"
+          || /does not exist|schema cache/i.test(mensaje);
+        setAllowedSections(faltaLaTabla ? null : []);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isStaff, user?.id]);
+
   const requestAdminAccess = () => {
     setAdminAccessPending(true);
     setLoginFeedback(null);
@@ -474,7 +522,7 @@ function App() {
       setShowLogin(true);
       return;
     }
-    if (user && userRole === "admin") {
+    if (user && isStaff) {
       setAdminAccessPending(false);
       setView("admin");
     } else {
@@ -1117,14 +1165,14 @@ function App() {
             <a href="#" onClick={(e) => { e.preventDefault(); setShowTracking(true); }}>
               Rastrear pedido
             </a>
-            {userRole === "admin" && (
+            {isStaff && (
               <a href="#" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
                 Administración
               </a>
             )}
           </footer>
         </>
-      ) : userRole === "admin" ? (
+      ) : isStaff ? (
         <Admin
           products={products}
           storeSettings={storeSettings}
@@ -1136,6 +1184,7 @@ function App() {
           promotions={promotions}
           onPromotionsChange={setPromotions}
           currentUserId={user?.id ?? ""}
+          allowedSections={allowedSections}
           onImportProducts={handleProductImport}
           onEditProduct={handleProductEdit}
           onDeleteProduct={handleProductDelete}
@@ -1294,6 +1343,7 @@ function Admin({
   onPromotionsChange,
   onProductsRefresh,
   currentUserId,
+  allowedSections,
   onImportProducts,
   onEditProduct,
   onDeleteProduct,
@@ -1320,6 +1370,11 @@ function Admin({
   onPromotionsChange: (promotions: Promotion[]) => void;
   onProductsRefresh: () => Promise<void>;
   currentUserId: string;
+  /**
+   * Secciones del panel que esta cuenta puede ver. `null` = todavia no
+   * se consulto. Un arreglo vacio = la cuenta no tiene ninguna.
+   */
+  allowedSections: string[] | null;
   onImportProducts: (items: ImportedProduct[]) => Promise<{ imported: number; failures: string[] }>;
   onEditProduct: (product: Product, imageFiles: File[]) => Promise<void>;
   onDeleteProduct: (product: Product) => Promise<"deleted" | "archived">;
@@ -1338,7 +1393,7 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [section, setSection] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "reports" | "collect" | "collect" | "profiles" | "settings" | "credit">("overview");
+  const [sectionRaw, setSectionRaw] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "reports" | "collect" | "collect" | "profiles" | "settings" | "credit">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem("saad-admin-sidebar") === "collapsed"
   );
@@ -1382,6 +1437,7 @@ function Admin({
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
+  const [sectionPermissions, setSectionPermissions] = useState<AdminSectionPermission[]>([]);
   const [salesAdvisors, setSalesAdvisors] = useState<SalesAdvisor[]>([]);
   const [advisorForm, setAdvisorForm] = useState({
     full_name: "",
@@ -1578,10 +1634,68 @@ function Admin({
     { id: "settings", title: "Configuración", icon: <Settings size={17} /> },
   ] as const;
 
+  // OJO: esta lista tiene que coincidir con la tabla `admin_sections` de
+  // la migracion 20261019100000_admin_section_permissions.sql. Si
+  // agregas una seccion aqui, agregala tambien alla o esa seccion no se
+  // podra repartir entre los usuarios.
+
+  // Secciones que esta cuenta puede ver. Mientras los permisos cargan
+  // (`null`) se muestran todas, para que el panel no aparezca vacio un
+  // instante y luego se llene.
+  const visibleSections = allowedSections === null
+    ? sections
+    : sections.filter((item) => allowedSections.includes(item.id));
+
+  // La seccion activa nunca puede ser una que la cuenta no puede ver.
+  // Si le quitan el permiso mientras la tiene abierta, cae a la primera
+  // que si puede ver.
+  const section = (
+    visibleSections.some((item) => item.id === sectionRaw)
+      ? sectionRaw
+      : visibleSections[0]?.id ?? "overview"
+  ) as typeof sectionRaw;
+
+  const setSection = (next: typeof sectionRaw) => {
+    if (allowedSections !== null && !allowedSections.includes(next)) return;
+    setSectionRaw(next);
+  };
+
+  // Booleano y no el arreglo: el efecto de carga depende de este valor,
+  // y si dependiera del arreglo se re-dispararia solo, porque cada
+  // consulta devuelve un arreglo nuevo y eso cambia la identidad.
+  const hasNoSections = allowedSections !== null && allowedSections.length === 0;
+
   useEffect(() => {
     let active = true;
     const loadSection = async () => {
-      if (section === "products" || section === "settings") {
+      // Una cuenta sin secciones no carga datos: no hay nada que
+      // mostrar y no tiene sentido pedir el dashboard entero.
+      if (hasNoSections) {
+        setSectionLoading(false);
+        setSectionError(null);
+        return;
+      }
+      if (section === "products") {
+        setSectionLoading(false);
+        setSectionError(null);
+        return;
+      }
+      if (section === "settings") {
+        // Configuracion carga tambien la seccion de Permisos, que
+        // necesita el listado de cuentas y sus permisos por seccion.
+        try {
+          const [profilesResult, permissionsResult] = await Promise.all([
+            getAdminProfiles(),
+            getAllAdminSectionPermissions(),
+          ]);
+          if (active) {
+            setProfiles(profilesResult);
+            setSectionPermissions(permissionsResult);
+          }
+        } catch (loadError) {
+          console.error("No se pudieron cargar los permisos:", loadError);
+          if (active) setSectionError("No se pudieron cargar los permisos de las cuentas.");
+        }
         setSectionLoading(false);
         setSectionError(null);
         return;
@@ -1641,7 +1755,7 @@ function Admin({
     return () => {
       active = false;
     };
-  }, [section, sectionRevision, metricsPeriod]);
+  }, [section, sectionRevision, metricsPeriod, hasNoSections]);
 
   const saveCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2272,7 +2386,27 @@ function Admin({
     (currentExpensePage - 1) * EXPENSE_PAGE_SIZE,
     currentExpensePage * EXPENSE_PAGE_SIZE
   );
-  const pageTitle = sections.find((item) => item.id === section)?.title ?? "Dashboard";
+  const pageTitle = visibleSections.find((item) => item.id === section)?.title ?? "Dashboard";
+
+  // Una cuenta sin secciones asignadas no ve un panel vacio: ve un aviso
+  // que le dice que hacer. Un panel en blanco parece un error de la app y
+  // la persona no sabe si algo se rompió o si le falta permiso.
+  if (hasNoSections) {
+    return (
+      <div className="admin-no-access">
+        <EmptyState
+          icon={<ShieldCheck size={26} />}
+          title="Todavía no tenés secciones asignadas"
+          hint="Tu cuenta puede entrar al panel, pero aún no le han dado acceso a ninguna sección. Pídele al administrador que te asigne las que necesites."
+          action={
+            <AdminButton tone="secondary" type="button" onClick={onBack}>
+              Volver a la tienda
+            </AdminButton>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`admin-layout${sidebarCollapsed ? " is-collapsed" : ""}`}>
@@ -2294,7 +2428,7 @@ function Admin({
           </button>
         </div>
         <nav className="admin-navigation">
-          {sections.map((item) =>
+          {visibleSections.map((item) =>
             "external" in item ? (
               <a
                 key={item.id}
@@ -2415,7 +2549,7 @@ function Admin({
         {/* En movil la navegación vive en el dock fijo al pie. Los tabs
             de aqui son la version de escritorio, que se esconden por CSS. */}
         <AdminDock
-          sections={sections}
+          sections={visibleSections}
           current={section}
           onSelect={(id) => {
             setSection(id as typeof section);
@@ -2427,7 +2561,7 @@ function Admin({
         />
 
         <nav className="admin-section-tabs" aria-label="Secciones de administración">
-          {sections.map((item) =>
+          {visibleSections.map((item) =>
             "external" in item ? (
               <a
                 key={item.id}
@@ -3203,6 +3337,11 @@ function Admin({
               settings={storeSettings}
               loadError={storeSettingsError}
               onSaved={onStoreSettingsSaved}
+              profiles={profiles}
+              permissions={sectionPermissions}
+              sections={sections.map((item) => ({ id: item.id, title: item.title }))}
+              currentUserId={currentUserId}
+              onPermissionsChanged={() => setSectionRevision((current) => current + 1)}
             />
           </Suspense>
         )}
@@ -3537,7 +3676,7 @@ function Admin({
                       <span className="cell-center">{new Date(profile.created_at).toLocaleDateString("es-CO")}</span>
                       <label className="mobile-select-cell">
                         <select aria-label={`Permiso de ${profile.email ?? profile.id}`} value={profile.role} disabled={profile.id === currentUserId || savingProfileId === profile.id} onChange={(event) => void saveProfileRole(profile, event.target.value as AdminProfile["role"])}>
-                          <option value="customer">Cliente</option><option value="admin">Administrador</option>
+                          <option value="customer">Cliente</option><option value="admin">Administrador</option><option value="asesor">Asesor</option>
                         </select>
                       </label>
                     </div>

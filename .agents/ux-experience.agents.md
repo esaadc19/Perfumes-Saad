@@ -44,7 +44,10 @@ npm run preview   # Preview del build
 - **Las variantes agotadas se deshabilitan**, no se ocultan — el cliente ve que existe pero no puede comprarla.
 - **Las promociones se muestran** como badge "Oferta" + texto explicativo ("3 por $X").
 - **El recibo es tipo impresora** (formato texto plano) y se envía por WhatsApp.
-- **El panel admin solo es accesible** con rol `admin` en la tabla `profiles`.
+- **El panel admin solo es accesible** con rol `admin` o `asesor` en la tabla `profiles`.
+- **El rol dice si puede ENTRAR al panel; los permisos dicen qué puede VER dentro.** Son dos capas: con el rol solo, un asesor entra y ve Cartera, Gastos y Reportes, que es justo lo que no debería. La tabla `admin_section_permissions` da acceso seccion por seccion, y sin filas no ve nada. La UI para repartirlo vive en **Configuración > Permisos**, fuera del formulario de configuración, porque cada casilla se guarda sola y no hay un "Guardar" que se pueda olvidar.
+- **Una cuenta sin secciones asignadas no ve un panel vacío: ve un aviso** que le diga que pida acceso. Un panel en blanco parece un error de la app y la persona no sabe si algo se rompió o si le falta permiso.
+- La lista de secciones del panel tiene que coincidir con la tabla `admin_sections` de la migración `20261019100000_admin_section_permissions.sql`. Si agregas una sección en `App.tsx`, agregala también allá o no se podrá repartir.
 - **NO usar `alert()` ni `confirm()`.** Usar modales y feedback inline.
 - **Los recordatorios de cobro van agrupados por cliente, no por pedido.** Quien tiene tres fiados unaware que los tiene: recibir tres mensajes distintos lo hace ver desorganizado. La pantalla "Cobrar" suma los saldos y arma un solo mensaje con el total y el atraso.
 - **Toda confirmación va por `ConfirmDialog`.** `window.confirm()` está prohibido: sus botones son nativos del sistema, no se pueden estilizar y en móvil tapan la pantalla sin poder cerrarse con Escape. El diálogo además cierra con Escape y atrapa el foco.

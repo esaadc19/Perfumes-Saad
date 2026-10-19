@@ -1,21 +1,33 @@
 import { useEffect, useState } from "react";
 import { Save, Upload } from "lucide-react";
 import AdminButton from "./AdminButton";
+import PermissionsPanel, { type PermissionSection } from "./PermissionsPanel";
 import {
   removeStoreLogo,
   saveStoreSettings,
   uploadStoreLogo,
   type StoreSettings,
 } from "../../services/store-settings";
+import type { AdminProfile, AdminSectionPermission } from "../../services/admin";
 
 export default function SettingsPage({
   settings,
   loadError,
   onSaved,
+  profiles,
+  permissions,
+  sections,
+  currentUserId,
+  onPermissionsChanged,
 }: {
   settings: StoreSettings;
   loadError: string | null;
   onSaved: (settings: StoreSettings) => void;
+  profiles: AdminProfile[];
+  permissions: AdminSectionPermission[];
+  sections: PermissionSection[];
+  currentUserId: string;
+  onPermissionsChanged: () => void;
 }) {
   const [draft, setDraft] = useState(settings);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -213,6 +225,17 @@ export default function SettingsPage({
           </AdminButton>
         </div>
       </form>
+
+      {/* Permisos: va FUERA del formulario de arriba a proposito. Aca
+          cada casilla se guarda sola, en el momento, y no hay un
+          "Guardar" que se pueda olvidar. */}
+      <PermissionsPanel
+        profiles={profiles}
+        permissions={permissions}
+        sections={sections}
+        currentUserId={currentUserId}
+        onChanged={onPermissionsChanged}
+      />
     </section>
   );
 }

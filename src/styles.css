@@ -494,6 +494,82 @@ footer a { color: #111; }
   background: linear-gradient(to bottom, rgba(255,255,255,0), white 42%);
 }
 .variant-hidden-label { display: block; margin-top: 3px; color: #8c4a4a; }
+
+/* PERMISOS DE ACCESO
+   Las casillas se leen como una lista de Interruptores, no como inputs
+   de formulario: son la decision principal y tienen que verse de un
+   vistazo, no escondidas en una tabla. */
+.permissions-panel { margin-top: 34px; border-top: 1px solid var(--border); padding-top: 24px; }
+.permissions-intro h3 {
+  margin: 0 0 6px; font: 500 21px "Playfair Display", serif; color: var(--black);
+}
+.permissions-intro p {
+  margin: 0 0 20px; color: var(--muted); font-size: 12px; line-height: 1.6;
+  max-width: 62ch;
+}
+.permission-card {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px 18px; margin-bottom: 14px; background: #fff;
+}
+.permission-card-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; margin-bottom: 14px;
+}
+.permission-card-head strong { display: block; font-size: 14px; color: var(--black); }
+.permission-card-head span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.permission-role {
+  flex: 0 0 auto; font-size: 11px; padding: 4px 10px; border-radius: 99px;
+  background: var(--soft); color: var(--cuero); white-space: nowrap;
+}
+.permission-role--admin { background: var(--verde); color: #fff; }
+.permission-own-note {
+  margin: 0 0 14px; padding: 9px 12px; border-radius: 6px;
+  background: var(--marfil); color: var(--cuero);
+  font-size: 12px; line-height: 1.5;
+}
+.permission-grid {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+.permission-chip {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 11px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 12px; color: var(--black); cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.permission-chip:hover { border-color: var(--cuero); }
+.permission-chip.is-on { border-color: var(--verde); background: #f4f8f5; }
+.permission-chip input { position: absolute; opacity: 0; width: 0; height: 0; }
+.permission-chip-box {
+  flex: 0 0 auto; width: 18px; height: 18px; border-radius: 4px;
+  border: 1px solid var(--border); background: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #fff;
+}
+.permission-chip.is-on .permission-chip-box { background: var(--verde); border-color: var(--verde); }
+.permission-chip input:focus-visible + .permission-chip-box {
+  outline: 2px solid var(--verde); outline-offset: 2px;
+}
+.permission-chip input:disabled ~ .permission-chip-box { opacity: .55; }
+.permission-card-actions {
+  display: flex; align-items: center; gap: 8px; margin-top: 14px;
+}
+.permission-saving { font-size: 11px; color: var(--muted); }
+.permissions-panel .admin-error,
+.permissions-panel .admin-success {
+  margin: 0 0 14px; padding: 10px 13px; border-radius: 6px;
+  font-size: 12px; line-height: 1.5;
+}
+.permissions-panel .admin-error { background: var(--danger-soft); color: var(--danger); border: 1px solid var(--danger-line); }
+.permissions-panel .admin-success { background: #f4f8f5; color: var(--verde); border: 1px solid #d8e6dc; }
+
+/* Sin secciones asignadas: no es un error, es una cuenta esperando que
+   le den acceso. */
+.admin-no-access {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 32px 20px; background: var(--marfil);
+}
+.admin-no-access .empty-state { max-width: 420px; }
 .variant-active-control { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 10px; font-weight: 500; }
 .variant-active-control input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
 .card-title { display: flex; justify-content: space-between; align-items: start; margin-bottom: 22px; }

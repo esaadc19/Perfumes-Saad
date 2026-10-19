@@ -20,6 +20,15 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - `VITE_WHATSAPP_NUMBER` está en `.env` pero **ningún archivo lo lee**.
 - Los `wa.me` de cobranza, pedidos, CRM y reportes usan el teléfono del **cliente**: no se tocan.
 
+## Permisos del panel (2 capas)
+
+- **Capa 1, el rol:** `admin` y `asesor` entran al panel; `customer` no.
+- **Capa 2, las secciones:** tabla `admin_section_permissions`. Una sección es visible **si y solo si** hay fila con `allowed = true`. Sin filas, no ve nada. Aplica a admins y asesores por igual.
+- **La cuenta del propietario es `aadc19@gmail.com`**: rol admin y las 13 secciones. Los demás quedan sin acceso hasta que se les asigne. Se cambia en la migración `20261019100000_admin_section_permissions.sql`.
+- La UI para repartir está en **Configuración > Permisos**. Cada casilla se guarda sola. **No te puedes cambiar tus propios permisos** (la RPC lo bloquea): si te los quitas, no queda nadie para devolvértelos.
+- La lista de secciones vive en `admin_sections` (base) **y** en el array `sections` de `App.tsx` (títulos e iconos). **Las dos tienen que coincidir**: agregar una en una sola deja esa sección sin repartir.
+- Si la tabla de permisos no existe (migración sin correr), la app **degrada a "ve todo"** en vez de dejar al dueño fuera de su panel.
+
 ## Decisiones que no se deducen del código
 
 - Utilidad = cobrada − costo del fiado − gastos. No usar `credit_profit`. El reporte semanal separa **"Utilidad cobrada"** (`net_profit + credit_cost`, la titular) de **"Inversión en fiado"** (`credit_cost` acotado a la semana), porque no son pérdida: es plata que todavía no entró. `orders.credit_amount` es el **saldo pendiente**, no el total. Un pedido fue a crédito si tiene filas en `customer_credit_payments`.
@@ -57,6 +66,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - **CRM Fase 6**: que la ruta de salida funcione. `ZERNIO_SEND_PATH=/v1/inbox/messages` está por defecto, **sin confirmar** contra la documentación. Fase 8: PWA y push.
 - **WhatsApp saliente sin probar**: solo se verificó Instagram. Falta confirmar que Zernio mande el número en `sender.id`.
 - **Aislamiento admin/asesor sin probar**: la RLS está activa pero `crm_deals`, `crm_conversations` y `crm_tasks` nunca se abrieron con una sesión de asesor. Necesita una segunda cuenta con `role = 'asesor'`.
+- **Probar el panel con una cuenta de asesor**: la cuenta de pruebas es `aadc19@gmail.com` (es el propietario, con todo). Para probar el aislamiento hace falta una **cuenta aparte** con rol asesor, sin secciones asignadas.
 - Correr `supabase/SEMILLA-CRM-TEST.sql` para ver el embudo con datos (es idempotente).
 - Dos migraciones comparten prefijo (`20261017130000_crm_zernio_contact_identity` e `inventory_movements`): si NeonCore corre por nombre de archivo, la segunda puede saltarse.
 - Persistencia del carrito; pasarela de pago; avisos de stock bajo.

@@ -77,11 +77,21 @@ export interface AdminCustomer {
 
 export interface AdminProfile {
   id: string;
-  role: "customer" | "admin";
+  role: "customer" | "admin" | "asesor";
   full_name: string | null;
   phone: string | null;
   email: string | null;
   created_at: string;
+}
+
+/**
+ * Una fila de `admin_section_permissions`: este usuario puede (o no)
+ * entrar a esta seccion del panel.
+ */
+export interface AdminSectionPermission {
+  profile_id: string;
+  section_id: string;
+  allowed: boolean;
 }
 
 export interface SalesAdvisor {
@@ -236,6 +246,62 @@ export async function getAdminProfiles(): Promise<AdminProfile[]> {
     throw error;
   }
   return (data ?? []) as AdminProfile[];
+}
+
+/**
+ * Permisos de seccion de un usuario concreto.
+ *
+ * Sin filas no hay acceso: un asesor nuevo no ve nada del panel hasta
+ * que se le asigna seccion por seccion. Ver la migracion
+ * `20261019100000_admin_section_permissions.sql`.
+ */
+export async function getAdminSectionPermissions(
+  profileId: string
+): Promise<AdminSectionPermission[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("admin_section_permissions")
+    .select("profile_id, section_id, allowed")
+    .eq("profile_id", profileId);
+  if (error) {
+    console.error("No se pudieron cargar los permisos del usuario:", error);
+    throw error;
+  }
+  return (data ?? []) as AdminSectionPermission[];
+}
+
+/**
+ * Todos los permisos de seccion, para el listado de Permisos.
+ * La RLS deja leerlos a cualquiera con rol admin o asesor.
+ */
+export async function getAllAdminSectionPermissions(): Promise<AdminSectionPermission[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("admin_section_permissions")
+    .select("profile_id, section_id, allowed");
+  if (error) {
+    console.error("No se pudieron cargar los permisos:", error);
+    throw error;
+  }
+  return (data ?? []) as AdminSectionPermission[];
+}
+
+/** Concede o quita una seccion a un usuario. */
+export async function setAdminSectionPermission(
+  profileId: string,
+  sectionId: string,
+  allowed: boolean
+): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.rpc("admin_set_section_permission", {
+    target_profile_id: profileId,
+    target_section: sectionId,
+    new_allowed: allowed,
+  });
+  if (error) {
+    console.error("No se pudo actualizar el permiso:", error);
+    throw error;
+  }
 }
 
 export async function getAdminOrders(): Promise<AdminOrder[]> {
