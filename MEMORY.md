@@ -34,7 +34,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 ## Errores que ya me costaron tiempo
 
 - **Una función SQL sin migración no existe en la base.** `admin_record_credit_payment` vivía solo en `schema.sql` y los abonos no descontaban saldo. Si una RPC importa, tiene su migración.
-- **Para saber si una RPC existe:** `rest/v1/rpc/<fn>` con los nombres de parámetro exactos. **401 = existe** (solo no permitido; es lo esperado con la anon key). **404 = no existe *o* la firma está mal**, así que no concluyas que falta la migración antes de revisar los parámetros.
+- **Para saber si una RPC existe:** `rest/v1/rpc/<fn>` con los nombres de parámetro exactos. **401 = existe** (solo no permitido; es lo esperado con la anon key). **404 = no existe *o* la firma está mal**, así que no concluyas que falta la migración antes de revisar los parámetros. Me pasó con `get_variant_movements`: daba 404 y el parámetro era `target_variant_id`, no `p_variant_id`.
 - **Un comentario CSS sin cerrar se come reglas.** Compila, no tira error y la regla desaparece. La única señal es visual.
 - **`.admin-dock` ya existe** y es el contenedor del sidebar. La navegación móvil es `.admin-navdock`.
 - Los modales usan `.overlay`, no `.modal-overlay`. Sidebar z-index 120, overlays 200.
@@ -47,6 +47,8 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - Al verificar CSS, **medir con el marcado real del componente**, no con HTML inventado.
 - **No editar `App.tsx` por líneas desde PowerShell:** se dañó dos veces. Usar el editor.
 - Mojibake en la consola **no** es un archivo roto: verificar bytes antes de "arreglar".
+- `npm run dev` levanta las dos apps en 5173 y 5174 con `strictPort`: fallan en vez de corresse y romper el proxy que expone `/crm`.
+- Formatear montos con `Intl.NumberFormat("es-CO")`, nunca con `toFixed`: el punto decimal no es el de Colombia.
 - En PowerShell `&&` no funciona: usar `;`. `git push` escribe en stderr y parece error aunque salga bien.
 - `resize_page` cambia la ventana, no el viewport CSS: para probar móvil de verdad hay que emular dispositivo.
 
