@@ -2387,6 +2387,7 @@ function Admin({
             if (id === "transactions") setShowPendingOrdersOnly(false);
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
+          onGoToStore={onBack}
         />
 
         <nav className="admin-section-tabs" aria-label="Secciones de administración">
