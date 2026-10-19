@@ -19,6 +19,12 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - **`ConfirmDialog`** sustituye a `window.confirm()`: cierra con Escape y atrapa el foco.
 - **Catálogo en móvil: 2 columnas, sin repetir el precio.** El problema nunca fue el número de columnas sino la densidad: a ~171px por tarjeta cabían 7 cosas apiladas. Los chips muestran solo el tamaño y el precio va una sola vez a 17px. "Agregar" ocupa el ancho completo a 44px. La tarjeta es columna flex con las acciones en `margin-top: auto`, si no dos productos de una fila quedan desalineados.
 - **Ficha de producto en móvil: la compra va al alcance del pulgar.** El botón estaba debajo de descripción, estrellas y ficha técnica: con 667px de alto no cabía. La ficha es columna flex reordenada con `order` (decidir primero, leer después) y lleva una barra fija al pie con precio y botón. El precio de arriba se oculta porque la barra lo lleva.
+- **Filtro por género** ("Para": Hombres/Mujeres/Unisex) junto al de categoría. Los filtros van en grupos rotulados: dos filas de pastillas sin nombre se leen como una sola lista y no se sabe cuál está filtrando.
+
+## El número de WhatsApp de la tienda
+
+- **Es `573102318786`.** Vive en la fila `id = 1` de `store_settings`; el código solo hace de respaldo sin Supabase. Cambiar el número exige **migración + `DEFAULT_STORE_SETTINGS` + default de la columna en `schema.sql`**. Los tres, o el enlace cambia según por dónde se entre.
+- Los `wa.me` de cobranza, pedidos, CRM y reportes usan el **teléfono del cliente**: no se tocan.
 
 ## CRM (Fases 1-5)
 
