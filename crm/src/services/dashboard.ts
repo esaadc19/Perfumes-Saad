@@ -159,7 +159,17 @@ export async function loadDashboard(range: Range): Promise<DashboardData> {
   } catch (err) {
     // Un asesor no puede llamar a esa RPC. No es un error que haya que
     // esconder: se avisa en la tarjeta y el panel sigue con lo del CRM.
-    storeError = err instanceof Error ? err.message : "No se pudieron leer las cifras de la tienda.";
+    //
+    // El mensaje de Postgres ("You do not have access to the overview
+    // section") no le sirve de nada a un asesor: se le dice que el dueño
+    // le tiene que dar acceso a esa seccion.
+    const mensaje = err instanceof Error ? err.message : "";
+    const esPermiso = /access to the|permission denied/i.test(mensaje);
+    storeError = esPermiso
+      ? "No tenés acceso a las cifras de la tienda. Pídele al administrador que te habilite esa sección."
+      : err instanceof Error
+        ? err.message
+        : "No se pudieron leer las cifras de la tienda.";
   }
 
   return {

@@ -30,6 +30,12 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - La lista de secciones vive en `admin_sections` (base) **y** en el array `sections` de `App.tsx` (títulos e iconos). **Las dos tienen que coincidir**: agregar una en una sola deja esa sección sin repartir.
 - Si la tabla de permisos no existe (migración sin correr), la app **degrada a "ve todo"** en vez de dejar al dueño fuera de su panel.
 
+## Aislamiento admin/asesor: PROBADO
+
+- **CRM:** un asesor solo ve los deals cuyo `owner_id` es el (`crm_deals` RLS). Probado: el asesor ve **1 deal y 0 ajenos**; el dueño ve los 2. El asesor **no puede modificar** un deal ajeno y sí puede crear los suyos. Scripts: `supabase/PRUEBA-CRM.sql` y `PRUEBA-CRM-ESCRITURA.sql`.
+- **El CRM tiene su propio modelo de permisos**, aparte del panel: `ADMIN_ONLY = [informes, configuracion]` en `crm/src/layout/nav.tsx`, hardcodeado. No usa la tabla de secciones.
+- `crm/src/services/dashboard.ts` llama `admin_dashboard_metrics`, que ahora exige la sección `overview`. Para el asesor falla (igual que antes) y el CRM lo maneja: la tarjeta avisa y el resto del panel sigue. El mensaje se traduce a español: el error crudo de Postgres no le dice nada a un asesor.
+
 ## Probar en local (Postgres de verdad)
 
 - `supabase start` levanta el stack local de Supabase con Docker (Postgres en `127.0.0.1:54322`).
@@ -76,7 +82,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 
 - **CRM Fase 6**: que la ruta de salida funcione. `ZERNIO_SEND_PATH=/v1/inbox/messages` está por defecto, **sin confirmar** contra la documentación. Fase 8: PWA y push.
 - **WhatsApp saliente sin probar**: solo se verificó Instagram. Falta confirmar que Zernio mande el número en `sender.id`.
-- **Aislamiento admin/asesor sin probar**: la RLS está activa pero `crm_deals`, `crm_conversations` y `crm_tasks` nunca se abrieron con una sesión de asesor. Necesita una segunda cuenta con `role = 'asesor'`.
+- **Aislamiento admin/asesor**: PROBADO (ver arriba). Ya no está pendiente.
 - **Probar el panel con una cuenta de asesor**: la cuenta de pruebas es `esaadc19@gmail.com` (es el propietario, con todo). Para probar el aislamiento hace falta una **cuenta aparte** con rol asesor, sin secciones asignadas.
 - Correr `supabase/SEMILLA-CRM-TEST.sql` para ver el embudo con datos (es idempotente).
 - Dos migraciones comparten prefijo (`20261017130000_crm_zernio_contact_identity` e `inventory_movements`): si NeonCore corre por nombre de archivo, la segunda puede saltarse.
