@@ -336,6 +336,7 @@ function App() {
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("Todas");
   const [category, setCategory] = useState("Todos");
+  const [genderFilter, setGenderFilter] = useState("Todos");
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showTracking, setShowTracking] = useState(() => {
@@ -637,9 +638,10 @@ function App() {
       const matchesBrand = brandFilter === "Todas" || p.brand === brandFilter;
       const matchesCategory = category === "Todos"
         || (category === "Ofertas" ? Boolean(p.promotion?.active) : p.category === category);
-      return matchesSearch && matchesBrand && matchesCategory;
+      const matchesGender = genderFilter === "Todos" || p.gender === genderFilter;
+      return matchesSearch && matchesBrand && matchesCategory && matchesGender;
     });
-  }, [products, search, brandFilter, category]);
+  }, [products, search, brandFilter, category, genderFilter]);
   const availableBrands = useMemo(
     () => [...new Set(products.filter((product) => product.active !== false).map((product) => product.brand))]
       .sort((a, b) => a.localeCompare(b, "es")),
@@ -764,24 +766,47 @@ function App() {
                 <span>{filteredProducts.length} productos</span>
               </div>
 
-              <div className="category-pills">
-                {["Todos", "Diseñador", "Árabes", "Nicho", "Ofertas"].map((item) => (
-                  <button
-                    key={item}
-                    className={category === item ? "pill active" : "pill"}
-                    onClick={() => setCategory(item)}
-                  >
-                    {item}
-                  </button>
-                ))}
+              <div className="catalog-filters">
+                <div className="filter-group">
+                  <span className="filter-label" id="filtro-categoria">Categoría</span>
+                  <div className="category-pills" role="group" aria-labelledby="filtro-categoria">
+                    {["Todos", "Diseñador", "Árabes", "Nicho", "Ofertas"].map((item) => (
+                      <button
+                        key={item}
+                        className={category === item ? "pill active" : "pill"}
+                        aria-pressed={category === item}
+                        onClick={() => setCategory(item)}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="filter-group">
+                  <span className="filter-label" id="filtro-para">Para</span>
+                  <div className="category-pills" role="group" aria-labelledby="filtro-para">
+                    {["Todos", "Hombres", "Mujeres", "Unisex"].map((item) => (
+                      <button
+                        key={item}
+                        className={genderFilter === item ? "pill active" : "pill"}
+                        aria-pressed={genderFilter === item}
+                        onClick={() => setGenderFilter(item)}
+                      >
+                        {item}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="brand-filter">
+                  <span>Filtrar por marca</span>
+                  <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
+                    <option value="Todas">Todas las marcas</option>
+                    {availableBrands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+                  </select>
+                </label>
               </div>
-              <label className="brand-filter">
-                <span>Filtrar por marca</span>
-                <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
-                  <option value="Todas">Todas las marcas</option>
-                  {availableBrands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
-                </select>
-              </label>
 
               {catalogNotice && <p className="catalog-message">{catalogNotice}</p>}
               <div className="product-grid">

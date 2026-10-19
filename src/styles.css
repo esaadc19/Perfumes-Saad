@@ -84,6 +84,12 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .section-head h2, .card-title h2 { margin: 0; font: 500 32px "Playfair Display", serif; }
 .section-head > span { color: var(--muted); font-size: 13px; }
 .category-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
+/* Los filtros van en grupos rotulados. Dos filas de pastillas sin
+   nombre al lado no se distinguen: el usuario ve dos listas de botones
+   iguales y no sabe cual esta filtrando. */
+.filter-group { margin-bottom: 20px; }
+.filter-group .category-pills { margin-bottom: 0; }
+.filter-label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 9px; }
 .pill { background: white; border: 1px solid var(--border); padding: 9px 15px; border-radius: 99px; color: #222; }
 .pill.active { background: #111; color: #fff; border-color: #111; }
 
@@ -1512,6 +1518,9 @@ footer a { color: #111; }
   .section-head { align-items: start; gap: 12px; }
   .section-head h2, .card-title h2 { font-size: 27px; }
   .category-pills { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 22px; padding: 0 16px 5px; }
+  .filter-group { margin-bottom: 16px; }
+  .filter-group .category-pills { margin-bottom: 0; }
+  .filter-label { margin-bottom: 7px; }
   .pill { flex: 0 0 auto; }
   /* CATALOGO EN MOVIL
      Se conservan las dos columnas: en un catalogo de perfumes el frasco
