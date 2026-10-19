@@ -14,7 +14,12 @@ export interface StoreSettings {
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   store_name: "Perfumes SAAD",
   logo_url: null,
-  whatsapp_number: "573181749436",
+  // Mismo numero que la migracion 20261018120000_store_whatsapp_number.sql.
+// Si se cambia uno hay que cambiar el otro: este es el que se usa cuando
+// Supabase no esta disponible (modo demo) y el otro es el que manda en la
+// base. Un numero distinto en cada uno hace que el enlace cambie segun de
+// donde se entre, y eso no se nota hasta que un cliente escribe al viejo.
+whatsapp_number: "573102318786",
   contact_email: "",
   whatsapp_greeting: "Hola, quiero hacer una consulta sobre sus perfumes.",
   home_title: "Encuentra una fragancia que vaya contigo.",

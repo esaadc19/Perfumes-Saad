@@ -2563,7 +2563,7 @@ create table if not exists public.store_settings (
   id smallint primary key default 1 check (id = 1),
   store_name text not null default 'Perfumes SAAD',
   logo_url text,
-  whatsapp_number text not null default '573181749436',
+  whatsapp_number text not null default '573102318786',
   contact_email text,
   whatsapp_greeting text not null default 'Hola, quiero hacer una consulta sobre sus perfumes.',
   home_title text not null default 'Encuentra una fragancia que vaya contigo.',
