@@ -1505,11 +1505,77 @@ footer a { color: #111; }
   .section-head h2, .card-title h2 { font-size: 27px; }
   .category-pills { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 22px; padding: 0 16px 5px; }
   .pill { flex: 0 0 auto; }
-  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; }
-  .product-info { padding-top: 10px; }
-  .product-info h3 { font-size: 14px; line-height: 1.35; }
-  .product-info > span, .product-info > p { font-size: 11px; }
-  .product-image { aspect-ratio: 1 / 1.1; }
+  /* CATALOGO EN MOVIL
+     Se conservan las dos columnas: en un catalogo de perfumes el frasco
+     es la vitrina, y a una sola columna la imagen se vuelve diminuta.
+     El problema real no era el numero de columnas sino la cantidad de
+     cosas debajo de la imagen. A 390px cada columna mide ~171px, y ahi
+     cabian la marca, el nombre, el genero, los chips de presentacion
+     con el precio adentro, el precio otra vez y dos botones en fila.
+
+     Lo que se quita es redundancia, no informacion: el precio sale de
+     cada chip y se muestra una sola vez, grande, debajo. */
+
+  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 12px; }
+
+  /* El hover no existe en un dedo: el efecto de elevate solo aparecia
+     al cargar la pagina en algun dispositivo y descentraba la grilla. */
+  .product-card:hover { transform: none; box-shadow: none; }
+
+  /* Cuadrada y no 1/1.1: alinea el precio de las dos tarjetas de una
+     fila, que si no queda a distinta altura. */
+  .product-image { aspect-ratio: 1 / 1; }
+
+  /* La tarjeta es una columna flex para que el contenido ocupe la altura
+     que sobra. Sin esto, un nombre de dos lineas empuja el precio y el
+     boton hacia arriba y las tarjetas de una misma fila quedan
+     desalineadas: es lo que se ve al comparar dos lado alado. */
+  .product-card { display: flex; flex-direction: column; }
+  .product-info { padding: 12px 11px 14px; flex: 1; display: flex; flex-direction: column; }
+
+  /* Marca y genero no compiten con el nombre. Una sola linea con
+     puntos suspensivos: "Perfumes de hombre y mujer" se comia tres
+     renglones y empujaba el precio hacia abajo. */
+  .product-info > span, .product-info > p {
+    font-size: 10px; line-height: 1.35; margin: 0 0 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .product-info h3 {
+    font-size: 14px; line-height: 1.3; margin: 0 0 4px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Los chips muestran solo el tamano. Con el precio adentro cada uno
+     era un bloque de dos lineas que no cabia en 171px. Ahora caben tres
+     o cuatro por fila y se scrollean las que sobren. */
+  .catalog-variant-options {
+    display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 5px;
+    margin: 9px -11px 0; padding: 0 11px 4px;
+    scrollbar-width: none;
+  }
+  .catalog-variant-options::-webkit-scrollbar { display: none; }
+  .catalog-variant-option {
+    flex: 0 0 auto; min-width: 0; display: block;
+    padding: 7px 9px; min-height: 34px; border-radius: 2px;
+  }
+  .catalog-variant-option small { display: none; }
+  .catalog-variant-option span { font-size: 11px; white-space: nowrap; }
+
+  /* El precio era el dato mas pequeno de la tarjeta. En un telefono es
+     el que se mira primero. */
+  .product-info strong { margin: 9px 0 0; font-size: 17px; letter-spacing: -.2px; }
+  .product-info .promotion-card-copy { margin: 5px 0 0; font-size: 10px; line-height: 1.4; }
+
+  /* Agregar ocupa el ancho completo: es la accion que uno quiere en el
+     catalogo. "Ver producto" deja de competir en la misma fila y pasa
+     debajo, como enlace, porque la imagen ya abre el detalle. */
+  .product-card-actions { flex-direction: column; align-items: stretch; gap: 9px; margin-top: auto; padding-top: 11px; }
+  .quick-add-button {
+    width: 100%; min-height: 44px; justify-content: center;
+    border: 0; background: var(--verde); color: #fff; font-size: 12px; font-weight: 500;
+  }
+  .text-button { text-align: center; font-size: 11px; text-decoration-color: var(--border); }
   .overlay { padding: 10px; align-items: center; }
   .product-modal { max-height: 96dvh; overflow-y: auto; }
   .product-detail-image { min-height: 0; height: min(34dvh, 270px); }
@@ -1738,6 +1804,13 @@ footer a { color: #111; }
 @media (max-width: 380px) {
   .product-grid { grid-template-columns: 1fr; gap: 24px; }
   .product-image { aspect-ratio: 1 / 1.05; }
+  /* A una sola tarjeta por fila hay ancho de sobra: recupera el aire que
+     la version de dos columnas no tenia. */
+  .product-info { padding: 16px 18px 18px; }
+  .product-info > span, .product-info > p { font-size: 11px; }
+  .product-info h3 { font-size: 16px; -webkit-line-clamp: 3; }
+  .catalog-variant-options { margin: 10px -18px 0; padding: 0 18px 4px; gap: 6px; }
+  .catalog-variant-option { padding: 9px 12px; min-height: 38px; }
   .metrics { grid-template-columns: 1fr; }
   /* Hace falta repetirlo con el selector del grupo: `.metric-group .metrics`
      tiene mayor especificidad que `.metrics`, asi que sin esto las tarjetas
