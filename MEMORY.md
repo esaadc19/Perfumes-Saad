@@ -11,7 +11,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - Pantalla **Cobrar**: quién debe, agrupado por cliente y no por pedido, un solo mensaje con el total.
 - Seguimiento de pedidos sin login: código de 8 caracteres + teléfono, link `?track=A1B2C3D4`.
 - Fiado: abonos, límite por cliente, términos quincenal/mensual, bloqueo por mora. Lo pagado queda con estado `Pagado`.
-- Importación CSV/Excel; Edge Function `weekly-report`; cron los domingos 8am (Colombia).
+- Importación CSV/Excel; Edge Function `weekly-report`; cron los domingos 8am (Colombia). El **correo** sale de `formatEmailHtml`: la plantilla que pidió el dueño (tablas, fondo beige, encabezado oscuro con dorado). Sírvela igual para el semanal y el diario; no la rediseñes sin pedido suyo.
 - **CRM** aparte en `crm/` (`base: /crm/`), emitido en `dist/crm`: un solo deploy sirve tienda y CRM. Misma sesión de Supabase (`envDir: ".."`). No es Next.js sino Vite con serverless en `api/`. 9 tablas `crm_*`, rol `asesor` en `profiles`. Zernio recibe mensajes reales de Instagram y deduplica.
 
 ## El número de WhatsApp de la tienda
