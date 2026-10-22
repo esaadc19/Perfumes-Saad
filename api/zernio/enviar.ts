@@ -13,9 +13,11 @@ import { createClient } from "@supabase/supabase-js";
  * La base es `https://zernio.com/api`: `api.zernio.com` no existe, y el
  * endpoint lleva el `conversationId` en la ruta, no en el cuerpo.
  *
- * Quién puede llamar: solo alguien con sesión de Supabase válida y con rol de
- * admin o asesor. La API key nunca sale del servidor, y el navegador se
- * autentica con su propio token de sesión, que es lo que tiene.
+ * Quién puede llamar: solo una cuenta con sesión de Supabase válida y rol
+ * **admin**. Los asesores no envían mensajes desde el CRM mientras el acceso
+ * al CRM sea de administradores solamente (Fase 2 podrá abrirlo). La API key
+ * nunca sale del servidor, y el navegador se autentica con su propio token
+ * de sesión, que es lo que tiene.
  */
 
 export const config = { runtime: "nodejs" };
@@ -61,7 +63,7 @@ async function authenticate(request: Request): Promise<{ ok: true; userId: strin
     .eq("id", data.user.id)
     .maybeSingle();
 
-  if (!profile || (profile.role !== "admin" && profile.role !== "asesor")) {
+  if (!profile || profile.role !== "admin") {
     return { ok: false, reason: "Tu cuenta no tiene acceso al CRM." };
   }
   return { ok: true, userId: data.user.id };

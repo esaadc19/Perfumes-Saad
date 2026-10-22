@@ -3,10 +3,11 @@ import type { Session, User } from "@supabase/supabase-js";
 import { requireSupabase, supabase } from "./supabase";
 
 /**
- * Roles del CRM. `profiles.role` vale 'admin' | 'asesor' | 'customer'; los
- * dos primeros son personal de la tienda y entran al CRM. Un cliente
- * ('customer') no: `loadRole` devuelve null para él y App muestra la pantalla
- * de "sin acceso" en vez del CRM.
+ * Roles del CRM. Hoy solo entra el administrador ('admin'); el rol 'asesor'
+ * existe en la base desde la Fase 2 pero todavía no tiene acceso: el CRM es
+ * de administradores hasta que se le arme su propio espacio. `loadRole`
+ * devuelve null para cualquier otro rol (incluido 'customer') y App muestra
+ * la pantalla de "sin acceso".
  */
 export type CrmRole = "admin" | "asesor";
 
@@ -25,8 +26,9 @@ export async function loadRole(userId: string): Promise<CrmRole | null> {
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;
-  const role = data?.role;
-  return role === "admin" || role === "asesor" ? role : null;
+  // Solo administradores. El 'asesor' queda fuera hasta que el CRM tenga su
+  // propia fase; el tipo `CrmRole` lo conserva preparado.
+  return data?.role === "admin" ? "admin" : null;
 }
 
 export function useAuth(): AuthState {

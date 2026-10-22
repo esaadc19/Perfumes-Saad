@@ -1,7 +1,11 @@
--- Prueba de escritura del CRM: el asesor no puede tocar lo que no es suyo.
+-- Prueba de escritura del CRM.
 --
--- El caso pendiente desde hace semanas: "no se ha probado el aislamiento
--- entre admin y asesor". Esto lo cierra.
+-- Regla vigente (desde 2026-10-22): el CRM es SOLO del administrador.
+-- Un asesor no escribe ni lo que es suyo: no escribe nada.
+--
+-- Lo que debe salir:
+--   DUENO  | tocar deal ajeno: sin cambios (correcto) | crear deal propio: PERMITIDO (correcto)
+--   ASESOR | tocar deal ajeno: sin cambios (correcto) | crear deal propio: RECHAZO (correcto)
 
 create or replace function public.prueba_escritura_crm(usuario uuid, etiqueta text)
 returns void
@@ -36,7 +40,8 @@ begin
     v_ajeno := 'RECHAZO: ' || sqlerrm;
   end;
 
-  -- Crear un deal propio: eso si debe poder
+  -- Crear un deal propio. El dueno si debe poder; el asesor no, hasta que
+  -- la Fase 2 le abra su espacio en el CRM.
   begin
     insert into public.crm_deals (id, contact_id, stage_id, owner_id, title, value)
     values (
@@ -63,10 +68,16 @@ begin
 end;
 $$;
 
--- Si el titulo quedo como 'MODIFICADO', el asesor toco un deal ajeno.
+-- Si el titulo quedo como 'MODIFICADO', se toco un deal ajeno: nunca deberia salir filas.
 select title, count(*) as veces
 from public.crm_deals
 where title = 'MODIFICADO'
 group by title;
+
+-- Y estos 'Deal nuevo del asesor' tampoco deberian existir: el asesor no crea nada.
+select owner_id, count(*) as veces
+from public.crm_deals
+where title = 'Deal nuevo del asesor'
+group by owner_id;
 
 drop function if exists public.prueba_escritura_crm(uuid, text);

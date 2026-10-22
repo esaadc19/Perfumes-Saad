@@ -97,8 +97,8 @@ export default function App() {
         <div className="crm-login__card">
           <h1 className="crm-login__title">No tenés acceso al CRM</h1>
           <p style={{ fontSize: 13, color: "var(--crm-text-soft)" }}>
-            Este espacio es para los perfiles de administrador y asesor de la
-            tienda. Si pensás que es un error, hablá con el administrador.
+            Este espacio es solo para los administradores de la tienda. Si
+            pensás que es un error, hablá con el administrador.
           </p>
           <Button
             style={{ marginTop: 14 }}

@@ -1,7 +1,10 @@
--- Prueba de aislamiento del CRM entre el administrador y el asesor.
+-- Prueba de aislamiento del CRM.
 --
--- Comprueba lo que jamas se habia comprobado: si un asesor con sesion
--- real ve los deals de otro o solo los suyos.
+-- Regla vigente (desde 2026-10-22): el CRM es SOLO del administrador.
+-- Un asesor no ve ni una fila de las tablas del CRM.
+--
+-- Comprueba dos cosas con sesion real simulada: que el dueno ve todo y
+-- que el asesor no ve nada.
 
 create or replace function public.prueba_crm(usuario uuid, etiqueta text)
 returns void

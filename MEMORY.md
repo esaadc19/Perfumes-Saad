@@ -12,7 +12,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - Seguimiento de pedidos sin login: código de 8 caracteres + teléfono, link `?track=A1B2C3D4`.
 - Fiado: abonos, límite por cliente, términos quincenal/mensual, bloqueo por mora. Lo pagado queda con estado `Pagado`.
 - Importación CSV/Excel; Edge Function `weekly-report`; cron los domingos 8am (Colombia). El **correo** sale de `formatEmailHtml`: la plantilla que pidió el dueño (tablas, fondo beige, encabezado oscuro con dorado). Sírvela igual para el semanal y el diario; no la rediseñes sin pedido suyo.
-- **CRM** aparte en `crm/` (`base: /crm/`), emitido en `dist/crm`: un solo deploy sirve tienda y CRM. Misma sesión de Supabase (`envDir: ".."`). No es Next.js sino Vite con serverless en `api/`. 9 tablas `crm_*`, rol `asesor` en `profiles`. Zernio recibe mensajes reales de Instagram y deduplica.
+- **CRM** aparte en `crm/` (`base: /crm/`), emitido en `dist/crm`: un solo deploy sirve tienda y CRM. Misma sesión de Supabase (`envDir: ".."`). No es Next.js sino Vite con serverless en `api/`. 9 tablas `crm_*`, rol `asesor` en `profiles`. Zernio recibe mensajes reales de Instagram y deduplica. **Solo el administrador entra al CRM** (ver sección propia).
 
 ## El número de WhatsApp de la tienda
 
@@ -30,11 +30,13 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - La lista de secciones vive en `admin_sections` (base) **y** en el array `sections` de `App.tsx` (títulos e iconos). **Las dos tienen que coincidir**: agregar una en una sola deja esa sección sin repartir.
 - Si la tabla de permisos no existe (migración sin correr), la app **degrada a "ve todo"** en vez de dejar al dueño fuera de su panel.
 
-## Aislamiento admin/asesor: PROBADO
+## Acceso al CRM: solo administradores (desde 2026-10-22)
 
-- **CRM:** un asesor solo ve los deals cuyo `owner_id` es el (`crm_deals` RLS). Probado: el asesor ve **1 deal y 0 ajenos**; el dueño ve los 2. El asesor **no puede modificar** un deal ajeno y sí puede crear los suyos. Scripts: `supabase/PRUEBA-CRM.sql` y `PRUEBA-CRM-ESCRITURA.sql`.
-- **El CRM tiene su propio modelo de permisos**, aparte del panel: `ADMIN_ONLY = [informes, configuracion]` en `crm/src/layout/nav.tsx`, hardcodeado. No usa la tabla de secciones.
-- `crm/src/services/dashboard.ts` llama `admin_dashboard_metrics`, que ahora exige la sección `overview`. Para el asesor falla (igual que antes) y el CRM lo maneja: la tarjeta avisa y el resto del panel sigue. El mensaje se traduce a español: el error crudo de Postgres no le dice nada a un asesor.
+- **Cuatro capas dicen lo mismo**: la app (`loadRole` devuelve null para todo rol no-admin → pantalla de acceso denegado), `api/zernio/enviar` (valida `role === 'admin'` con la anon key, nunca con service role), la RLS de `crm_*` (`crm_is_staff()` = `is_admin()`, migración `20261022120000_crm_solo_administradores.sql`) y el enlace de la tienda (`canOpenCrm` exige admin + permiso de sección `crm`).
+- El rol `asesor` sigue en la base y en `CrmRole` listo para la Fase 2: volver a abrirlo es restaurar `crm_is_staff` (línea comentada en la migración) y el chequeo de `loadRole`.
+- `crm/src/layout/nav.tsx` tiene `ADMIN_ONLY = [informes, configuracion]`, hardcodeado. No usa la tabla de secciones.
+- `crm/src/services/dashboard.ts` llama `admin_dashboard_metrics`, que exige la sección `overview`; el error crudo se traduce a español para el que lo vea.
+- Pruebas: `supabase/PRUEBA-CRM.sql` y `PRUEBA-CRM-ESCRITURA.sql`, actualizadas: el asesor ya no ve ni crea nada (antes veía 1 deal y creaba los suyos).
 
 ## Probar en local (Postgres de verdad)
 
@@ -76,14 +78,16 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - **Un `.env` con BOM rompe el CLI de Supabase**: "unexpected character ﻿ in variable name". Vite lo tolera, el CLI no. Se quita con `[System.IO.File]::WriteAllBytes($p, $bytes[3..])`.
 - **`schema.sql` no se puede aplicar desde cero si tiene un error de orden**: `alter table` de una tabla que se crea después. Con `ON_ERROR_STOP=1` revienta; sin él, el error se pasa por alto y el archivo "parece funcionar". Por eso el `supabase db reset` fallaba en la primera migración.
 - **Un `revoke`/`grant` con la firma equivocada falla en silencio** y deja la función ejecutable por quien sea. `admin_save_pending_order` tenia 7 argumentos y la funcion 9.
+- **Un secreto con valor real en `.env.example` es un incidente**: el repo es público y el historial guarda todo. La postura nueva: **nada firmado por el navegador**; el CRM manda su token de sesión de Supabase y el servidor valida usuario y rol. La API key de Zernio nunca sale del servidor. **Rotar `ZERNIO_API_KEY` y `ZERNIO_WEBHOOK_SECRET` sigue pendiente del dueño** (las viejas están en el historial).
+- **El navegador no puede guardar un secreto.** Firmar con `VITE_ZERNIO_API_KEY` obligaba a meter la clave en el bundle; sin la clave, el servidor respondía 401. La autenticación del CRM es la sesión del usuario, punto.
 - `resize_page` cambia la ventana, no el viewport CSS: para probar móvil de verdad hay que emular dispositivo.
 
 ## Pendiente
 
-- **CRM Fase 6**: que la ruta de salida funcione. `ZERNIO_SEND_PATH=/v1/inbox/messages` está por defecto, **sin confirmar** contra la documentación. Fase 8: PWA y push.
+- **Salida del CRM (Fase 6)**: el contrato ya está verificado contra docs.zernio.com — `POST https://zernio.com/api/v1/inbox/conversations/{conversationId}/messages` con `{accountId, message}` y cabecera `Idempotency-Key` (el id del mensaje como clave: el reintento no duplica). Falta **probar un envío real de punta a punta**. Fase 8: PWA y push.
 - **WhatsApp saliente sin probar**: solo se verificó Instagram. Falta confirmar que Zernio mande el número en `sender.id`.
 - **Aislamiento admin/asesor**: PROBADO (ver arriba). Ya no está pendiente.
-- **Probar el panel con una cuenta de asesor**: la cuenta de pruebas es `esaadc19@gmail.com` (es el propietario, con todo). Para probar el aislamiento hace falta una **cuenta aparte** con rol asesor, sin secciones asignadas.
+- **Probar el panel con una cuenta de asesor**: la cuenta de pruebas es `esaadc19@gmail.com` (es el propietario, con todo). Para probar el aislamiento del **panel** hace falta una **cuenta aparte** con rol asesor. Al CRM ya no entra (por diseño).
 - Correr `supabase/SEMILLA-CRM-TEST.sql` para ver el embudo con datos (es idempotente).
 - Dos migraciones comparten prefijo (`20261017130000_crm_zernio_contact_identity` e `inventory_movements`): si NeonCore corre por nombre de archivo, la segunda puede saltarse.
 - Persistencia del carrito; pasarela de pago; avisos de stock bajo.

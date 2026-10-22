@@ -14,7 +14,7 @@ export default function AccountDialog({
 }: {
   user: User;
   isAdmin: boolean;
-  /** La cuenta tiene permiso de seccion para el CRM. */
+  /** La cuenta es admin y además tiene permiso de sección para el CRM. */
   canOpenCrm: boolean;
   onClose: () => void;
   onOpenAdmin: () => void;
@@ -102,9 +102,10 @@ export default function AccountDialog({
             <button className="secondary full" onClick={onOpenAdmin}>
               Abrir panel de administración
             </button>
-            {/* El CRM es interno de la tienda: solo el personal (admin o asesor)
-                ve el enlace. A los clientes este diálogo no les muestra nada
-                suyo; además el CRM rechaza su sesión en la puerta.
+            {/* El CRM es interno de la tienda: lo ve solo el administrador
+                con permiso de sección "crm". Los clientes no ven nada de
+                esto; además el CRM rechaza su sesión en la puerta y la RLS
+                de las tablas crm_ no les deja leer datos.
 
                 Y el permiso de la sección "crm" manda lo mismo que en el
                 panel: si a esta cuenta no le dieron acceso al CRM, tampoco
