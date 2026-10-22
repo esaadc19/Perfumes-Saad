@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Button from "./components/Button";
 import { signOut, useAuth } from "./lib/auth";
 import { isDemoMode } from "./lib/supabase";
 import Shell from "./layout/Shell";
@@ -41,6 +42,7 @@ export default function App() {
   const { user, role, loading, error } = useAuth();
   const [section, setSection] = useState<SectionId>("dashboard");
   const [shellError, setShellError] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
 
   const activeSection = isAllowed(section, role) ? section : "dashboard";
 
@@ -66,7 +68,7 @@ export default function App() {
     );
   }
 
-  if (!user || !role) {
+  if (!user) {
     return (
       <>
         <Login onError={setShellError} />
@@ -81,6 +83,33 @@ export default function App() {
         <div className="crm-login__card">
           <h1 className="crm-login__title">No se pudo verificar tu rol</h1>
           <p style={{ fontSize: 13, color: "var(--crm-text-soft)" }}>{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Sesión válida, pero la cuenta no es del personal (rol 'customer' o perfil
+  // inexistente): no es un error de la app, es un acceso legítimo al que no
+  // se le da entrada. Se cierra la sesión para que los datos queden sueltos.
+  if (!role) {
+    return (
+      <div className="crm-login">
+        <div className="crm-login__card">
+          <h1 className="crm-login__title">No tenés acceso al CRM</h1>
+          <p style={{ fontSize: 13, color: "var(--crm-text-soft)" }}>
+            Este espacio es para los perfiles de administrador y asesor de la
+            tienda. Si pensás que es un error, hablá con el administrador.
+          </p>
+          <Button
+            style={{ marginTop: 14 }}
+            disabled={signingOut}
+            onClick={() => {
+              setSigningOut(true);
+              void signOut();
+            }}
+          >
+            {signingOut ? "Saliendo…" : "Cerrar sesión"}
+          </Button>
         </div>
       </div>
     );

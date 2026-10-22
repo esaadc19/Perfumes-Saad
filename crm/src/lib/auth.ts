@@ -3,9 +3,10 @@ import type { Session, User } from "@supabase/supabase-js";
 import { requireSupabase, supabase } from "./supabase";
 
 /**
- * Roles del CRM. `profiles.role` hoy solo vale 'admin' | 'customer'; la Fase 2
- * agrega 'asesor'. Hasta entonces cualquier cuenta que no sea admin entra como
- * 'asesor', que es lo mismo que hacer hoy: entrar al panel.
+ * Roles del CRM. `profiles.role` vale 'admin' | 'asesor' | 'customer'; los
+ * dos primeros son personal de la tienda y entran al CRM. Un cliente
+ * ('customer') no: `loadRole` devuelve null para él y App muestra la pantalla
+ * de "sin acceso" en vez del CRM.
  */
 export type CrmRole = "admin" | "asesor";
 
@@ -17,14 +18,15 @@ export type AuthState = {
   error: string | null;
 };
 
-export async function loadRole(userId: string): Promise<CrmRole> {
+export async function loadRole(userId: string): Promise<CrmRole | null> {
   const { data, error } = await requireSupabase()
     .from("profiles")
     .select("role")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;
-  return data?.role === "admin" ? "admin" : "asesor";
+  const role = data?.role;
+  return role === "admin" || role === "asesor" ? role : null;
 }
 
 export function useAuth(): AuthState {

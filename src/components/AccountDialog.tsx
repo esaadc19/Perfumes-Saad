@@ -95,13 +95,18 @@ export default function AccountDialog({
           </>
         )}
         {isAdmin && (
-          <button className="secondary full" onClick={onOpenAdmin}>
-            Abrir panel de administración
-          </button>
+          <>
+            <button className="secondary full" onClick={onOpenAdmin}>
+              Abrir panel de administración
+            </button>
+            {/* El CRM es interno de la tienda: solo el personal (admin y asesor)
+                ve el enlace. A los clientes este diálogo no les muestra nada
+                suyo; además el CRM rechaza su sesión en la puerta. */}
+            <a className="secondary full" href="/crm/" target="_blank" rel="noopener noreferrer">
+              Abrir el CRM
+            </a>
+          </>
         )}
-        <a className="secondary full" href="/crm/" target="_blank" rel="noopener noreferrer">
-          Abrir el CRM
-        </a>
         <button className="secondary full" onClick={() => void onSignOut()}>
           Cerrar sesión
         </button>
