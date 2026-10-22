@@ -89,5 +89,5 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - **Aislamiento admin/asesor**: PROBADO (ver arriba). Ya no está pendiente.
 - **Probar el panel con una cuenta de asesor**: la cuenta de pruebas es `esaadc19@gmail.com` (es el propietario, con todo). Para probar el aislamiento del **panel** hace falta una **cuenta aparte** con rol asesor. Al CRM ya no entra (por diseño).
 - Correr `supabase/SEMILLA-CRM-TEST.sql` para ver el embudo con datos (es idempotente).
-- Dos migraciones comparten prefijo (`20261017130000_crm_zernio_contact_identity` e `inventory_movements`): si NeonCore corre por nombre de archivo, la segunda puede saltarse.
+- **Nunca dupliques el prefijo de 14 dígitos** en `supabase/migrations`: la PK de `schema_migrations` es solo `version` (el prefijo). Ya pasó con `20261017130000_crm_zernio_contact_identity` vs `inventory_movements` (bloqueaba `db push` con 23505); se resolvió renombrando la segunda a `20261017130001` y registrando con `npx supabase migration repair --status applied <version>` las que se habían aplicado a mano sin quedar en el historial. Hoy el historial está completo y `npx supabase db push` (`--project-ref elfkbytvuatjlhzhdsmy`, conecta con pooler sin token) queda `up to date`.
 - Persistencia del carrito; pasarela de pago; avisos de stock bajo.
