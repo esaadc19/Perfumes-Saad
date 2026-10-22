@@ -125,16 +125,18 @@ export default function OrdersPage({
         </label>
       </div>
       <div className="metrics transaction-metrics">
-        <Metric title="Total vendido" value={money(revenue)} icon={<TrendingUp />} />
-        <Metric title="Costo de productos" value={money(productCost)} icon={<ReceiptText />} />
-        <Metric title="Domicilios pagados" value={money(deliveryCost)} icon={<AlertTriangle />} />
+        <Metric title="Total vendido" value={money(revenue)} numericValue={revenue} format="money" icon={<TrendingUp />} />
+        <Metric title="Costo de productos" value={money(productCost)} numericValue={productCost} format="money" icon={<ReceiptText />} />
+        <Metric title="Domicilios pagados" value={money(deliveryCost)} numericValue={deliveryCost} format="money" icon={<AlertTriangle />} />
         <Metric
           title="Utilidad neta"
           value={netProfit === null ? "Incompleta" : money(netProfit)}
+          numericValue={netProfit ?? undefined}
+          format="money"
           icon={<BarChart3 />}
           warning={netProfit !== null && netProfit < 0}
         />
-        <Metric title="Ventas completas" value={String(completedOrders.length)} icon={<Check />} />
+        <Metric title="Ventas completas" value={String(completedOrders.length)} numericValue={completedOrders.length} icon={<Check />} />
       </div>
       <div className="transaction-filters" role="tablist" aria-label="Filtrar transacciones">
         {([

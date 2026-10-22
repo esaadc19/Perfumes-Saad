@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, MessageCircle, PackageCheck, Timer } from "lucide-react";
 import Card from "../components/Card";
+import CountUp from "../components/CountUp";
 import MetricCard from "../components/MetricCard";
 import Donut from "../components/Donut";
 import Funnel from "../components/Funnel";
@@ -89,7 +90,7 @@ export default function Dashboard() {
           title="Estado de oportunidad"
           kind="(Cambio de Estado)"
           filter={filter}
-          value={data.openDeals}
+          value={<CountUp value={data.openDeals} />}
           caption={`${formatMoney(data.openAmount)} en juego`}
         >
           <Donut
@@ -108,7 +109,7 @@ export default function Dashboard() {
           title="Tasa de conversión"
           kind="(Cambio de Estado)"
           filter={filter}
-          value={percent(data.conversionRate)}
+          value={<CountUp value={data.conversionRate} format="percent" />}
           caption={`${data.wonDeals} ganados de ${totalDecided} decididos`}
         >
           <Donut
@@ -126,7 +127,7 @@ export default function Dashboard() {
           title="Ventas cobradas"
           kind="Tienda"
           filter={filter}
-          value={data.store ? formatMoney(data.store.salesRevenue) : "—"}
+          value={data.store ? <CountUp value={data.store.salesRevenue} format="money" /> : "—"}
           caption={
             data.store
               ? `Utilidad: ${formatMoney(data.store.salesProfit)}`
@@ -140,7 +141,7 @@ export default function Dashboard() {
           title="Fiado por cobrar"
           kind="Tienda · instantánea"
           filter={filter}
-          value={data.store ? formatMoney(data.store.creditOutstanding) : "—"}
+          value={data.store ? <CountUp value={data.store.creditOutstanding} format="money" /> : "—"}
           caption={
             data.storeError
               ? "Las cifras de la tienda necesitan rol de administrador."

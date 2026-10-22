@@ -888,7 +888,7 @@ function App() {
                   return (
                     <article className="product-card" key={product.id}>
                       <button className="product-image" onClick={() => openProduct(product)}>
-                        <img src={product.image} alt={product.name} />
+                        <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
                         {firstAvailable.stock <= 0 && (
                           <span className="sold-out">Agotado</span>
                         )}
@@ -954,6 +954,7 @@ function App() {
                   <img
                     src={selectedProduct.images?.[selectedImageIndex] ?? selectedProduct.image}
                     alt={`${selectedProduct.name}, imagen ${selectedImageIndex + 1}`}
+                    decoding="async"
                   />
                   {(selectedProduct.images?.length ?? 0) > 1 && (
                     <>
@@ -990,7 +991,7 @@ function App() {
                           aria-pressed={index === selectedImageIndex}
                           onClick={() => setSelectedImageIndex(index)}
                         >
-                          <img src={image} alt="" />
+                          <img src={image} alt="" loading="lazy" decoding="async" />
                         </button>
                       ))}
                     </div>
@@ -1103,7 +1104,7 @@ function App() {
                     <div className="cart-items">
                       {cart.map((item) => (
                         <div className="cart-item" key={item.variant.id}>
-                          <img src={item.product.image} alt="" />
+                          <img src={item.product.image} alt="" loading="lazy" decoding="async" />
                           <div>
                             <strong>{item.product.name}</strong>
                             <span>{item.variant.size} ml</span>
@@ -2820,22 +2821,22 @@ function Admin({
             <AlertBlock
               items={[
                 lowStock > 0 ? (
-                  <Metric key="low-stock" title="Presentaciones con stock bajo" value={String(lowStock)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("low-stock")} />
+                  <Metric key="low-stock" title="Presentaciones con stock bajo" value={String(lowStock)} numericValue={lowStock} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("low-stock")} />
                 ) : null,
                 soldOut > 0 ? (
-                  <Metric key="sold-out" title="Presentaciones agotadas" value={String(soldOut)} icon={<X />} warning onClick={() => setDashboardDetail("sold-out")} />
+                  <Metric key="sold-out" title="Presentaciones agotadas" value={String(soldOut)} numericValue={soldOut} icon={<X />} warning onClick={() => setDashboardDetail("sold-out")} />
                 ) : null,
                 metrics.pending_orders > 0 ? (
-                  <Metric key="pending" title="Pedidos pendientes de pago" value={String(metrics.pending_orders)} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
+                  <Metric key="pending" title="Pedidos pendientes de pago" value={String(metrics.pending_orders)} numericValue={metrics.pending_orders} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
                 ) : null,
                 metrics.missing_cost_items > 0 ? (
-                  <Metric key="missing-cost" title="Costos por completar" value={String(metrics.missing_cost_items)} icon={<AlertTriangle />} warning onClick={() => setSection("products")} />
+                  <Metric key="missing-cost" title="Costos por completar" value={String(metrics.missing_cost_items)} numericValue={metrics.missing_cost_items} icon={<AlertTriangle />} warning onClick={() => setSection("products")} />
                 ) : null,
                 metrics.credit_overdue_balance > 0 ? (
-                  <Metric key="overdue" title="Cartera vencida" value={money(Number(metrics.credit_overdue_balance))} icon={<AlertTriangle />} warning onClick={() => setSection("credit")} />
+                  <Metric key="overdue" title="Cartera vencida" value={money(Number(metrics.credit_overdue_balance))} numericValue={Number(metrics.credit_overdue_balance)} format="money" icon={<AlertTriangle />} warning onClick={() => setSection("credit")} />
                 ) : null,
                 metrics.credit_customers_with_overdue > 0 ? (
-                  <Metric key="overdue-clients" title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} icon={<Users />} warning onClick={() => setSection("credit")} />
+                  <Metric key="overdue-clients" title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<Users />} warning onClick={() => setSection("credit")} />
                 ) : null,
               ]}
             />
@@ -2869,12 +2870,14 @@ function Admin({
                 hint="Lo vendido a fiado y lo que todavía no es tuyo."
                 icon={<DollarSign />}
               >
-                <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} icon={<ReceiptText />} />
-                <Metric title="Total a crédito" value={money(Number(metrics.credit_revenue))} icon={<BarChart3 />} />
-                <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} icon={<DollarSign />} />
+                <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} numericValue={metrics.credit_sales} icon={<ReceiptText />} />
+                <Metric title="Total a crédito" value={money(Number(metrics.credit_revenue))} numericValue={Number(metrics.credit_revenue)} format="money" icon={<BarChart3 />} />
+                <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} numericValue={Number(metrics.credit_outstanding_balance)} format="money" icon={<DollarSign />} />
                 <Metric
                   title="Utilidad no cobrada"
                   value={money(Number(metrics.locked_credit_profit))}
+                  numericValue={Number(metrics.locked_credit_profit)}
+                  format="money"
                   icon={<Lock />}
                   hint="Margen que sigue en cartera; entra a utilidad al cobrarse."
                 />
@@ -2882,6 +2885,8 @@ function Admin({
                   <Metric
                     title="Gastos comprometidos"
                     value={money(Number(metrics.committed_expenses))}
+                    numericValue={Number(metrics.committed_expenses)}
+                    format="money"
                     icon={<CalendarClock />}
                     hint="Recordatorios ya creados que aún no se han pagado."
                   />
@@ -2893,9 +2898,9 @@ function Admin({
                 hint="Lo que tienes disponible para vender hoy."
                 icon={<Package />}
               >
-                <Metric title="Productos activos" value={String(products.filter((product) => !product.archived).length)} icon={<Package />} />
-                <Metric title="Unidades en stock" value={String(totalStock)} icon={<ShoppingBag />} />
-                <Metric title="Presentaciones agotadas" value={String(soldOut)} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
+                <Metric title="Productos activos" value={String(products.filter((product) => !product.archived).length)} numericValue={products.filter((product) => !product.archived).length} icon={<Package />} />
+                <Metric title="Unidades en stock" value={String(totalStock)} numericValue={totalStock} icon={<ShoppingBag />} />
+                <Metric title="Presentaciones agotadas" value={String(soldOut)} numericValue={soldOut} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
               </MetricGroup>
 
               <MetricGroup
@@ -2903,9 +2908,9 @@ function Admin({
                 hint="Cuánta gente te ha comprado y quién te debe."
                 icon={<Users />}
               >
-                <Metric title="Clientes registrados" value={String(metrics.customer_count)} icon={<Users />} />
-                <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} icon={<AlertTriangle />} onClick={() => setSection("credit")} />
-                <Metric title="Pedidos registrados" value={String(metrics.total_orders)} icon={<ReceiptText />} />
+                <Metric title="Clientes registrados" value={String(metrics.customer_count)} numericValue={metrics.customer_count} icon={<Users />} />
+                <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<AlertTriangle />} onClick={() => setSection("credit")} />
+                <Metric title="Pedidos registrados" value={String(metrics.total_orders)} numericValue={metrics.total_orders} icon={<ReceiptText />} />
               </MetricGroup>
             </div>
 
@@ -2919,27 +2924,33 @@ function Admin({
                   "cuanto vendi", y de entrada da el contexto de las cifras
                   que siguen abajo. Sin delta porque cuenta pedidos, no
                   montos, y compararlo contra el periodo anterior mislead. */}
-              <Metric title="Ventas completadas" value={String(metrics.completed_sales)} icon={<ShoppingBag />} />
-              <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} icon={<ReceiptText />} delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
-              <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} icon={<Package />} />
-              <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} icon={<Truck />} />
-              <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} icon={<Wallet />} />
+              <Metric title="Ventas completadas" value={String(metrics.completed_sales)} numericValue={metrics.completed_sales} icon={<ShoppingBag />} />
+              <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} numericValue={Number(metrics.sales_revenue)} format="money" icon={<ReceiptText />} delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
+              <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} numericValue={Number(metrics.sales_cost)} format="money" icon={<Package />} />
+              <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} numericValue={Number(metrics.sales_delivery_cost)} format="money" icon={<Truck />} />
+              <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} numericValue={Number(metrics.total_expenses)} format="money" icon={<Wallet />} />
               <Metric
                 title="Costo del fiado por cobrar"
                 value={money(Number(metrics.credit_cost_pending))}
+                numericValue={Number(metrics.credit_cost_pending)}
+                format="money"
                 icon={<Lock />}
                 hint="Ya lo pagaste al proveedor; vuelve a tu utilidad cuando el cliente te pague."
               />
+              {/* Sin costo completo no hay numero que contar: la tarjeta dice
+                  "Incompleta" y el conteo se queda quieto. */}
               <Metric
                 title="Utilidad neta"
                 value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
+                numericValue={metrics.missing_cost_items > 0 ? undefined : Number(metrics.sales_profit)}
+                format="money"
                 icon={<TrendingUp />}
                 warning={metrics.sales_profit < 0}
                 emphasis
                 delta={metrics.period_days ? { current: Number(metrics.sales_profit), previous: Number(metrics.previous.sales_profit) } : undefined}
               />
-              <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
-              <Metric title="Ticket promedio" value={money(avgTicket)} icon={<Calculator />} hint="Venta cobrada promedio." />
+              <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} numericValue={Number(metrics.net_margin_percent)} format="percent" icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
+              <Metric title="Ticket promedio" value={money(avgTicket)} numericValue={avgTicket} format="money" icon={<Calculator />} hint="Venta cobrada promedio." />
             </MetricGroup>
             <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
               <Charts orders={orders} products={metrics.top_products} />
@@ -3434,7 +3445,7 @@ function Admin({
               return (
                 <div className="table-row product-row" key={product.id}>
                   <div className="product-cell">
-                    <img src={product.image} alt="" />
+                    <img src={product.image} alt="" loading="lazy" decoding="async" />
                     <div><b>{product.brand}</b><span>{product.name}</span></div>
                   </div>
                   <div className="product-category-cell">
@@ -4142,7 +4153,7 @@ function EditProductModal({
           <div className="edit-image-list">
             {images.map((image, index) => (
               <div className="edit-image-item" key={`${image}-${index}`}>
-                <img src={image} alt={`Imagen ${index + 1} de ${product.name}`} />
+                <img src={image} alt={`Imagen ${index + 1} de ${product.name}`} loading="lazy" decoding="async" />
                 <AdminButton tone="danger" variant="outline" compact type="button" onClick={() => setImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}>
                   <Trash2 size={14}/> Quitar
                 </AdminButton>

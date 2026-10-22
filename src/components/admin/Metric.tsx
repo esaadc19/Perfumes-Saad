@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
+import CountUp from "./CountUp";
 import Delta from "./Delta";
 
 export default function Metric({
   title,
   value,
+  numericValue,
+  format = "int",
   icon,
   warning,
   emphasis,
@@ -15,6 +18,13 @@ export default function Metric({
 }: {
   title: string;
   value: string;
+  /**
+   * El número crudo, para que la tarjeta lo cuente desde 0 hasta su valor.
+   * Sin esto se muestra `value` tal cual, como siempre.
+   */
+  numericValue?: number;
+  /** Cómo se cuenta `numericValue`. */
+  format?: "money" | "int" | "percent";
   icon: ReactNode;
   warning?: boolean;
   /** Resalta la tarjeta como el resultado principal de su grupo. */
@@ -29,7 +39,7 @@ export default function Metric({
     <>
       <span className={warning ? "metric-icon warning" : "metric-icon"}>{icon}</span>
       <span>{title}</span>
-      <strong>{value}</strong>
+      <strong>{numericValue === undefined ? value : <CountUp value={numericValue} format={format} />}</strong>
       {delta && (
         <Delta current={delta.current} previous={delta.previous} format={deltaFormat} />
       )}

@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600&family=Poppins:wght@300;400;500;600;700&display=swap');
+/* Las fuentes se cargan desde index.html (preconnect + link): un @import en
+   la primera línea de esta CSS bloqueaba el render hasta bajar la fuente. */
 
 :root {
   font-family: "DM Sans", Arial, sans-serif;
@@ -368,7 +369,7 @@ footer { border-top: 1px solid var(--border); padding: 28px 5%; display: flex; g
 .footer-brand { font: 600 18px "Playfair Display", serif; color: #111; }
 footer a { color: #111; }
 
-.admin-layout { height: 100vh; min-height: 100vh; display: flex; background: #faf9f7; font-family: 'Poppins', sans-serif; overflow: hidden; }
+.admin-layout { height: 100vh; min-height: 100vh; display: flex; background: #faf9f7; font-family: "DM Sans", sans-serif; overflow: hidden; }
 .admin-sidebar { width: 72px; min-width: 72px; height: 100vh; background: #1a2e22; display: flex; flex-direction: column; align-items: center; padding: 24px 12px; flex-shrink: 0; }
 .sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; margin-bottom: 30px; }
 .admin-logo { border: 0; background: transparent; color: white; text-align: left; font: 600 25px "Playfair Display", serif; white-space: nowrap; }
@@ -465,11 +466,11 @@ footer a { color: #111; }
 .store-settings-form .form-grid { margin: 20px 0; }
 .store-settings-form .form-grid input,
 .store-settings-form .form-grid textarea,
-.store-settings-form .form-grid select { width: 100%; padding: 12px 14px; border: 1px solid rgba(44,36,32,.1); border-radius: 8px; background: white; font-size: 14px; color: var(--negro); font-family: 'Poppins', sans-serif; transition: all .2s ease; }
+.store-settings-form .form-grid select { width: 100%; padding: 12px 14px; border: 1px solid rgba(44,36,32,.1); border-radius: 8px; background: white; font-size: 14px; color: var(--negro); font-family: "DM Sans", sans-serif; transition: all .2s ease; }
 .store-settings-form .form-grid input:focus,
 .store-settings-form .form-grid textarea:focus,
 .store-settings-form .form-grid select:focus { outline: none; border-color: var(--verde); box-shadow: 0 0 0 3px rgba(26,46,34,.08); }
-.store-settings-form .form-grid textarea { min-height: 100px; padding: 12px 14px; border: 1px solid rgba(44,36,32,.1); border-radius: 8px; background: white; resize: vertical; font-family: 'Poppins', sans-serif; }
+.store-settings-form .form-grid textarea { min-height: 100px; padding: 12px 14px; border: 1px solid rgba(44,36,32,.1); border-radius: 8px; background: white; resize: vertical; font-family: "DM Sans", sans-serif; }
 .store-settings-form .form-grid small { display: block; margin-top: 6px; color: var(--cuero); font-size: 11px; }
 
 /* Grupos de configuración: separan identidad, contacto, textos y recibo
@@ -884,19 +885,87 @@ footer a { color: #111; }
 .credit-payments-table + .edit-product-actions { margin-top: 4px; }
 
 /* ===================================================================
-   AdminButton — ajustes sobre CoreUI para igualar la caja y el ritmo
-   del resto del admin.
+   AdminButton — el botón del panel. CoreUI salió del bundle, así que
+   la jerarquía vive acá, con la misma paleta que usaba CoreUI para
+   que no cambie ni un pixel.
    =================================================================== */
-.admin-button.btn { min-height: 40px; font-weight: 600; letter-spacing: .01em; }
-.admin-button.btn-lg { min-height: 44px; font-size: 13px; }
-.admin-button.btn-sm { min-height: 34px; font-size: 12px; padding-inline: .875rem; }
+.admin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 50rem;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.admin-button:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(13, 110, 253, .3); }
+.admin-button:disabled { opacity: .45; cursor: not-allowed; }
+.admin-button--sm { min-height: 34px; font-size: 12px; padding-inline: .875rem; }
 .admin-button.full { width: 100%; }
-.admin-button.compact { white-space: nowrap; }
 .admin-button + .admin-button { margin-left: 8px; }
 .order-actions .admin-button + .admin-button,
 .credit-filters .admin-button + .admin-button,
 .filter-tabs .admin-button + .admin-button,
 .edit-product-actions .admin-button + .admin-button { margin-left: 0; }
+
+/* Tonos sólidos. */
+.admin-button--primary { background: #0d6efd; border-color: #0d6efd; color: #fff; }
+.admin-button--primary:hover:not(:disabled) { background: #0b5ed7; border-color: #0a58ca; }
+.admin-button--secondary { background: #6c757d; border-color: #6c757d; color: #fff; }
+.admin-button--secondary:hover:not(:disabled) { background: #565e64; border-color: #565e64; }
+.admin-button--success { background: #198754; border-color: #198754; color: #fff; }
+.admin-button--success:hover:not(:disabled) { background: #157347; border-color: #146c43; }
+.admin-button--danger { background: #dc3545; border-color: #dc3545; color: #fff; }
+.admin-button--danger:hover:not(:disabled) { background: #bb2d3b; border-color: #b02a37; }
+.admin-button--warning { background: #ffc107; border-color: #ffc107; color: #212529; }
+.admin-button--warning:hover:not(:disabled) { background: #d3a406; border-color: #cc9a06; }
+.admin-button--info { background: #0dcaf0; border-color: #0dcaf0; color: #fff; }
+.admin-button--info:hover:not(:disabled) { background: #0bb2d6; border-color: #0aa9ce; }
+.admin-button--light { background: #f8f9fa; border-color: #f8f9fa; color: #212529; }
+.admin-button--light:hover:not(:disabled) { background: #d3d4d5; border-color: #c7c8c9; }
+.admin-button--dark { background: #212529; border-color: #212529; color: #fff; }
+.admin-button--dark:hover:not(:disabled) { background: #1a1e22; border-color: #171b1e; }
+.admin-button--link { background: transparent; border-color: transparent; color: #0d6efd; text-decoration: underline; }
+.admin-button--link:hover:not(:disabled) { color: #0a58ca; }
+
+/* Contorno: fondo transparente hasta el hover, que se llena del color. */
+.admin-button--outline { background: transparent; }
+.admin-button--outline.admin-button--primary { border-color: #0d6efd; color: #0d6efd; }
+.admin-button--outline.admin-button--primary:hover:not(:disabled) { background: #0d6efd; color: #fff; }
+.admin-button--outline.admin-button--secondary { border-color: #6c757d; color: #6c757d; }
+.admin-button--outline.admin-button--secondary:hover:not(:disabled) { background: #6c757d; color: #fff; }
+.admin-button--outline.admin-button--success { border-color: #198754; color: #198754; }
+.admin-button--outline.admin-button--success:hover:not(:disabled) { background: #198754; color: #fff; }
+.admin-button--outline.admin-button--danger { border-color: #dc3545; color: #dc3545; }
+.admin-button--outline.admin-button--danger:hover:not(:disabled) { background: #dc3545; color: #fff; }
+.admin-button--outline.admin-button--warning { border-color: #ffc107; color: #997404; }
+.admin-button--outline.admin-button--warning:hover:not(:disabled) { background: #ffc107; color: #212529; }
+.admin-button--outline.admin-button--info { border-color: #0dcaf0; color: #0dcaf0; }
+.admin-button--outline.admin-button--info:hover:not(:disabled) { background: #0dcaf0; color: #212529; }
+.admin-button--outline.admin-button--light { border-color: #f8f9fa; color: #f8f9fa; }
+.admin-button--outline.admin-button--light:hover:not(:disabled) { background: #f8f9fa; color: #212529; }
+.admin-button--outline.admin-button--dark { border-color: #212529; color: #212529; }
+.admin-button--outline.admin-button--dark:hover:not(:disabled) { background: #212529; color: #fff; }
+
+/* Fantasma: solo el color del tono; el fondo apenas tiñe al pasar. */
+.admin-button--ghost { border-color: transparent; background: transparent; }
+.admin-button--ghost.admin-button--primary { color: #0d6efd; }
+.admin-button--ghost.admin-button--primary:hover:not(:disabled) { background: rgba(13, 110, 253, .12); }
+.admin-button--ghost.admin-button--secondary { color: #6c757d; }
+.admin-button--ghost.admin-button--secondary:hover:not(:disabled) { background: rgba(108, 117, 125, .12); }
+.admin-button--ghost.admin-button--success { color: #198754; }
+.admin-button--ghost.admin-button--success:hover:not(:disabled) { background: rgba(25, 135, 84, .12); }
+.admin-button--ghost.admin-button--danger { color: #dc3545; }
+.admin-button--ghost.admin-button--danger:hover:not(:disabled) { background: rgba(220, 53, 69, .12); }
 
 /* Contador dentro de las pestañas de filtro */
 .filter-tabs .filter-count {
@@ -904,7 +973,7 @@ footer a { color: #111; }
   margin-left: 6px; padding: 0 6px; border-radius: 999px;
   background: rgba(0, 0, 0, .07); font-size: 11px; font-weight: 600; line-height: 1;
 }
-.filter-tabs .btn-primary .filter-count { background: rgba(255, 255, 255, .22); color: #fff; }
+.filter-tabs .admin-button--primary .filter-count { background: rgba(255, 255, 255, .22); color: #fff; }
 
 /* ===================================================================
    Cartera / Crédito
@@ -1004,7 +1073,7 @@ footer a { color: #111; }
   border-radius: 999px;
   background: var(--marfil);
   color: var(--cuero);
-  font: 600 11px Poppins, sans-serif;
+  font: 600 11px DM Sans, sans-serif;
   vertical-align: middle;
 }
 
@@ -2234,7 +2303,7 @@ footer a { color: #111; }
   background: #faf9f7;
   color: #2c2420;
   display: flex;
-  font-family: 'Poppins', sans-serif;
+  font-family: "DM Sans", sans-serif;
   overflow: hidden;
 }
 
@@ -2374,7 +2443,7 @@ footer a { color: #111; }
 .admin-nav-item-label {
   white-space: nowrap;
   overflow: hidden;
-  font-family: 'Poppins', sans-serif;
+  font-family: "DM Sans", sans-serif;
   font-size: 13px;
 }
 
@@ -2432,7 +2501,7 @@ footer a { color: #111; }
   color: #f5f0e8;
   padding: 6px 12px;
   border-radius: 6px;
-  font-family: 'Poppins', sans-serif;
+  font-family: "DM Sans", sans-serif;
   font-size: 12px;
   white-space: nowrap;
   opacity: 0;
@@ -2539,7 +2608,7 @@ footer a { color: #111; }
   background: transparent;
   font-size: 14px;
   color: #2c2420;
-  font-family: 'Poppins', sans-serif;
+  font-family: "DM Sans", sans-serif;
 }
 
 .admin-search input::placeholder {

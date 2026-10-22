@@ -11,9 +11,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@coreui/react": "^5.13.1",
-    "@hugeicons/core-free-icons": "^4.3.5",
-    "@hugeicons/react": "^1.1.10",
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.468.0",
     "motion": "^13.4.4",
@@ -27,7 +24,6 @@
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.3",
     "concurrently": "^10.0.6",
-    "sass": "^1.105.1",
     "supabase": "^2.119.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.7"
