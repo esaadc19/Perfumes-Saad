@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendAppsScriptEmail } from "../_shared/apps-script-mail.ts";
+import { formatEmailHtml, reportEmailTitle } from "../_shared/report-email.ts";
 
 const WHATSAPP_NUMBERS = (Deno.env.get("WHATSAPP_NUMBERS") ?? "3102318786").split(",");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -136,260 +137,6 @@ function formatReport(data: any): string {
   return lines.join("\n");
 }
 
-/** Escapa texto antes de insertarlo dentro de HTML. */
-function escapeHtml(value: unknown): string {
-  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character] ?? character);
-}
-
-/** Fecha corta 28/09/2026. Sin Date: que la zona horaria no corra el dia. */
-function formatDate(iso: string | null | undefined): string {
-  const text = String(iso ?? "").slice(0, 10);
-  const parts = text.split("-");
-  return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : text;
-}
-
-const unitsText = (quantity: number): string =>
-  `(${quantity} ${quantity === 1 ? "unidad" : "unidades"})`;
-
-const ordersText = (count: number): string =>
-  `(${count} ${count === 1 ? "pedido" : "pedidos"})`;
-
-/** Monto formateado y escapado, listo para insertarse en el HTML. */
-const money = (value: number): string => escapeHtml(formatCurrency(value));
-
-/** Texto secundario en gris, como en la plantilla del dueno. */
-const muted = (text: string): string =>
-  `<span style="color:#666666;font-weight:normal;">${escapeHtml(text)}</span>`;
-
-function infoRow(label: string, valueHtml: string, bold = false): string {
-  return `<tr>
-                  <td style="padding:8px 0;color:#666666;">${escapeHtml(label)}</td>
-                  <td align="right" style="padding:8px 0;${bold ? "font-weight:bold;" : ""}">${valueHtml}</td>
-                </tr>`;
-}
-
-function block(title: string, body: string, padding = "0 24px 24px 24px", note = ""): string {
-  return `
-          <tr>
-            <td style="padding:${padding};">
-              <div style="font-size:16px;font-weight:bold;color:#2b2b2b;border-bottom:2px solid #c9a96e;padding-bottom:8px;margin-bottom:16px;">${title}</div>
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size:14px;">${body}</table>${note}
-            </td>
-          </tr>`;
-}
-
-/**
- * La variacion del correo usa la palabra que puso el dueno en su plantilla
- * ("Subiendo"/"Bajando"). Y cuando no hay base de comparacion se dice tal
- * cual: el "(0%)" junto a "+$770.000" era un indefinido disfrazado de dato.
- */
-function emailVariation(current: number, previous: number, isWeek: boolean): { text: string; color: string } {
-  if (previous <= 0) {
-    return current > 0
-      ? { text: `📈 Sin ${isWeek ? "semana previa" : "periodo previo"} para comparar`, color: "#2b2b2b" }
-      : { text: "Sin cambios", color: "#666666" };
-  }
-  const diff = current - previous;
-  if (diff === 0) return { text: "Sin cambios", color: "#666666" };
-  const percent = Math.abs((diff / previous) * 100).toFixed(1);
-  return diff > 0
-    ? { text: `📈 Subiendo +${formatCurrency(diff)} (${percent}%)`, color: "#2e7d32" }
-    : { text: `📉 Bajando -${formatCurrency(Math.abs(diff))} (${percent}%)`, color: "#c62828" };
-}
-
-/**
- * La plantilla del correo la diseño el dueño: tablas en vez de divs (se ve
- * igual en Gmail y Outlook), fondo beige y encabezado oscuro con acento
- * dorado. Los datos entran por variables y la misma plantilla sirve para el
- * semanal y el diario: el diario omite lo que no tiene con que llenar
- * (comparaciones, utilidad, fiado y "otros datos").
- */
-function formatEmailHtml(data: any, isDaily: boolean): string {
-  const week = data.current_week ?? {};
-  const previous = data.previous_week ?? {};
-  const credit = data.credit ?? {};
-  const expenses = data.expenses ?? {};
-  const periodDays = isDaily ? 1 : num(data.period?.days ?? 7);
-  const isWeek = periodDays <= 7;
-
-  const periodLabel = isDaily
-    ? "Reporte diario"
-    : isWeek
-    ? "Reporte semanal"
-    : periodDays <= 31
-      ? "Reporte mensual"
-      : "Reporte por periodo";
-  // El encabezado decia "Reporte semanal"... aunque el rango fuera un mes
-  // o el año entero. Cada periodo se nombra como es.
-  const rangeLabel = isDaily
-    ? `Día ${formatDate(data.report_date)}`
-    : isWeek
-      ? `Semana del ${formatDate(data.week_start)} al ${formatDate(data.week_end)}`
-      : periodDays <= 31
-        ? `Mes del ${formatDate(data.week_start)} al ${formatDate(data.week_end)}`
-        : `Periodo del ${formatDate(data.week_start)} al ${formatDate(data.week_end)}`;
-
-  const sales = isDaily ? num(data.sales) : num(week.sales);
-  const orders = isDaily ? num(data.orders) : num(week.orders);
-  const prevSales = num(previous.sales);
-  const prevOrders = num(previous.orders);
-  const currentLabel = isDaily ? "Día reportado" : "Semana reportada";
-  const prevLabel = isWeek ? "Semana pasada" : "Periodo anterior";
-  const variation = emailVariation(sales, prevSales, isWeek);
-
-  // Utilidad cobrada: la titular del reporte. Sin costo completo el numero
-  // no se puede defender: se declara incompleta en vez de rellenar con cero.
-  const profit = num(week.net_profit);
-  const missingCost = num(week.missing_cost_items);
-  const creditCost = num(week.credit_cost);
-  const cashProfit = profit + creditCost;
-  const profitComplete = missingCost === 0;
-  const margin = profitComplete && sales > 0 ? (cashProfit / sales) * 100 : null;
-  const profitLabel = profitComplete
-    ? `Utilidad cobrada${margin !== null ? ` · margen ${margin.toFixed(1)}%` : ""}`
-    : `⚠️ ${missingCost} ${missingCost === 1 ? "pedido no tiene" : "pedidos no tienen"} costo registrado`;
-  const profitColor = !profitComplete ? "#8a5a00" : cashProfit < 0 ? "#c62828" : "#2e7d32";
-
-  const bestName = cleanProductName(isDaily ? data.best_product?.name : data.best_product_this_week?.name);
-  const bestQty = num(isDaily ? data.best_product?.quantity : data.best_product_this_week?.quantity);
-  const bestLastName = cleanProductName(data.best_product_last_month?.name);
-  const bestLastQty = num(data.best_product_last_month?.quantity);
-
-  const averageOrder = isDaily
-    ? (orders > 0 ? sales / orders : 0)
-    : num(week.average_order_value);
-
-  // Fiado: solo cuando hubo actividad. Si no, el correo no se llena de ceros.
-  const overdue = num(credit.overdue_balance);
-  const overdueCustomers = num(credit.customers_overdue);
-  const fiadoActive = !isDaily &&
-    (num(credit.week_sales) > 0 || num(credit.week_collected) > 0 ||
-      num(credit.outstanding_balance) > 0 || overdue > 0);
-
-  // El costo de lo vendido a fiado ya se desconto de la utilidad: la nota
-  // evita que un numero mas bajo se lea como perdida.
-  const fiadoNote = creditCost > 0
-    ? `<div style="background-color:#fdf6e8;border-radius:6px;padding:12px;margin-top:12px;font-size:13px;line-height:1.5;color:#666666;">
-                Vendiste ${money(num(credit.week_sales))} a fiado ${isWeek ? "esta semana" : "en el periodo"}: el producto ya salió y su costo ya se descontó, pero la plata entra cuando te paguen.
-                <strong style="color:#8a5a00;">No es pérdida: es inversión que vuelve al cobrar.</strong>
-              </div>`
-    : "";
-
-  const lowStock = num(data.low_stock_count);
-
-  return `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>${escapeHtml(periodLabel)} - Perfumes Saad</title>
-</head>
-<body style="margin:0;padding:0;background-color:#f4f1ec;font-family:Arial,Helvetica,sans-serif;color:#2b2b2b;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f1ec;">
-    <tr>
-      <td align="center" style="padding:24px 12px;">
-        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;">
-
-          <!-- Encabezado -->
-          <tr>
-            <td style="background-color:#2b2b2b;padding:28px 24px;text-align:center;">
-              <div style="font-size:12px;letter-spacing:3px;color:#c9a96e;text-transform:uppercase;">${escapeHtml(periodLabel)}</div>
-              <div style="font-size:24px;font-weight:bold;color:#ffffff;margin-top:8px;">PERFUMES SAAD</div>
-              <div style="font-size:14px;color:#d9d9d9;margin-top:8px;">${escapeHtml(rangeLabel)}</div>
-            </td>
-          </tr>
-${isDaily ? "" : `
-          <!-- Utilidad cobrada: la titular del reporte -->
-          <tr>
-            <td style="padding:24px;">
-              <div style="background-color:#faf7f2;border-radius:6px;padding:16px;text-align:center;">
-                <div style="font-size:13px;color:#666666;margin-bottom:4px;">${escapeHtml(profitLabel)}</div>
-                <div style="font-size:22px;font-weight:bold;color:${profitColor};">${profitComplete ? money(cashProfit) : "Incompleta"}</div>
-              </div>
-            </td>
-          </tr>`}
-
-          <!-- Ventas -->
-          ${block("💰 Ventas", [
-            infoRow(currentLabel, `${money(sales)} ${muted(ordersText(orders))}`, true),
-            isDaily ? "" : infoRow(prevLabel, `${money(prevSales)} ${muted(ordersText(prevOrders))}`),
-            isDaily ? "" : infoRow("Tendencia", `<span style="color:${variation.color};">${escapeHtml(variation.text)}</span>`, true),
-          ].filter(Boolean).join(""), isDaily ? "24px" : "0 24px 24px 24px")}
-
-          <!-- Producto más vendido -->
-          ${block("📦 Producto más vendido", [
-            infoRow(currentLabel, `${escapeHtml(bestName)} ${muted(unitsText(bestQty))}`, true),
-            isDaily ? "" : infoRow("Mes pasado", `${escapeHtml(bestLastName)} ${muted(unitsText(bestLastQty))}`),
-          ].filter(Boolean).join(""))}
-
-          <!-- Ingresos y gastos -->
-          <tr>
-            <td style="padding:0 24px 24px 24px;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td width="50%" valign="top" style="padding-right:8px;">
-                    <div style="background-color:#faf7f2;border-radius:6px;padding:16px;">
-                      <div style="font-size:14px;font-weight:bold;margin-bottom:12px;">💵 Ingresos</div>
-                      <div style="font-size:13px;color:#666666;">${escapeHtml(isDaily ? "Ventas del día" : "Ventas semana")}</div>
-                      <div style="font-size:15px;font-weight:bold;margin-bottom:8px;">${money(sales)}</div>
-                      ${isDaily ? "" : `
-                      <div style="font-size:13px;color:#666666;">Ventas mes pasado</div>
-                      <div style="font-size:15px;font-weight:bold;margin-bottom:8px;">${money(num(data.last_month?.sales))}</div>`}
-                      <div style="font-size:13px;color:#666666;">Promedio por pedido</div>
-                      <div style="font-size:15px;font-weight:bold;">${money(averageOrder)}</div>
-                    </div>
-                  </td>
-                  <td width="50%" valign="top" style="padding-left:8px;">
-                    <div style="background-color:#faf7f2;border-radius:6px;padding:16px;">
-                      <div style="font-size:14px;font-weight:bold;margin-bottom:12px;">💸 Gastos</div>
-                      <div style="font-size:13px;color:#666666;">${escapeHtml(isDaily ? "Gastos del día" : "Gastos semana")}</div>
-                      <div style="font-size:15px;font-weight:bold;margin-bottom:8px;">${money(isDaily ? num(data.expenses) : num(week.expenses))}</div>
-                      ${isDaily ? "" : `
-                      <div style="font-size:13px;color:#666666;">Gastos mes</div>
-                      <div style="font-size:15px;font-weight:bold;">${money(num(expenses.monthly))}</div>`}
-                    </div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-${fiadoActive ? `
-          <!-- Fiado y cartera -->
-          ${block("💳 Fiado y cartera", [
-            infoRow(`Vendido a fiado ${isWeek ? "esta semana" : "en el periodo"}`, `${money(num(credit.week_sales))} ${muted(ordersText(num(credit.week_orders)))}`),
-            infoRow("Te pagaron de fiado", money(num(credit.week_collected))),
-            infoRow("Por cobrar en total", money(num(credit.outstanding_balance)), true),
-            overdue > 0 ? infoRow("⚠️ Vencido", `<span style="color:#c62828;">${money(overdue)}</span> ${muted(`(${overdueCustomers} ${overdueCustomers === 1 ? "cliente" : "clientes"})`)}`, true) : "",
-          ].filter(Boolean).join(""), "0 24px 24px 24px", fiadoNote)}` : ""}
-${isDaily ? "" : `
-          <!-- Otros datos -->
-          ${block("📋 Otros datos", [
-            infoRow("Nuevos clientes", escapeHtml(String(num(data.new_customers))), true),
-            infoRow("Productos con stock bajo", `<span style="color:${lowStock > 0 ? "#c62828" : "inherit"};">${escapeHtml(String(lowStock))}</span>`, true),
-            infoRow("Pedidos pendientes", escapeHtml(String(num(data.pending_orders))), true),
-          ].join(""))}`}
-
-          <!-- Pie -->
-          <tr>
-            <td style="background-color:#faf7f2;padding:16px 24px;text-align:center;font-size:12px;color:#888888;">
-              Reporte generado el ${escapeHtml(formatDate(data.report_date))}
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
-}
-
 function formatDailyReport(data: any): string {
   const bestProduct = data.best_product;
   return `
@@ -509,21 +256,16 @@ serve(async (req) => {
     // WhatsApp, donde el HTML no sirve.
     const reportHtml = formatEmailHtml(data, isDailyReport);
 
-    // "Semana del" era incorrecto cuando el rango es un mes o un año.
+    // El asunto nombra el reporte como es: DIARIO / SEMANAL / MENSUAL
+    // (o por duracion cuando el rango pasa de un mes) mas el rango.
     const periodDays = Number(data.period?.days ?? 7);
-    const periodLabel = periodDays === 1
-      ? "Reporte diario"
-      : periodDays <= 7
-        ? `Reporte semanal - ${data.week_start} al ${data.week_end}`
-        : periodDays <= 31
-          ? `Reporte mensual - ${data.week_start} al ${data.week_end}`
-          : `Reporte de ${periodDays} días - ${data.week_start} al ${data.week_end}`;
+    const emailTitle = reportEmailTitle(isDailyReport, periodDays);
+    const emailSubject = isDailyReport
+      ? `📊 ${emailTitle} - ${data.report_date}`
+      : `📊 ${emailTitle} - ${data.week_start} al ${data.week_end}`;
 
     // Send email via Brevo
-    const emailResult = await sendAppsScriptEmail(
-      isDailyReport ? `📊 Reporte Diario - ${data.report_date}` : `📊 ${periodLabel}`,
-      reportHtml
-    );
+    const emailResult = await sendAppsScriptEmail(emailSubject, reportHtml);
 
     // Generate WhatsApp links
     const whatsappLinks = WHATSAPP_NUMBERS.map((number) => {
