@@ -418,10 +418,10 @@ footer a { color: #111; }
    cualquier caracter y lo deja como "1.510.00" + "0" al final de la
    linea. Un monto nunca debe partirse por la mitad. */
 /* El valor se mide contra el ancho de la tarjeta: crece en las anchas y no se
-   sale en las angostas. El 28px es el respaldo para navegadores sin cqi. */
+   sale en las angostas. El 24px es el respaldo para navegadores sin cqi. */
 .metric strong {
-  font-size: 28px;
-  font-size: clamp(15px, 11cqi, 32px);
+  font-size: 24px;
+  font-size: clamp(16px, 10cqi, 24px);
   line-height: 1.1; overflow-wrap: normal; font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -866,8 +866,8 @@ footer a { color: #111; }
 .metric-group:not(.metric-group--wide) .metrics { grid-auto-rows: max-content; }
 .metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; align-self: center; }
 .metric-group .metric strong {
-  font-size: 28px;
-  font-size: clamp(15px, 11cqi, 32px);
+  font-size: 24px;
+  font-size: clamp(16px, 10cqi, 24px);
   white-space: nowrap;
 }
 .metric-group .metric-label { font-size: 10px; line-height: 1.35; }
