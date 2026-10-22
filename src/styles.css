@@ -854,7 +854,8 @@ footer a { color: #111; }
 .metric-group .metrics { align-content: stretch; row-gap: 10px; }
 .metric-group:not(.metric-group--wide) .metrics { grid-auto-rows: max-content; }
 .metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; align-self: center; }
-.metric-group .metric strong { font-size: 17px; white-space: nowrap; }
+.metric-group .metric strong { font-size: 25px; white-space: nowrap; }
+/* Los grupos del dashboard muestran el valor del mismo tamano que las tarjetas sueltas (25 px). */
 .metric-group .metric span { font-size: 10px; line-height: 1.35; }
 .alert-list { display: grid; }
 .alert-link { display: flex; justify-content: space-between; gap: 14px; align-items: center; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--black); text-align: left; }
