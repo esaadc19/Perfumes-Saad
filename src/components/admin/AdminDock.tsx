@@ -98,7 +98,7 @@ sections: readonly DockSection[];
             onClick={() => onSelect(section.id)}
           >
             <span className="admin-navdock-icon">{section.icon}</span>
-            <span className="admin-navdock-label">{section.title}</span>
+            <span className="admin-navdock-label">{section.id === "overview" ? "Inicio" : section.title}</span>
           </button>
         ))}
         <button

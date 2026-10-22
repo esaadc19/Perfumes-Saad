@@ -7,6 +7,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 
 - Tienda de perfumes (React 19 + TS + Vite 7 + Supabase, en Vercel). Flujo: catálogo → carrito → recibo → WhatsApp → confirmación manual. **Sin pago online, por decisión.**
 - Admin: dashboard, productos, promociones, pedidos, Cartera (fiado), clientes, gastos, asesores, perfiles, config. Botones CoreUI pill (`AdminButton`), `EmptyState`, tablas sticky.
+- **Dashboard movil (2026-10-22):** en <=900 px el inicio sigue la referencia: resumen 2x2, ingresos y pedidos recientes. El orden se hace con `.overview-flow` + `order`; escritorio conserva sus grupos y su orden. `MobileOverview.tsx` reutiliza `metrics` y `orders`; el gráfico mide su contenedor con `ResizeObserver` para no aplastar las etiquetas y el header del overview usa iconos compactos.
 - Merma de inventario (6 motivos + historial por presentación) y rentabilidad por producto ordenada por utilidad. **Ambos dependían de migraciones ya aplicadas.**
 - Pantalla **Cobrar**: quién debe, agrupado por cliente y no por pedido, un solo mensaje con el total.
 - Seguimiento de pedidos sin login: código de 8 caracteres + teléfono, link `?track=A1B2C3D4`.

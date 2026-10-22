@@ -77,6 +77,7 @@ import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
 import Metric from "./components/admin/Metric";
 import MetricGroup from "./components/admin/MetricGroup";
+import MobileOverview from "./components/admin/MobileOverview";
 import {
   PERIOD_PRESETS,
   customPeriod,
@@ -145,6 +146,7 @@ import {
   User,
   UserCheck,
   Users,
+  LogOut,
   X,
   CalendarDays,
   MessageCircle,
@@ -2415,6 +2417,7 @@ function Admin({
     currentExpensePage * EXPENSE_PAGE_SIZE
   );
   const pageTitle = visibleSections.find((item) => item.id === section)?.title ?? "Dashboard";
+  const canOpenOrders = visibleSections.some((item) => item.id === "transactions");
 
   // Una cuenta sin secciones asignadas no ve un panel vacio: ve un aviso
   // que le dice que hacer. Un panel en blanco parece un error de la app y
@@ -2497,7 +2500,7 @@ function Admin({
       </aside>
 
       <main className="admin-main">
-        <div className="admin-top">
+        <div className={`admin-top${section === "overview" ? " admin-top--overview" : ""}`}>
           <div>
             <p className="eyebrow">{storeSettings.store_name}</p>
             <h1>{pageTitle}</h1>
@@ -2559,17 +2562,30 @@ function Admin({
               </>
             )}
             {section === "transactions" && <AdminButton type="button" onClick={() => setOrderEditor({ order: null })}><Plus size={17}/> Nuevo pedido</AdminButton>}
-            <AdminButton tone="secondary" compact type="button" onClick={onSignOut}>Cerrar sesión</AdminButton>
+            <AdminButton
+              className="admin-utility-action"
+              tone="secondary"
+              compact
+              type="button"
+              onClick={onSignOut}
+              aria-label="Cerrar sesión"
+              title="Cerrar sesión"
+            >
+              <LogOut size={16} />
+              <span className="admin-utility-label">Cerrar sesión</span>
+            </AdminButton>
             {section !== "products" && (
               <AdminButton
+                className="admin-utility-action"
                 tone="secondary"
                 compact
                 type="button"
                 onClick={() => setSectionRevision((current) => current + 1)}
                 disabled={sectionLoading}
                 aria-label="Actualizar datos"
+                title="Actualizar datos"
               >
-                <RefreshCw size={16}/> Actualizar
+                <RefreshCw size={16}/> <span className="admin-utility-label">Actualizar</span>
               </AdminButton>
             )}
           </div>
@@ -2778,7 +2794,14 @@ function Admin({
         )}
 
         {section === "overview" && metrics && (
-          <>
+          <div className="overview-flow">
+            {/* Estructura movil: resumen, ingresos y pedidos recientes. En
+                escritorio este bloque no se muestra y el orden no cambia. */}
+            <MobileOverview
+              metrics={metrics}
+              orders={orders}
+              onOpenOrders={canOpenOrders ? () => setSection("transactions") : undefined}
+            />
             {/* El panel completo vive en la seccion Reportes. Acá quedan solo las
                 dos acciones rapidas, sin formulario de fechas: el dashboard
                 es para mirar, no para configurar. */}
@@ -3076,7 +3099,7 @@ function Admin({
                 </div>
               </div>
             </section>
-          </>
+          </div>
         )}
 
         {section === "collect" && (

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AdminOrder, AdminDashboardMetrics } from "../../services/admin";
 
 type PeriodDays = 7 | 30 | 90;
@@ -58,6 +58,23 @@ function dateFromKey(key: string) {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
+/** El grafico cambia de medidas en movil para que las etiquetas no se aplasten. */
+function useIsMobileChart() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 900px)");
+    const update = () => setIsMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
+
 function buildDailySales(orders: AdminOrder[], days: PeriodDays) {
   const todayKey = dateKey(new Date());
   const [year, month, day] = todayKey.split("-").map(Number);
@@ -99,14 +116,35 @@ export function SalesTrendChart({ orders }: { orders: AdminOrder[] }) {
   const [period, setPeriod] = useState<PeriodDays>(30);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const pointRefs = useRef<(SVGCircleElement | null)[]>([]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobileChart();
+  const [mobileWidth, setMobileWidth] = useState(340);
   const sales = buildDailySales(orders, period);
+  const totalRevenue = sales.days.reduce((sum, daySales) => sum + daySales.revenue, 0);
+  const averageRevenue = sales.days.length > 0 ? totalRevenue / sales.days.length : 0;
 
-  const width = 840;
-  const height = 300;
-  const left = 72;
-  const right = 22;
-  const top = 20;
-  const bottom = 238;
+  // El ancho real de la tarjeta define el viewBox en movil. Asi las fechas y
+  // los montos conservan su tamano en vez de encogerse con el SVG.
+  useEffect(() => {
+    if (!isMobile) return;
+    const element = scrollRef.current;
+    if (!element) return;
+
+    const update = () => setMobileWidth(Math.max(280, Math.floor(element.clientWidth)));
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [isMobile, sales.hasSales]);
+
+  const width = isMobile ? mobileWidth : 840;
+  const height = isMobile ? Math.min(250, Math.max(198, Math.round(width * 0.54))) : 300;
+  const left = isMobile ? (width < 440 ? 54 : 66) : 72;
+  const right = isMobile ? 10 : 22;
+  const top = isMobile ? 14 : 20;
+  const bottom = height - (isMobile ? 42 : 62);
   const plotWidth = width - left - right;
   const plotHeight = bottom - top;
   const maxRevenue = Math.max(...sales.days.map((daySales) => daySales.revenue), 0);
@@ -122,23 +160,25 @@ export function SalesTrendChart({ orders }: { orders: AdminOrder[] }) {
   const activePoint = activeIndex === null ? null : sales.days[activeIndex] ?? null;
   const activeX = activeIndex === null ? left : xFor(activeIndex);
   const activeY = activePoint ? yFor(activePoint.revenue) : top;
-  const tooltipWidth = 230;
-  const tooltipHeight = 112;
+  const tooltipWidth = isMobile ? Math.min(210, width - 20) : 230;
+  const tooltipHeight = isMobile ? 104 : 112;
   const tooltipX = Math.max(left, Math.min(activeX - tooltipWidth / 2, width - right - tooltipWidth));
   const tooltipY = activeY < top + 130
     ? Math.min(bottom - tooltipHeight, activeY + 16)
     : Math.max(top + 8, activeY - tooltipHeight - 16);
   const yTicks = [0, 1, 2, 3, 4];
+  const xTickCount = isMobile ? (width < 440 ? 3 : 4) : 5;
   const xTickIndexes = Array.from(new Set(
-    [0, Math.round((sales.days.length - 1) / 4), Math.round((sales.days.length - 1) / 2),
-      Math.round(((sales.days.length - 1) * 3) / 4), sales.days.length - 1]
+    Array.from({ length: xTickCount }, (_, index) =>
+      Math.round((index * (sales.days.length - 1)) / (xTickCount - 1))
+    )
   ));
 
   return (
     <section className="admin-card dashboard-chart-card" aria-labelledby="sales-chart-title">
       <div className="card-title">
         <div>
-          <h2 id="sales-chart-title">Ventas pagadas</h2>
+          <h2 id="sales-chart-title">Ingresos</h2>
           <span>Por fecha real de pago · hora de Colombia</span>
         </div>
         <div className="chart-period-switch" aria-label="Periodo del gráfico">
@@ -158,6 +198,16 @@ export function SalesTrendChart({ orders }: { orders: AdminOrder[] }) {
           ))}
         </div>
       </div>
+      <div className="chart-summary">
+        <div>
+          <span>Total vendido</span>
+          <strong>{money(totalRevenue)}</strong>
+        </div>
+        <div>
+          <span>Promedio diario</span>
+          <strong>{money(averageRevenue)}</strong>
+        </div>
+      </div>
       {!sales.hasSales ? (
         <p className="chart-empty-state">
           No hay ventas pagadas en los últimos {period} días para mostrar.
@@ -165,7 +215,7 @@ export function SalesTrendChart({ orders }: { orders: AdminOrder[] }) {
       ) : (
         <>
           <p className="chart-interaction-hint">Pasa el cursor o enfoca un punto para ver el detalle. En móvil, tócalo.</p>
-          <div className="sales-chart-scroll">
+          <div className="sales-chart-scroll" ref={scrollRef}>
             <svg
               className="sales-chart"
               viewBox={`0 0 ${width} ${height}`}
@@ -203,7 +253,7 @@ export function SalesTrendChart({ orders }: { orders: AdminOrder[] }) {
                     className={`sales-chart-point${activeIndex === index ? " is-active" : ""}`}
                     cx={xFor(index)}
                     cy={yFor(daySales.revenue)}
-                    r={activeIndex === index ? 7 : 5}
+                    r={activeIndex === index ? (isMobile ? 6 : 7) : (isMobile ? 3 : 5)}
                     tabIndex={0}
                     role="button"
                     aria-label={`${dateLabel}: ${money(daySales.revenue)}, ${daySales.orders} pedidos pagados, ${daySales.units} unidades`}

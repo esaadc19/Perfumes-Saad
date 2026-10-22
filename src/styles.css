@@ -3070,3 +3070,529 @@ footer a { color: #111; }
   padding: 8px 10px;
   border: 1px solid var(--border);
 }
+
+/* ============================================
+   DASHBOARD MOVIL
+   ============================================ */
+/* La referencia organiza el inicio en resumen, ingresos y pedidos. Esos dos
+   bloques nuevos solo se muestran en movil; el escritorio conserva sus grupos. */
+.mobile-summary,
+.mobile-orders,
+.chart-summary {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  /* El espacio de 62px era para una cabecera fija que ya no se renderiza.
+     El padding lateral se repite aqui porque la regla de escritorio aparece
+     despues de los primeros media queries y ganaba en la cascada. */
+  .admin-main {
+    padding: 16px 16px calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .admin-top {
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .admin-top .eyebrow {
+    margin-bottom: 5px;
+    font-size: 10px;
+    letter-spacing: .12em;
+  }
+  .admin-top h1 {
+    font: 700 clamp(27px, 7.2vw, 32px)/1.05 "DM Sans", sans-serif;
+    letter-spacing: -.03em;
+    color: var(--verde);
+  }
+
+  /* En el inicio movil la cabecera se parece a la referencia: titulo a la
+     izquierda y utilidades como iconos compactos a la derecha. */
+  .admin-top--overview {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .admin-top--overview > div:first-child {
+    min-width: 0;
+  }
+  .admin-top--overview .admin-actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    width: auto;
+    gap: 8px;
+  }
+  .admin-top--overview .admin-utility-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 42px;
+    width: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    padding: 0;
+    border-radius: 50%;
+  }
+  .admin-top--overview .admin-utility-label {
+    display: none;
+  }
+
+  .admin-card {
+    border-color: rgba(44, 36, 32, .07);
+    border-radius: 20px;
+    box-shadow: 0 6px 22px rgba(26, 46, 34, .035);
+  }
+  .admin-card .card-title h2 {
+    font: 700 17px/1.25 "DM Sans", sans-serif;
+    letter-spacing: -.01em;
+  }
+  .admin-card .card-title span {
+    font-size: 11.5px;
+  }
+  .metric-group {
+    border-color: rgba(44, 36, 32, .07);
+    border-radius: 20px;
+    box-shadow: 0 6px 22px rgba(26, 46, 34, .035);
+  }
+  .metric-group-head h3 {
+    font: 700 16px/1.25 "DM Sans", sans-serif;
+    letter-spacing: -.01em;
+  }
+  .alert-block {
+    border-radius: 18px;
+  }
+
+  /* El orden cambia solo en movil. En escritorio el flujo sigue siendo block. */
+  .overview-flow {
+    display: flex;
+    flex-direction: column;
+  }
+  .overview-flow > * { order: 20; }
+  .overview-flow > .mobile-summary { order: 1; }
+  .overview-flow > .dashboard-chart-card,
+  .overview-flow > .loading-state { order: 2; }
+  .overview-flow > .mobile-orders { order: 3; }
+  .overview-flow > .alert-block { order: 4; }
+  .overview-flow > .metrics-period { order: 5; }
+  .overview-flow > .metric-groups { order: 6; }
+  .overview-flow > .metric-group { order: 7; }
+  .overview-flow > .top-products-chart-card { order: 8; }
+  .overview-flow > .profitability-toggle { order: 9; }
+  .overview-flow > .profitability-card { order: 10; }
+  .overview-flow > .insight-grid { order: 11; }
+  .overview-flow > .report-actions { order: 12; }
+  .overview-flow > .report-result { order: 13; }
+  .overview-flow > .form-error { order: 14; }
+
+  .mobile-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .mobile-summary-card {
+    --summary-bg: #f4f1eb;
+    --summary-ink: #6f6250;
+    --summary-border: rgba(44, 36, 32, .04);
+    display: grid;
+    align-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    min-height: 92px;
+    padding: 14px;
+    border: 1px solid var(--summary-border);
+    border-radius: 18px;
+    background: var(--summary-bg);
+  }
+  .mobile-summary-card--sales {
+    --summary-bg: #edf3ee;
+    --summary-ink: #2f5b42;
+    --summary-border: #e1ebe3;
+  }
+  .mobile-summary-card--profit {
+    --summary-bg: #f7efe9;
+    --summary-ink: #8a5a44;
+    --summary-border: #efe2d9;
+  }
+  .mobile-summary-card--orders {
+    --summary-bg: #eef1f5;
+    --summary-ink: #4d6077;
+    --summary-border: #e3e8ee;
+  }
+  .mobile-summary-card--customers {
+    --summary-bg: #f4f0e7;
+    --summary-ink: #7a6648;
+    --summary-border: #ece5d8;
+  }
+  .mobile-summary-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    color: var(--summary-ink);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.25;
+  }
+  .mobile-summary-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+  }
+  .mobile-summary-value {
+    min-width: 0;
+    color: var(--black);
+    font-size: clamp(16px, 5.2vw, 23px);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -.035em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .mobile-orders {
+    display: block;
+    margin-bottom: 14px;
+    padding: 16px;
+    border: 1px solid rgba(44, 36, 32, .07);
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 6px 22px rgba(26, 46, 34, .035);
+  }
+  .mobile-orders-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .mobile-orders-head > div {
+    min-width: 0;
+  }
+  .mobile-orders-head h2 {
+    margin: 0;
+    color: var(--black);
+    font: 700 17px/1.25 "DM Sans", sans-serif;
+    letter-spacing: -.01em;
+  }
+  .mobile-orders-head span {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+  .mobile-orders-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    color: var(--verde);
+    font: 600 11px "DM Sans", sans-serif;
+    white-space: nowrap;
+  }
+  .mobile-orders-link:focus-visible {
+    outline: 2px solid var(--verde);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  .mobile-orders-list {
+    display: grid;
+  }
+  .mobile-order {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    padding: 12px 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+  }
+  button.mobile-order {
+    cursor: pointer;
+  }
+  button.mobile-order:active {
+    background: #faf8f5;
+  }
+  button.mobile-order:focus-visible {
+    outline: 2px solid var(--verde);
+    outline-offset: -2px;
+  }
+  .mobile-order:last-child {
+    padding-bottom: 2px;
+  }
+  .mobile-order-avatar {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #edf3ee;
+    color: #2f5b42;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .01em;
+  }
+  .mobile-order:nth-child(4n + 2) .mobile-order-avatar {
+    background: #f7efe9;
+    color: #8a5a44;
+  }
+  .mobile-order:nth-child(4n + 3) .mobile-order-avatar {
+    background: #eef1f5;
+    color: #4d6077;
+  }
+  .mobile-order:nth-child(4n + 4) .mobile-order-avatar {
+    background: #f4f0e7;
+    color: #7a6648;
+  }
+  .mobile-order-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .mobile-order-name {
+    overflow: hidden;
+    color: var(--black);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mobile-order-meta {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 10.5px;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mobile-order-side {
+    display: grid;
+    justify-items: end;
+    gap: 4px;
+  }
+  .mobile-order-amount {
+    color: var(--black);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .mobile-order-badge {
+    padding: 3px 7px;
+    border-radius: 999px;
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .mobile-order-badge--paid {
+    background: #e7f3e9;
+    color: #2f6a3f;
+  }
+  .mobile-order-badge--pending {
+    background: #f8efdf;
+    color: #8a641c;
+  }
+  .mobile-order-badge--new {
+    background: #e9eef7;
+    color: #3f5f91;
+  }
+  .mobile-order-badge--credit {
+    background: #eef1f5;
+    color: #4d6077;
+  }
+  .mobile-order-badge--cancelled {
+    background: #f6e7e3;
+    color: #9a4a38;
+  }
+  .mobile-orders-empty {
+    margin: 12px 0 2px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  /* La tarjeta de ingresos toma la estructura de la referencia: periodo
+     arriba a la derecha, dos cifras y el grafico debajo. */
+  .dashboard-chart-card {
+    padding: 18px 16px;
+  }
+  .dashboard-chart-card .card-title {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .dashboard-chart-card .card-title > div {
+    min-width: 0;
+  }
+  .dashboard-chart-card .card-title span {
+    display: none;
+  }
+  .dashboard-chart-card .chart-period-switch {
+    flex: 0 0 auto;
+    gap: 2px;
+    padding: 3px;
+  }
+  .dashboard-chart-card .chart-period-switch button {
+    min-height: 30px;
+    padding: 0 8px;
+    font-size: 10px;
+  }
+  .chart-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 0 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .chart-summary > div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .chart-summary span {
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .chart-summary strong {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--black);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -.02em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .chart-interaction-hint {
+    display: none;
+  }
+  .sales-chart-scroll {
+    overflow: hidden;
+    margin: 0;
+  }
+  .sales-chart {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .overview-flow .metrics-period {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .overview-flow .metrics-period-label {
+    font-size: 10px;
+  }
+  .overview-flow .metrics-period .chart-period-switch {
+    display: flex;
+    width: 100%;
+  }
+  .overview-flow .metrics-period .chart-period-switch button {
+    flex: 1 1 0;
+    min-height: 34px;
+    padding: 0 6px;
+    font-size: 10.5px;
+  }
+
+  /* Las acciones de reportes quedan al final del inicio movil, apiladas. */
+  .overview-flow > .report-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    justify-content: stretch;
+    gap: 8px;
+  }
+  .overview-flow > .report-actions .admin-button {
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* Un fondo suave detras del icono activo hace mas clara la seccion actual. */
+  .admin-navdock {
+    padding-top: 7px;
+    border-top-color: rgba(44, 36, 32, .07);
+    box-shadow: 0 -8px 26px rgba(26, 46, 34, .08);
+  }
+  .admin-navdock-item {
+    gap: 2px;
+  }
+  .admin-navdock-icon {
+    min-width: 42px;
+    height: 24px;
+    border-radius: 999px;
+    transition: background-color .16s ease;
+  }
+  .admin-navdock-item.is-active .admin-navdock-icon {
+    background: #eaf1ec;
+  }
+  .admin-navdock-label {
+    font-size: 9.5px;
+    letter-spacing: .01em;
+  }
+}
+
+@media (min-width: 720px) and (max-width: 900px) {
+  .mobile-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 380px) {
+  .admin-main {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+  .mobile-summary {
+    gap: 8px;
+  }
+  .mobile-summary-card {
+    min-height: 88px;
+    padding: 12px;
+  }
+  .mobile-summary-label {
+    gap: 6px;
+    font-size: 10px;
+  }
+  .mobile-summary-value {
+    font-size: 17px;
+  }
+  .mobile-order {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .mobile-order-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 11px;
+  }
+  .mobile-order-amount {
+    font-size: 11px;
+  }
+  .mobile-order-badge {
+    padding: 3px 6px;
+    font-size: 9px;
+  }
+}
