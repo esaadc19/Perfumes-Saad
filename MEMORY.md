@@ -70,6 +70,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - Sin tipos generados de Supabase, los embeds a-uno llegan como array: normalizar con `one()`.
 - `grid-template-columns` con `auto` al final desalinea cabeceras y datos; las celdas necesitan `min-width: 0`.
 - Al verificar CSS, **medir con el marcado real del componente**, no con HTML inventado.
+- **`.metric span` alcanzaba el span interno de `CountUp`** y dejaba los valores del dashboard en 10-11 px aunque el `<strong>` dijera 28. La etiqueta ahora es `.metric-label`; el valor usa `container-type: inline-size` + `clamp(15px, 11cqi, 32px)` y los grupos van de una tarjeta por fila para que el monto quepa.
 - **No editar `App.tsx` por líneas desde PowerShell:** se dañó dos veces. Usar el editor.
 - Mojibake en la consola **no** es un archivo roto: verificar bytes antes de "arreglar".
 - `npm run dev` levanta las dos apps en 5173 y 5174 con `strictPort`: fallan en vez de corresse y romper el proxy que expone `/crm`.

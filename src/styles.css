@@ -401,7 +401,9 @@ footer a { color: #111; }
 .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
 .metric {
   background: white; border: 1px solid var(--border); border-radius: 12px;
-  padding: 20px; display: grid; grid-template-columns: 36px 1fr; align-items: center; column-gap: 12px;
+  padding: 20px; display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; column-gap: 12px;
+  /* El ancho de la tarjeta define el tamano del valor (ver .metric strong). */
+  container-type: inline-size;
   transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
 .metric-icon {
@@ -409,12 +411,20 @@ footer a { color: #111; }
   background: var(--marfil); color: var(--cuero); display: grid; place-items: center;
 }
 .metric-icon.warning { background: #f7e9e1; color: #a05b3e; }
-.metric span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+/* La etiqueta lleva su propia clase: `.metric span` tambien alcanzaba al span
+   interno de CountUp y dejaba el valor en 10-11 px. */
+.metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
 /* `normal` y no `anywhere`: este ultimo permite partir "1.510.000" por
    cualquier caracter y lo deja como "1.510.00" + "0" al final de la
    linea. Un monto nunca debe partirse por la mitad. */
-/* Valores del dashboard un poco mas grandes para que se lean rapido. */
-.metric strong { font-size: 28px; line-height: 1.2; overflow-wrap: normal; font-weight: 600; }
+/* El valor se mide contra el ancho de la tarjeta: crece en las anchas y no se
+   sale en las angostas. El 28px es el respaldo para navegadores sin cqi. */
+.metric strong {
+  font-size: 28px;
+  font-size: clamp(15px, 11cqi, 32px);
+  line-height: 1.1; overflow-wrap: normal; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
 .dashboard-chart-card { overflow: hidden; }
 /* Jerarquía del dashboard: el selector de periodo usa el verde de marca
    como el resto del admin, en vez de un gris genérico. */
@@ -716,7 +726,9 @@ footer a { color: #111; }
 .variant-cost-list small { color: var(--muted); font-size: 10px; }
 .transaction-filters { display: flex; gap: 8px; margin: -2px 0 20px; overflow-x: auto; }
 .transaction-filters .admin-button { flex: 0 0 auto; }
-.transaction-metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 8px; }
+/* Auto-fit y no 5 columnas fijas: en pantallas medianas las tarjetas
+   quedaban a ~120px y el monto no cabia. */
+.transaction-metrics { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-top: 8px; }
 .admin-customer-modal { width: min(100%, 520px); }
 .admin-customer-modal .auth-label { display: grid; gap: 7px; margin-bottom: 12px; }
 .admin-customer-modal .auth-label input { width: 100%; }
@@ -762,7 +774,7 @@ footer a { color: #111; }
   background: var(--verde); border-color: var(--verde); color: #fff;
 }
 .metric.is-emphasis .metric-icon { background: rgba(255,255,255,.14); color: #fff; }
-.metric.is-emphasis span { color: rgba(255,255,255,.72); }
+.metric.is-emphasis .metric-label { color: rgba(255,255,255,.72); }
 .metric.is-emphasis .metric-note { color: rgba(255,255,255,.7); }
 .metric.is-emphasis:hover { box-shadow: 0 8px 22px rgba(26,46,34,.24); }
 
@@ -821,10 +833,9 @@ footer a { color: #111; }
 .metric-group-head p { margin: 0; font-size: 11px; color: var(--muted); line-height: 1.5; }
 /* Dentro de un grupo las tarjetas son mas compactas: ya hay un titulo
    que las enmarca y no necesitan el aire de la version suelta. */
-/* Dos columnas fijas: predecibles y siempre en pares legibles. Un
-   `auto-fit` con minmax bajo estiraba las tarjetas de mas en pantallas
-   anchas y dejaba una huerfana en la ultima fila. */
-.metric-group .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 0; }
+/* Una tarjeta por fila: el valor necesita el ancho del grupo para no volver
+   a encogerse. En pantallas angostas se recuperan las dos columnas. */
+.metric-group .metrics { grid-template-columns: minmax(0, 1fr); gap: 10px; margin-bottom: 0; }
 /* grid-auto-rows: 1fr iguala la altura de TODAS las filas del grupo a la mas
    alta. Sin esto cada fila crece segun si sus tarjetas traen nota o delta y
    el grupo acaba con cajas de 72px al lado de otras de 116px. */
@@ -839,7 +850,7 @@ footer a { color: #111; }
 @media (max-width: 900px) {
   .metric-group--wide .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-.metric-group .metric { grid-template-columns: 28px 1fr; gap: 10px; padding: 13px; border-radius: 10px; }
+.metric-group .metric { grid-template-columns: 28px minmax(0, 1fr); gap: 10px; padding: 13px; border-radius: 10px; }
 /* align-items: start alinea cada celda arriba de su fila; align-content
    start evita que las filas se estiren para llenar el sobrante. Sin esto,
    una tarjeta de 2 filas reparte el espacio vacio de otra manera que una
@@ -854,9 +865,17 @@ footer a { color: #111; }
 .metric-group .metrics { align-content: stretch; row-gap: 10px; }
 .metric-group:not(.metric-group--wide) .metrics { grid-auto-rows: max-content; }
 .metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; align-self: center; }
-.metric-group .metric strong { font-size: 28px; white-space: nowrap; }
-/* Los grupos del dashboard muestran el valor del mismo tamano que las tarjetas sueltas (28 px). */
-.metric-group .metric span { font-size: 10px; line-height: 1.35; }
+.metric-group .metric strong {
+  font-size: 28px;
+  font-size: clamp(15px, 11cqi, 32px);
+  white-space: nowrap;
+}
+.metric-group .metric-label { font-size: 10px; line-height: 1.35; }
+@media (max-width: 900px) {
+  /* Con el grupo a todo el ancho, dos tarjetas por fila mantienen el panel
+     compacto sin encoger el valor. */
+  .metric-group:not(.metric-group--wide) .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .alert-list { display: grid; }
 .alert-link { display: flex; justify-content: space-between; gap: 14px; align-items: center; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--black); text-align: left; }
 .alert-link:hover span { text-decoration: underline; }
@@ -1817,19 +1836,17 @@ footer a { color: #111; }
   .metric { grid-template-columns: 28px minmax(0, 1fr); gap: 7px; padding: 12px 9px; }
   .metric-icon { width: 28px; height: 28px; }
   .metric-icon svg { width: 16px; height: 16px; }
-  .metric span { font-size: 10px; line-height: 1.35; }
-  .metric strong { font-size: 15px; }
+  .metric-label { font-size: 10px; line-height: 1.35; }
 
   /* --- Dashboard en movil --- */
-  /* En una tarjeta de ~154px el monto de 17px con nowrap no cabia y se
-     salia de la caja. Sin nowrap, "$ 1.630.000" baja a 13px y entra. */
+  /* El valor no lleva tamano fijo: lo calcula la container query de .metric
+     segun el ancho de cada tarjeta. */
   .metric-group { padding: 16px 13px; }
   .metric-group .metrics { gap: 8px; }
   .metric-group .metric { padding: 11px 8px; gap: 8px; grid-template-columns: 24px minmax(0, 1fr); }
   .metric-group .metric-icon { width: 24px; height: 24px; border-radius: 7px; }
   .metric-group .metric-icon svg { width: 14px; height: 14px; }
-  .metric-group .metric strong { font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
-  .metric-group .metric span { font-size: 9.5px; }
+  .metric-group .metric-label { font-size: 9.5px; }
   .metric-group .metric-note { font-size: 9.5px; line-height: 1.35; }
   .metric-group-head { padding-bottom: 11px; margin-bottom: 12px; gap: 9px; }
   .metric-group-icon { width: 28px; height: 28px; border-radius: 8px; }
@@ -2023,7 +2040,7 @@ footer a { color: #111; }
      seguian en 2 columnas a ~90px de ancho, con el monto partido. */
   .metric-group .metrics,
   .metric-group--wide .metrics { grid-template-columns: minmax(0, 1fr); }
-  .metric-group .metric strong { font-size: 16px; }
+
   .credit-summary { grid-template-columns: minmax(0, 1fr); }
 }
 

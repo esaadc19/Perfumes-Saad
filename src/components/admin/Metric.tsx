@@ -38,7 +38,7 @@ export default function Metric({
   const content = (
     <>
       <span className={warning ? "metric-icon warning" : "metric-icon"}>{icon}</span>
-      <span>{title}</span>
+      <span className="metric-label">{title}</span>
       <strong>{numericValue === undefined ? value : <CountUp value={numericValue} format={format} />}</strong>
       {delta && (
         <Delta current={delta.current} previous={delta.previous} format={deltaFormat} />
