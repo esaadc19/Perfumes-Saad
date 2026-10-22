@@ -1285,6 +1285,7 @@ function App() {
         <AccountDialog
           user={user}
           isAdmin={isStaff}
+          canOpenCrm={allowedSections === null || allowedSections.includes("crm")}
           onClose={() => setShowAccount(false)}
           onOpenAdmin={() => {
             setShowAccount(false);

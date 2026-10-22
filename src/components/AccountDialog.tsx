@@ -7,12 +7,15 @@ import AddressInput from "./AddressInput";
 export default function AccountDialog({
   user,
   isAdmin,
+  canOpenCrm,
   onClose,
   onOpenAdmin,
   onSignOut,
 }: {
   user: User;
   isAdmin: boolean;
+  /** La cuenta tiene permiso de seccion para el CRM. */
+  canOpenCrm: boolean;
   onClose: () => void;
   onOpenAdmin: () => void;
   onSignOut: () => Promise<void>;
@@ -99,12 +102,19 @@ export default function AccountDialog({
             <button className="secondary full" onClick={onOpenAdmin}>
               Abrir panel de administración
             </button>
-            {/* El CRM es interno de la tienda: solo el personal (admin y asesor)
+            {/* El CRM es interno de la tienda: solo el personal (admin o asesor)
                 ve el enlace. A los clientes este diálogo no les muestra nada
-                suyo; además el CRM rechaza su sesión en la puerta. */}
-            <a className="secondary full" href="/crm/" target="_blank" rel="noopener noreferrer">
-              Abrir el CRM
-            </a>
+                suyo; además el CRM rechaza su sesión en la puerta.
+
+                Y el permiso de la sección "crm" manda lo mismo que en el
+                panel: si a esta cuenta no le dieron acceso al CRM, tampoco
+                se lo ofrece por acá. Un permiso que se respeta en un lado
+                y se ignora en el otro no es un permiso. */}
+            {canOpenCrm && (
+              <a className="secondary full" href="/crm/" target="_blank" rel="noopener noreferrer">
+                Abrir el CRM
+              </a>
+            )}
           </>
         )}
         <button className="secondary full" onClick={() => void onSignOut()}>
