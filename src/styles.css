@@ -413,7 +413,8 @@ footer a { color: #111; }
 /* `normal` y no `anywhere`: este ultimo permite partir "1.510.000" por
    cualquier caracter y lo deja como "1.510.00" + "0" al final de la
    linea. Un monto nunca debe partirse por la mitad. */
-.metric strong { font-size: clamp(17px, 2vw, 26px); line-height: 1.2; overflow-wrap: normal; font-weight: 600; }
+/* Valores del dashboard de nuevo en 25 px, como antes (sin clamp). */
+.metric strong { font-size: 25px; line-height: 1.2; overflow-wrap: normal; font-weight: 600; }
 .dashboard-chart-card { overflow: hidden; }
 /* Jerarquía del dashboard: el selector de periodo usa el verde de marca
    como el resto del admin, en vez de un gris genérico. */
