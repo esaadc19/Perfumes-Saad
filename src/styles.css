@@ -413,8 +413,8 @@ footer a { color: #111; }
 /* `normal` y no `anywhere`: este ultimo permite partir "1.510.000" por
    cualquier caracter y lo deja como "1.510.00" + "0" al final de la
    linea. Un monto nunca debe partirse por la mitad. */
-/* Valores del dashboard de nuevo en 25 px, como antes (sin clamp). */
-.metric strong { font-size: 25px; line-height: 1.2; overflow-wrap: normal; font-weight: 600; }
+/* Valores del dashboard un poco mas grandes para que se lean rapido. */
+.metric strong { font-size: 28px; line-height: 1.2; overflow-wrap: normal; font-weight: 600; }
 .dashboard-chart-card { overflow: hidden; }
 /* Jerarquía del dashboard: el selector de periodo usa el verde de marca
    como el resto del admin, en vez de un gris genérico. */
@@ -854,8 +854,8 @@ footer a { color: #111; }
 .metric-group .metrics { align-content: stretch; row-gap: 10px; }
 .metric-group:not(.metric-group--wide) .metrics { grid-auto-rows: max-content; }
 .metric-group .metric-icon { width: 28px; height: 28px; border-radius: 8px; align-self: center; }
-.metric-group .metric strong { font-size: 25px; white-space: nowrap; }
-/* Los grupos del dashboard muestran el valor del mismo tamano que las tarjetas sueltas (25 px). */
+.metric-group .metric strong { font-size: 28px; white-space: nowrap; }
+/* Los grupos del dashboard muestran el valor del mismo tamano que las tarjetas sueltas (28 px). */
 .metric-group .metric span { font-size: 10px; line-height: 1.35; }
 .alert-list { display: grid; }
 .alert-link { display: flex; justify-content: space-between; gap: 14px; align-items: center; width: 100%; padding: 12px 0; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: var(--black); text-align: left; }
