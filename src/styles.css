@@ -3608,7 +3608,7 @@ footer a { color: #111; }
   letter-spacing: .06em;
   text-transform: uppercase;
 }
-.product-filter-select > span {
+.admin-card .card-title .product-filter-select > span {
   margin: 0;
   color: var(--muted);
   font-size: 9px;
@@ -3739,7 +3739,7 @@ footer a { color: #111; }
   cursor: pointer;
 }
 .product-price-filter-actions button:disabled { color: #c9beb4; cursor: default; }
-.product-price-filter-actions span {
+.admin-card .card-title .product-price-filter-actions span {
   display: inline;
   margin: 0;
   color: var(--muted);
@@ -3770,7 +3770,10 @@ footer a { color: #111; }
 
 @media (max-width: 520px) {
   .product-filter-select,
-  .product-price-filter { width: 100%; }
+  .product-price-filter {
+    width: 100%;
+    flex: 0 0 auto;
+  }
   .product-price-filter summary { width: 100%; }
   .product-price-filter-panel {
     position: static;
