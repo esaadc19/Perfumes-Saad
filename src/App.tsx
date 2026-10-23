@@ -3863,7 +3863,7 @@ function Admin({
           </Suspense>
         )}
       </main>
-      {dashboardDetail && (
+      {dashboardDetail && dashboardDetail !== "profitability" && (
         <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setDashboardDetail(null); }}>
           <section className="admin-card dashboard-detail-modal" role="dialog" aria-modal="true" aria-labelledby="dashboard-detail-title">
             <button className="close" type="button" onClick={() => setDashboardDetail(null)} aria-label="Cerrar"><X /></button>
