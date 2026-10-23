@@ -9,6 +9,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 - Admin: dashboard, productos, promociones, pedidos, Cartera (fiado), clientes, gastos, asesores, perfiles, config. Botones CoreUI pill (`AdminButton`), `EmptyState`, tablas sticky.
 - **Dashboard movil (2026-10-22):** en <=900 px el inicio sigue la referencia: resumen 2x2, ingresos y pedidos recientes. El orden se hace con `.overview-flow` + `order`; escritorio conserva sus grupos y su orden. `MobileOverview.tsx` reutiliza `metrics` y `orders`; el gráfico mide su contenedor con `ResizeObserver` para no aplastar las etiquetas y el header del overview usa iconos compactos.
 - **HTML sin caché (2026-10-23):** `vercel.json` sirve `/`, `/index.html` y las entradas del CRM con `no-store`; los assets con hash siguen cacheables. Así el móvil no se queda con un HTML viejo tras un despliegue.
+- **SKU de producto (2026-10-23):** `products.sku` es opcional y único (índice sobre `upper(sku)`). Se edita en alta/edición, se muestra y se busca en Productos, y se importa con la columna `sku`. Es del producto, no de la presentación: todas las filas de un producto repiten el mismo SKU. Migración `20261023150240_add_product_sku.sql`; mantener sincronizados `schema.sql`, `admin_create_product` y `admin_update_product`.
 - Merma de inventario (6 motivos + historial por presentación) y rentabilidad por producto ordenada por utilidad. **Ambos dependían de migraciones ya aplicadas.**
 - Pantalla **Cobrar**: quién debe, agrupado por cliente y no por pedido, un solo mensaje con el total.
 - Seguimiento de pedidos sin login: código de 8 caracteres + teléfono, link `?track=A1B2C3D4`.
@@ -61,6 +62,7 @@ Las reglas permanentes de UI viven en `.agents/ux-experience.agents.md`, no aqu�
 ## Errores que ya me costaron tiempo
 
 - **Una función SQL sin migración no existe en la base.** `admin_record_credit_payment` vivía solo en `schema.sql` y los abonos no descontaban saldo. Si una RPC importa, tiene su migración.
+- **Recrear una RPC `admin_*` desde `schema.sql` borra el guard por sección.** `schema.sql` todavía usa `is_admin`; después de recrearla, restaurar `admin_require_section('products')` (migración `20261023151907`).
 - **Para saber si una RPC existe:** `rest/v1/rpc/<fn>` con los nombres de parámetro exactos. **401 = existe** (solo no permitido; es lo esperado con la anon key). **404 = no existe *o* la firma está mal**, así que no concluyas que falta la migración antes de revisar los parámetros. Me pasó con `get_variant_movements`: daba 404 y el parámetro era `target_variant_id`, no `p_variant_id`.
 - **Un comentario CSS sin cerrar se come reglas.** Compila, no tira error y la regla desaparece. La única señal es visual.
 - **`.admin-dock` ya existe** y es el contenedor del sidebar. La navegación móvil es `.admin-navdock`.

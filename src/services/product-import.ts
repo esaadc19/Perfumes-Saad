@@ -14,6 +14,7 @@ export type ImportedCustomer = {
 const aliases: Record<string, string[]> = {
   brand: ["brand", "marca"],
   name: ["name", "nombre", "producto"],
+  sku: ["sku", "codigo_sku", "referencia"],
   gender: ["gender", "genero"],
   category: ["category", "categoria"],
   description: ["description", "descripcion"],
@@ -161,12 +162,15 @@ function parseRows(rows: unknown[][]): ImportedProduct[] {
 
   const get = (row: unknown[], field: string) => cellText(row[columns.get(field) ?? -1]);
   const products = new Map<string, ImportedProduct>();
+  const skuOwners = new Map<string, string>();
   dataRows.forEach((row, rowIndex) => {
     if (!row.some((value) => cellText(value))) return;
     const rowNumber = rowIndex + 2;
     const brand = get(row, "brand");
     const name = get(row, "name");
     if (!brand || !name) throw new Error(`Fila ${rowNumber}: marca y nombre son obligatorios.`);
+    const sku = get(row, "sku");
+    if (sku.length > 64) throw new Error(`Fila ${rowNumber}: el SKU debe tener máximo 64 caracteres.`);
     const gender = productGender(get(row, "gender"), rowNumber);
     const category = enumValue(get(row, "category"), ["Diseñador", "Árabes", "Nicho"] as const, "categoría", rowNumber);
     const size = numericCell(get(row, "size_ml"), "tamaño en ml", rowNumber);
@@ -193,6 +197,14 @@ function parseRows(rows: unknown[][]): ImportedProduct[] {
     }
 
     const productKey = `${brand.trim().toLowerCase()}|${name.trim().toLowerCase()}`;
+    const normalizedSku = sku.toUpperCase();
+    if (normalizedSku) {
+      const skuOwner = skuOwners.get(normalizedSku);
+      if (skuOwner && skuOwner !== productKey) {
+        throw new Error(`Fila ${rowNumber}: el SKU “${sku}” ya está asignado a otro producto del archivo.`);
+      }
+      skuOwners.set(normalizedSku, productKey);
+    }
     const description = get(row, "description");
     const family = get(row, "family");
     const existing = products.get(productKey);
@@ -203,6 +215,11 @@ function parseRows(rows: unknown[][]): ImportedProduct[] {
       ) {
         throw new Error(`Fila ${rowNumber}: género y categoría deben coincidir entre las presentaciones del producto.`);
       }
+      const existingSku = existing.product.sku?.trim() ?? "";
+      if (sku && existingSku && existingSku.toUpperCase() !== normalizedSku) {
+        throw new Error(`Fila ${rowNumber}: el SKU debe ser el mismo en todas las presentaciones del producto.`);
+      }
+      if (!existingSku && sku) existing.product.sku = sku;
       if (description && existing.product.description && existing.product.description !== description) {
         throw new Error(`Fila ${rowNumber}: las descripciones del producto no coinciden.`);
       }
@@ -229,6 +246,7 @@ function parseRows(rows: unknown[][]): ImportedProduct[] {
     const product: NewProductInput = {
       brand: brand.trim(),
       name: name.trim(),
+      sku: sku || null,
       gender,
       category,
       description,

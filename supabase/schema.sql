@@ -37,6 +37,7 @@ create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
   brand text not null,
   name text not null,
+  sku text,
   gender text not null check (gender in ('Hombres','Mujeres','Unisex')),
   category text not null,
   description text,
@@ -58,6 +59,27 @@ alter table public.products
   add column if not exists promotion_id uuid references public.promotions(id) on delete set null;
 alter table public.products
   add column if not exists archived boolean not null default false;
+alter table public.products
+  add column if not exists sku text;
+
+alter table public.products
+  drop constraint if exists products_sku_format_check;
+alter table public.products
+  add constraint products_sku_format_check
+  check (
+    sku is null
+    or (
+      sku = btrim(sku)
+      and char_length(sku) between 1 and 64
+    )
+  );
+
+create unique index if not exists products_sku_unique_idx
+  on public.products (upper(sku))
+  where sku is not null;
+
+comment on column public.products.sku is
+  'Codigo interno unico del producto (opcional). Se compara sin distinguir mayusculas/minusculas.';
 
 create table if not exists public.product_variants (
   id uuid primary key default gen_random_uuid(),
@@ -1447,11 +1469,12 @@ begin
   end if;
 
   insert into public.products (
-    brand, name, gender, category, description, family, climate, image_url, image_urls, promotion_id, active
+    brand, name, sku, gender, category, description, family, climate, image_url, image_urls, promotion_id, active
   )
   values (
     trim(product_data->>'brand'),
     trim(product_data->>'name'),
+    nullif(btrim(product_data->>'sku'), ''),
     product_data->>'gender',
     product_data->>'category',
     nullif(product_data->>'description', ''),
@@ -1559,6 +1582,10 @@ begin
   update public.products
   set brand = trim(product_data->>'brand'),
       name = trim(product_data->>'name'),
+      sku = case
+        when product_data ? 'sku' then nullif(btrim(product_data->>'sku'), '')
+        else sku
+      end,
       gender = product_data->>'gender',
       category = product_data->>'category',
       description = nullif(product_data->>'description', ''),

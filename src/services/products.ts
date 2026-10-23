@@ -20,6 +20,7 @@ export interface Product {
   id: string;
   brand: string;
   name: string;
+  sku?: string | null;
   gender: "Mujeres" | "Hombres" | "Unisex";
   category: "Diseñador" | "Árabes" | "Nicho";
   description: string;
@@ -39,6 +40,7 @@ const productSelect = `
   id,
   brand,
   name,
+  sku,
   gender,
   category,
   description,
@@ -71,6 +73,7 @@ function mapProducts(data: any[], includeInactiveVariants = false): Product[] {
     id: product.id,
     brand: product.brand,
     name: product.name,
+    sku: product.sku ? String(product.sku) : null,
     gender: product.gender,
     category: product.category,
     description: product.description ?? "",
@@ -151,6 +154,7 @@ export async function getAdminProducts(): Promise<Product[]> {
 export interface NewProductInput {
   brand: string;
   name: string;
+  sku?: string | null;
   gender: Product["gender"];
   category: Product["category"];
   description: string;
@@ -204,6 +208,7 @@ export async function createProduct(
     const { error } = await supabase.rpc("admin_create_product", {
       product_data: {
         ...product,
+        sku: product.sku?.trim() || null,
         image_url: imageUrls[0] ?? product.image_url,
         image_urls: imageUrls,
         promotion_id: product.promotion_id?.trim() || null,
@@ -234,6 +239,9 @@ export async function createProduct(
       throw new Error(
         "No tienes permisos de administrador para importar productos. Cierra sesión y vuelve a entrar con una cuenta administradora."
       );
+    }
+    if (errorCode === "23505") {
+      throw new Error("Ya existe un producto con ese SKU. Usa un código diferente.");
     }
     throw error;
   }
@@ -314,6 +322,7 @@ export async function updateAdminProduct(input: {
       product_data: {
         brand: input.product.brand,
         name: input.product.name,
+        sku: input.product.sku?.trim() || null,
         gender: input.product.gender,
         category: input.product.category,
         description: input.product.description,
@@ -344,6 +353,9 @@ export async function updateAdminProduct(input: {
       if (cleanupError) console.error("No se pudieron limpiar las imágenes subidas:", cleanupError);
     }
     console.error("No se pudo actualizar el producto:", error);
+    if (getSupabaseErrorCode(error) === "23505") {
+      throw new Error("Ya existe un producto con ese SKU. Usa un código diferente.");
+    }
     throw error;
   }
 }

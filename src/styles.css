@@ -668,6 +668,7 @@ footer a { color: #111; }
 .product-category-cell { display: grid; gap: 4px; }
 .product-category-cell small { color: #71492c; font-size: 10px; }
 .product-cell span { color: var(--muted); }
+.product-cell .product-sku { color: #71492c; font-size: 10px; font-weight: 600; letter-spacing: .04em; }
 .status { border: 0; width: max-content; padding: 7px 10px; display: inline-flex; gap: 5px; align-items: center; font-size: 11px; }
 .status.available { background: #edf6ee; color: #3d7444; }
 .status.sold { background: #f4eeee; color: #8c4a4a; }

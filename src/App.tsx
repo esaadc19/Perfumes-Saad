@@ -1564,7 +1564,7 @@ function Admin({
   const archivedProductsCount = products.filter((product) => product.archived).length;
   const visibleProducts = products.filter((product) =>
     Boolean(product.archived) === showArchivedProducts &&
-    `${product.brand} ${product.name}`.toLowerCase().includes(productSearch.toLowerCase()) &&
+    `${product.brand} ${product.name} ${product.sku ?? ""}`.toLowerCase().includes(productSearch.toLowerCase()) &&
     (showArchivedProducts || productStockFilter === "all" ||
       (productStockFilter === "available"
         ? product.variants.some((variant) => variant.stock > 0)
@@ -3411,7 +3411,7 @@ function Admin({
           <div className="card-title">
             <div>
               <h2>{showArchivedProducts ? "Productos archivados" : "Productos"}</h2>
-              <span>Gestiona disponibilidad, costos y stock. Para importar, usa una fila por presentación y repite marca y nombre para agrupar variantes.</span>
+              <span>Gestiona disponibilidad, costos y stock. Para importar, usa una fila por presentación y repite marca, nombre y SKU del producto para agrupar variantes.</span>
             </div>
             <div className="product-list-tools">
               <button
@@ -3444,8 +3444,8 @@ function Admin({
               <label className="admin-search">
                 <Search size={16} />
                 <input
-                  aria-label={showArchivedProducts ? "Buscar productos archivados" : "Buscar productos"}
-                  placeholder="Buscar productos"
+                  aria-label={showArchivedProducts ? "Buscar productos archivados por marca, nombre o SKU" : "Buscar productos por marca, nombre o SKU"}
+                  placeholder="Buscar marca, nombre o SKU"
                   value={productSearch}
                   onChange={(event) => setProductSearch(event.target.value)}
                 />
@@ -3469,7 +3469,11 @@ function Admin({
                 <div className="table-row product-row" key={product.id}>
                   <div className="product-cell">
                     <img src={product.image} alt="" loading="lazy" decoding="async" />
-                    <div><b>{product.brand}</b><span>{product.name}</span></div>
+                    <div>
+                      <b>{product.brand}</b>
+                      <span>{product.name}</span>
+                      {product.sku && <small className="product-sku">SKU: {product.sku}</small>}
+                    </div>
                   </div>
                   <div className="product-category-cell">
                     <span>{product.category}</span>
@@ -4050,6 +4054,7 @@ function EditProductModal({
   const [images, setImages] = useState(product.images ?? (product.image ? [product.image] : []));
   const [brand, setBrand] = useState(product.brand);
   const [name, setName] = useState(product.name);
+  const [sku, setSku] = useState(product.sku ?? "");
   const [gender, setGender] = useState<Product["gender"]>(product.gender);
   const [category, setCategory] = useState<Product["category"]>(product.category);
   const [description, setDescription] = useState(product.description);
@@ -4105,6 +4110,7 @@ function EditProductModal({
       ...product,
       brand: brand.trim(),
       name: name.trim(),
+      sku: sku.trim() || null,
       gender,
       category,
       description: description.trim(),
@@ -4138,6 +4144,7 @@ function EditProductModal({
         <div className="form-grid edit-product-fields">
           <label>Marca<input value={brand} disabled={saving} onChange={(event) => setBrand(event.target.value)} required /></label>
           <label>Nombre<input value={name} disabled={saving} onChange={(event) => setName(event.target.value)} required /></label>
+          <label>SKU (opcional)<input value={sku} disabled={saving} onChange={(event) => setSku(event.target.value)} placeholder="Ej. LAT-QAF-100" maxLength={64} autoComplete="off" spellCheck={false} /></label>
           <label>Categoría
             <select value={category} disabled={saving} onChange={(event) => setCategory(event.target.value as Product["category"])}>
               <option value="Diseñador">Diseñador</option><option value="Árabes">Árabes</option><option value="Nicho">Nicho</option>
@@ -4320,6 +4327,7 @@ function AddProductModal({
 }) {
   const [brand, setBrand] = useState("");
   const [name, setName] = useState("");
+  const [sku, setSku] = useState("");
   const [category, setCategory] = useState<Product["category"]>("Diseñador");
   const [gender, setGender] = useState<Product["gender"]>("Unisex");
   const [promotionId, setPromotionId] = useState("");
@@ -4369,6 +4377,7 @@ function AddProductModal({
     await onSave({
       brand,
       name,
+      sku: sku.trim() || null,
       category,
       gender,
       description,
@@ -4388,6 +4397,7 @@ function AddProductModal({
         <div className="form-grid">
           <label>Marca<input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ej. Lattafa" /></label>
           <label>Nombre<input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej. Qaed Al Fursan" /></label>
+          <label>SKU (opcional)<input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ej. LAT-QAF-100" maxLength={64} autoComplete="off" spellCheck={false} /></label>
           <label>Categoría<select value={category} onChange={(e) => setCategory(e.target.value as Product["category"])}><option value="Diseñador">Diseñador</option><option value="Árabes">Árabes</option><option value="Nicho">Nicho</option></select></label>
           <label>Género<select value={gender} onChange={(e) => setGender(e.target.value as Product["gender"])}><option>Hombres</option><option>Mujeres</option><option>Unisex</option></select></label>
           <label>Promoción
