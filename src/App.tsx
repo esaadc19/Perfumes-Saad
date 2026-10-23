@@ -1496,6 +1496,12 @@ function Admin({
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
   const [productSearch, setProductSearch] = useState("");
   const [productStockFilter, setProductStockFilter] = useState<"all" | "available" | "sold-out">("all");
+  const [productPriceFilter, setProductPriceFilter] = useState({
+    costMin: "",
+    costMax: "",
+    priceMin: "",
+    priceMax: "",
+  });
   const [importingProducts, setImportingProducts] = useState(false);
   const [importFeedback, setImportFeedback] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -1562,14 +1568,54 @@ function Admin({
   const [productActionError, setProductActionError] = useState<string | null>(null);
   const [showArchivedProducts, setShowArchivedProducts] = useState(false);
   const archivedProductsCount = products.filter((product) => product.archived).length;
-  const visibleProducts = products.filter((product) =>
-    Boolean(product.archived) === showArchivedProducts &&
-    `${product.brand} ${product.name} ${product.sku ?? ""}`.toLowerCase().includes(productSearch.toLowerCase()) &&
-    (showArchivedProducts || productStockFilter === "all" ||
-      (productStockFilter === "available"
+  const parseProductFilterAmount = (value: string): number | null => {
+    const normalized = value.trim();
+    if (!normalized) return null;
+    const amount = Number(normalized);
+    return Number.isFinite(amount) ? amount : null;
+  };
+  const costMinFilter = parseProductFilterAmount(productPriceFilter.costMin);
+  const costMaxFilter = parseProductFilterAmount(productPriceFilter.costMax);
+  const priceMinFilter = parseProductFilterAmount(productPriceFilter.priceMin);
+  const priceMaxFilter = parseProductFilterAmount(productPriceFilter.priceMax);
+  const hasCostFilter = costMinFilter !== null || costMaxFilter !== null;
+  const hasPriceFilter = priceMinFilter !== null || priceMaxFilter !== null;
+  const hasProductPriceFilter = hasCostFilter || hasPriceFilter;
+  const clearProductPriceFilter = () => setProductPriceFilter({
+    costMin: "",
+    costMax: "",
+    priceMin: "",
+    priceMax: "",
+  });
+  const updateProductPriceFilter = (field: keyof typeof productPriceFilter, value: string) => {
+    setProductPriceFilter((current) => ({ ...current, [field]: value }));
+  };
+  const visibleProducts = products.filter((product) => {
+    if (Boolean(product.archived) !== showArchivedProducts) return false;
+    if (!`${product.brand} ${product.name} ${product.sku ?? ""}`.toLowerCase().includes(productSearch.toLowerCase())) return false;
+    if (!showArchivedProducts && productStockFilter !== "all") {
+      const matchesStock = productStockFilter === "available"
         ? product.variants.some((variant) => variant.stock > 0)
-        : product.variants.length > 0 && product.variants.every((variant) => variant.stock <= 0)))
-  ).sort((left, right) =>
+        : product.variants.length > 0 && product.variants.every((variant) => variant.stock <= 0);
+      if (!matchesStock) return false;
+    }
+    if (!showArchivedProducts && hasCostFilter) {
+      const matchesCost = product.variants.some((variant) =>
+        variant.cost != null &&
+        (costMinFilter === null || variant.cost >= costMinFilter) &&
+        (costMaxFilter === null || variant.cost <= costMaxFilter)
+      );
+      if (!matchesCost) return false;
+    }
+    if (!showArchivedProducts && hasPriceFilter) {
+      const matchesPrice = product.variants.some((variant) =>
+        (priceMinFilter === null || variant.price >= priceMinFilter) &&
+        (priceMaxFilter === null || variant.price <= priceMaxFilter)
+      );
+      if (!matchesPrice) return false;
+    }
+    return true;
+  }).sort((left, right) =>
     productNameCollator.compare(left.name, right.name) ||
     productNameCollator.compare(left.brand, right.brand)
   );
@@ -3423,23 +3469,47 @@ function Admin({
                 {showArchivedProducts ? "Volver a productos" : `Archivados (${archivedProductsCount})`}
               </button>
               {!showArchivedProducts && (
-                <div className="product-stock-filters" aria-label="Filtrar productos por disponibilidad">
-                  {([
-                    ["all", "Todos"],
-                    ["available", "Disponibles"],
-                    ["sold-out", "Agotados"],
-                  ] as const).map(([filter, label]) => (
-                    <button
-                      key={filter}
-                      type="button"
-                      className={productStockFilter === filter ? "selected" : ""}
-                      aria-pressed={productStockFilter === filter}
-                      onClick={() => setProductStockFilter(filter)}
+                <>
+                  <label className="product-filter-select">
+                    <span>Disponibilidad</span>
+                    <select
+                      value={productStockFilter}
+                      onChange={(event) => setProductStockFilter(event.target.value as "all" | "available" | "sold-out")}
+                      aria-label="Filtrar productos por disponibilidad"
                     >
-                      {label}
-                    </button>
-                  ))}
-                </div>
+                      <option value="all">Todos</option>
+                      <option value="available">Disponibles</option>
+                      <option value="sold-out">Agotados</option>
+                    </select>
+                  </label>
+                  <details className="product-price-filter">
+                    <summary>
+                      Costo y precio
+                      {hasProductPriceFilter && <span className="filter-active-dot" aria-label="Filtro activo" />}
+                    </summary>
+                    <div className="product-price-filter-panel">
+                      <p className="product-price-filter-heading">Rango por presentación</p>
+                      <div className="product-price-filter-grid">
+                        <label>Costo mín.
+                          <input type="number" min="0" step="1000" inputMode="numeric" placeholder="0" value={productPriceFilter.costMin} onChange={(event) => updateProductPriceFilter("costMin", event.target.value)} />
+                        </label>
+                        <label>Costo máx.
+                          <input type="number" min="0" step="1000" inputMode="numeric" placeholder="Sin límite" value={productPriceFilter.costMax} onChange={(event) => updateProductPriceFilter("costMax", event.target.value)} />
+                        </label>
+                        <label>Precio mín.
+                          <input type="number" min="0" step="1000" inputMode="numeric" placeholder="0" value={productPriceFilter.priceMin} onChange={(event) => updateProductPriceFilter("priceMin", event.target.value)} />
+                        </label>
+                        <label>Precio máx.
+                          <input type="number" min="0" step="1000" inputMode="numeric" placeholder="Sin límite" value={productPriceFilter.priceMax} onChange={(event) => updateProductPriceFilter("priceMax", event.target.value)} />
+                        </label>
+                      </div>
+                      <div className="product-price-filter-actions">
+                        <button type="button" onClick={clearProductPriceFilter} disabled={!hasProductPriceFilter}>Limpiar</button>
+                        <span>{visibleProducts.length} productos</span>
+                      </div>
+                    </div>
+                  </details>
+                </>
               )}
               <label className="admin-search">
                 <Search size={16} />
