@@ -3460,7 +3460,7 @@ function Admin({
 
           <div className="admin-table">
             <div className="table-row product-row header">
-              <span>Producto</span><span>Categoría</span><span>Presentación y costo unitario</span><span className="cell-center">Stock</span><span className="cell-center">Estado</span><span className="cell-center">Acciones</span>
+              <span>Producto</span><span>SKU</span><span>Categoría</span><span>Presentación y costo unitario</span><span className="cell-center">Stock</span><span className="cell-center">Estado</span><span className="cell-center">Acciones</span>
             </div>
             {visibleProducts.map((product) => {
               const stock = product.variants.reduce((s, v) => s + v.stock, 0);
@@ -3472,8 +3472,12 @@ function Admin({
                     <div>
                       <b>{product.brand}</b>
                       <span>{product.name}</span>
-                      {product.sku && <small className="product-sku">SKU: {product.sku}</small>}
                     </div>
+                  </div>
+                  <div className="product-sku-cell">
+                    {product.sku
+                      ? <code title={product.sku}>{product.sku}</code>
+                      : <span className="sku-missing">Sin SKU</span>}
                   </div>
                   <div className="product-category-cell">
                     <span>{product.category}</span>

@@ -660,7 +660,7 @@ footer a { color: #111; }
 .admin-search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); padding: 8px 10px; }
 .admin-search input { min-width: 150px; border: 0; outline: 0; background: transparent; font-size: 12px; }
 
-.product-row { min-width: 1080px; grid-template-columns: 1.7fr .8fr 1.3fr .55fr .85fr 1.3fr; }
+.product-row { min-width: 1180px; grid-template-columns: 1.7fr .65fr .8fr 1.3fr .55fr .85fr 1.3fr; }
 .promotion-table .table-row { min-width: 870px; grid-template-columns: 1.2fr 1fr 1.6fr .7fr 1.3fr; }
 .product-cell { display: flex; gap: 12px; align-items: center; }
 .product-cell img { width: 44px; height: 50px; object-fit: cover; }
@@ -668,7 +668,9 @@ footer a { color: #111; }
 .product-category-cell { display: grid; gap: 4px; }
 .product-category-cell small { color: #71492c; font-size: 10px; }
 .product-cell span { color: var(--muted); }
-.product-cell .product-sku { color: #71492c; font-size: 10px; font-weight: 600; letter-spacing: .04em; }
+.product-sku-cell { display: grid; gap: 4px; align-content: center; }
+.product-sku-cell code { width: max-content; max-width: 100%; padding: 4px 7px; border: 1px solid #eadfd3; background: #f7f1eb; color: #71492c; font-family: "DM Sans", sans-serif; font-size: 11px; font-weight: 600; letter-spacing: .04em; overflow-wrap: anywhere; }
+.product-sku-cell .sku-missing { color: var(--muted); font-size: 11px; font-style: italic; }
 .status { border: 0; width: max-content; padding: 7px 10px; display: inline-flex; gap: 5px; align-items: center; font-size: 11px; }
 .status.available { background: #edf6ee; color: #3d7444; }
 .status.sold { background: #f4eeee; color: #8c4a4a; }
@@ -1924,9 +1926,10 @@ footer a { color: #111; }
   .product-actions { grid-column: 1 / -1; position: relative; padding-top: 16px; }
   .product-actions::before { position: absolute; top: 0; left: 0; content: "Acciones"; color: var(--muted); font-size: 10px; font-weight: 600; }
   .product-actions button { flex: 1; }
-  .product-row > :nth-child(2)::before { content: "Categoría"; }
-  .product-row > :nth-child(4)::before { content: "Stock total"; }
-  .product-row > :nth-child(5)::before { content: "Disponibilidad"; }
+  .product-row > :nth-child(2)::before { content: "SKU"; }
+  .product-row > :nth-child(3)::before { content: "Categoría"; }
+  .product-row > :nth-child(5)::before { content: "Stock total"; }
+  .product-row > :nth-child(6)::before { content: "Disponibilidad"; }
   .promotion-table .table-row:not(.header) > :nth-child(1)::before { content: "Promoción"; }
   .promotion-table .table-row:not(.header) > :nth-child(2)::before { content: "Paquete"; }
   .promotion-table .table-row:not(.header) > :nth-child(3)::before { content: "Combinación"; }
