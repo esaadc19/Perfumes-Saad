@@ -29,9 +29,71 @@ create table if not exists public.promotions (
   bundle_price numeric(12,2) not null check (bundle_price >= 0),
   allow_mixed boolean not null default true,
   active boolean not null default true,
+  minimum_profit numeric(12,2),
+  tax_rate numeric(5,4) not null default 0.19,
+  price_includes_tax boolean not null default true,
+  cost_includes_tax boolean not null default true,
+  max_unit_cost numeric(12,2) generated always as (
+    case
+      when minimum_profit is null or required_quantity <= 0 then null
+      else
+        round(
+          (
+            (
+              (case when price_includes_tax then bundle_price / (1 + tax_rate) else bundle_price end)
+              - minimum_profit
+            ) / required_quantity
+          ) * (case when cost_includes_tax then 1 + tax_rate else 1 end),
+          2
+        )
+    end
+  ) stored,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.promotions
+  add column if not exists minimum_profit numeric(12,2);
+alter table public.promotions
+  add column if not exists tax_rate numeric(5,4) not null default 0.19;
+alter table public.promotions
+  add column if not exists price_includes_tax boolean not null default true;
+alter table public.promotions
+  add column if not exists cost_includes_tax boolean not null default true;
+alter table public.promotions
+  add column if not exists max_unit_cost numeric(12,2) generated always as (
+    case
+      when minimum_profit is null or required_quantity <= 0 then null
+      else
+        round(
+          (
+            (
+              (case when price_includes_tax then bundle_price / (1 + tax_rate) else bundle_price end)
+              - minimum_profit
+            ) / required_quantity
+          ) * (case when cost_includes_tax then 1 + tax_rate else 1 end),
+          2
+        )
+    end
+  ) stored;
+
+alter table public.promotions
+  drop constraint if exists promotions_minimum_profit_check;
+alter table public.promotions
+  add constraint promotions_minimum_profit_check
+  check (minimum_profit is null or minimum_profit >= 0);
+alter table public.promotions
+  drop constraint if exists promotions_tax_rate_check;
+alter table public.promotions
+  add constraint promotions_tax_rate_check
+  check (tax_rate >= 0 and tax_rate < 1);
+
+comment on column public.promotions.minimum_profit is
+  'Utilidad minima que debe dejar el paquete completo antes de domicilio. NULL conserva el comportamiento anterior sin tope.';
+comment on column public.promotions.cost_includes_tax is
+  'Indica si product_variants.cost ya incluye IVA. Se descuenta del costo para medir el margen.';
+comment on column public.promotions.max_unit_cost is
+  'Costo maximo por unidad, en la misma base de IVA que product_variants.cost, para que el paquete cumpla el margen minimo.';
 
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
@@ -93,6 +155,26 @@ create table if not exists public.product_variants (
   created_at timestamptz not null default now(),
   unique(product_id, size_ml)
 );
+
+create table if not exists public.promotion_variants (
+  promotion_id uuid not null references public.promotions(id) on delete cascade,
+  variant_id uuid not null unique references public.product_variants(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (promotion_id, variant_id)
+);
+
+create index if not exists promotion_variants_promotion_id_idx
+  on public.promotion_variants (promotion_id);
+
+comment on table public.promotion_variants is
+  'Presentaciones que participan en una promocion. Un variant_id solo puede pertenecer a una promocion.';
+
+insert into public.promotion_variants (promotion_id, variant_id)
+select product.promotion_id, variant.id
+from public.products product
+join public.product_variants variant on variant.product_id = product.id
+where product.promotion_id is not null
+on conflict (variant_id) do nothing;
 
 create table if not exists public.customers (
   id uuid primary key default gen_random_uuid(),
@@ -365,6 +447,151 @@ begin
 end;
 $$;
 
+create or replace function public.sync_promotion_eligibility(target_promotion_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if target_promotion_id is null then
+    return;
+  end if;
+
+  delete from public.promotion_variants promotion_variant
+  using public.product_variants variant, public.promotions promotion
+  where promotion_variant.variant_id = variant.id
+    and promotion.id = target_promotion_id
+    and promotion_variant.promotion_id = target_promotion_id
+    and (
+      variant.active = false
+      or (
+        promotion.max_unit_cost is not null
+        and (variant.cost is null or variant.cost > promotion.max_unit_cost)
+      )
+    );
+
+  update public.products product
+  set promotion_id = target_promotion_id,
+      updated_at = now()
+  where product.promotion_id is distinct from target_promotion_id
+    and exists (
+      select 1
+      from public.promotion_variants promotion_variant
+      join public.product_variants variant on variant.id = promotion_variant.variant_id
+      where promotion_variant.promotion_id = target_promotion_id
+        and variant.product_id = product.id
+    );
+
+  update public.products product
+  set promotion_id = null,
+      updated_at = now()
+  where product.promotion_id = target_promotion_id
+    and not exists (
+      select 1
+      from public.promotion_variants promotion_variant
+      join public.product_variants variant on variant.id = promotion_variant.variant_id
+      where promotion_variant.promotion_id = target_promotion_id
+        and variant.product_id = product.id
+    );
+end;
+$$;
+
+create or replace function public.on_promotion_margin_changed()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform public.sync_promotion_eligibility(new.id);
+  return new;
+end;
+$$;
+
+drop trigger if exists promotion_margin_changed on public.promotions;
+create trigger promotion_margin_changed
+  after update of bundle_price, required_quantity, minimum_profit, tax_rate, price_includes_tax, cost_includes_tax
+  on public.promotions
+  for each row execute procedure public.on_promotion_margin_changed();
+
+create or replace function public.on_variant_eligibility_changed()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  target_promotion_id uuid;
+begin
+  if new.cost is not distinct from old.cost
+     and new.active is not distinct from old.active then
+    return new;
+  end if;
+
+  for target_promotion_id in
+    select distinct promotion_variant.promotion_id
+    from public.promotion_variants promotion_variant
+    join public.promotions promotion on promotion.id = promotion_variant.promotion_id
+    where promotion_variant.variant_id = new.id
+      and (
+        new.active = false
+        or (
+          promotion.max_unit_cost is not null
+          and (new.cost is null or new.cost > promotion.max_unit_cost)
+        )
+      )
+  loop
+    delete from public.promotion_variants promotion_variant
+    where promotion_variant.promotion_id = target_promotion_id
+      and promotion_variant.variant_id = new.id;
+
+    perform public.sync_promotion_eligibility(target_promotion_id);
+  end loop;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists variant_promotion_eligibility_changed on public.product_variants;
+create trigger variant_promotion_eligibility_changed
+  after update of cost, active
+  on public.product_variants
+  for each row execute procedure public.on_variant_eligibility_changed();
+
+create or replace function public.on_variant_deleted()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update public.products product
+  set promotion_id = null,
+      updated_at = now()
+  where product.id = old.product_id
+    and product.promotion_id is not null
+    and not exists (
+      select 1
+      from public.promotion_variants promotion_variant
+      join public.product_variants variant on variant.id = promotion_variant.variant_id
+      where variant.product_id = old.product_id
+    );
+
+  return old;
+end;
+$$;
+
+drop trigger if exists variant_promotion_deleted on public.product_variants;
+create trigger variant_promotion_deleted
+  after delete on public.product_variants
+  for each row execute procedure public.on_variant_deleted();
+
+revoke all on function public.sync_promotion_eligibility(uuid) from public, anon, authenticated;
+revoke all on function public.on_promotion_margin_changed() from public, anon, authenticated;
+revoke all on function public.on_variant_eligibility_changed() from public, anon, authenticated;
+revoke all on function public.on_variant_deleted() from public, anon, authenticated;
+
 create or replace function public.admin_get_products()
 returns jsonb
 language plpgsql
@@ -375,28 +602,206 @@ as $$
 declare
   result jsonb;
 begin
-  if not public.is_admin() then
+  if to_regprocedure('public.admin_require_section(text)') is not null then
+    perform public.admin_require_section('products');
+  elsif not public.is_admin() then
     raise exception 'Administrator access required' using errcode = '42501';
   end if;
 
   select coalesce(
     jsonb_agg(
-      to_jsonb(p) || jsonb_build_object(
+      to_jsonb(product) || jsonb_build_object(
         'product_variants',
         coalesce((
-          select jsonb_agg(to_jsonb(pv) order by pv.size_ml)
-          from public.product_variants pv
-          where pv.product_id = p.id
+          select jsonb_agg(
+            to_jsonb(variant) || jsonb_build_object(
+              'promotion_ids',
+              coalesce((
+                select jsonb_agg(promotion_variant.promotion_id)
+                from public.promotion_variants promotion_variant
+                where promotion_variant.variant_id = variant.id
+              ), '[]'::jsonb)
+            )
+            order by variant.size_ml
+          )
+          from public.product_variants variant
+          where variant.product_id = product.id
         ), '[]'::jsonb)
       )
-      order by p.created_at desc
+      order by product.created_at desc
     ),
     '[]'::jsonb
   )
   into result
-  from public.products p;
+  from public.products product;
 
   return result;
+end;
+$$;
+
+create or replace function public.admin_get_promotion_variants(target_promotion_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  result jsonb;
+begin
+  if to_regprocedure('public.admin_require_section(text)') is not null then
+    perform public.admin_require_section('promotions');
+  elsif not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  if not exists (
+    select 1 from public.promotions where id = target_promotion_id
+  ) then
+    raise exception 'Promotion not found';
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'variant_id', variant.id,
+        'product_id', product.id,
+        'brand', product.brand,
+        'name', product.name,
+        'size_ml', variant.size_ml,
+        'price', variant.price,
+        'cost', variant.cost,
+        'stock', variant.stock,
+        'variant_active', variant.active,
+        'product_active', product.active,
+        'archived', product.archived,
+        'selected', exists (
+          select 1
+          from public.promotion_variants promotion_variant
+          where promotion_variant.promotion_id = target_promotion_id
+            and promotion_variant.variant_id = variant.id
+        )
+      )
+      order by product.brand, product.name, variant.size_ml
+    ),
+    '[]'::jsonb
+  )
+  into result
+  from public.product_variants variant
+  join public.products product on product.id = variant.product_id;
+
+  return result;
+end;
+$$;
+
+create or replace function public.admin_set_promotion_variants(
+  target_promotion_id uuid,
+  variant_ids uuid[]
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  promotion_record public.promotions%rowtype;
+  normalized_ids uuid[] := coalesce(variant_ids, array[]::uuid[]);
+  affected_product_ids uuid[] := array[]::uuid[];
+  previous_product_ids uuid[] := array[]::uuid[];
+  all_product_ids uuid[] := array[]::uuid[];
+  invalid_variant record;
+  inserted_count integer := 0;
+begin
+  if to_regprocedure('public.admin_require_section(text)') is not null then
+    perform public.admin_require_section('promotions');
+  elsif not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+
+  select * into promotion_record
+  from public.promotions
+  where id = target_promotion_id;
+
+  if not found then
+    raise exception 'Promotion not found';
+  end if;
+
+  select coalesce(array_agg(distinct selected.id), array[]::uuid[])
+  into normalized_ids
+  from unnest(normalized_ids) as selected(id)
+  where selected.id is not null;
+
+  if exists (
+    select 1
+    from unnest(normalized_ids) as selected(id)
+    left join public.product_variants variant on variant.id = selected.id
+    where variant.id is null
+  ) then
+    raise exception 'One or more presentations were not found';
+  end if;
+
+  select variant.product_id,
+         variant.size_ml,
+         product.brand,
+         product.name,
+         variant.cost
+  into invalid_variant
+  from unnest(normalized_ids) as selected(id)
+  join public.product_variants variant on variant.id = selected.id
+  join public.products product on product.id = variant.product_id
+  where variant.active = false
+     or (
+       promotion_record.max_unit_cost is not null
+       and (variant.cost is null or variant.cost > promotion_record.max_unit_cost)
+     )
+  limit 1;
+
+  if found then
+    raise exception 'La presentacion % ml de % % no cumple el margen minimo de la promocion',
+      invalid_variant.size_ml,
+      invalid_variant.brand,
+      invalid_variant.name;
+  end if;
+
+  select coalesce(array_agg(distinct variant.product_id), array[]::uuid[])
+  into affected_product_ids
+  from public.product_variants variant
+  where variant.id = any(normalized_ids);
+
+  select coalesce(array_agg(distinct variant.product_id), array[]::uuid[])
+  into previous_product_ids
+  from public.promotion_variants promotion_variant
+  join public.product_variants variant on variant.id = promotion_variant.variant_id
+  where promotion_variant.promotion_id = target_promotion_id;
+
+  select coalesce(array_agg(distinct product_id), array[]::uuid[])
+  into all_product_ids
+  from unnest(affected_product_ids || previous_product_ids) as product_id;
+
+  delete from public.promotion_variants promotion_variant
+  using public.product_variants variant
+  where promotion_variant.variant_id = variant.id
+    and variant.product_id = any(all_product_ids);
+
+  insert into public.promotion_variants (promotion_id, variant_id)
+  select target_promotion_id, selected.id
+  from unnest(normalized_ids) as selected(id);
+
+  get diagnostics inserted_count = row_count;
+
+  update public.products product
+  set promotion_id = target_promotion_id,
+      updated_at = now()
+  where product.id = any(affected_product_ids);
+
+  update public.products product
+  set promotion_id = null,
+      updated_at = now()
+  where product.id = any(previous_product_ids)
+    and not (product.id = any(affected_product_ids))
+    and product.promotion_id = target_promotion_id;
+
+  return inserted_count;
 end;
 $$;
 
@@ -988,18 +1393,24 @@ as $$
     select
       requested.variant_id,
       requested.quantity,
-      pv.product_id,
-      pv.price,
-      p.promotion_id,
+      variant.product_id,
+      variant.price,
+      promotion_variant.promotion_id,
       promotion.required_quantity,
       promotion.bundle_price,
       promotion.allow_mixed,
-      case when promotion.allow_mixed then null::uuid else pv.product_id end as group_product_id
+      case when promotion.allow_mixed then null::uuid else variant.product_id end as group_product_id
     from requested
-    join public.product_variants pv on pv.id = requested.variant_id
-    join public.products p on p.id = pv.product_id
+    join public.product_variants variant on variant.id = requested.variant_id
+    join public.promotion_variants promotion_variant
+      on promotion_variant.variant_id = variant.id
     join public.promotions promotion
-      on promotion.id = p.promotion_id and promotion.active = true
+      on promotion.id = promotion_variant.promotion_id
+     and promotion.active = true
+     and (
+       promotion.max_unit_cost is null
+       or (variant.cost is not null and variant.cost <= promotion.max_unit_cost)
+     )
   ),
   totals as (
     select
@@ -2358,6 +2769,8 @@ revoke all on function public.admin_update_customer(uuid, jsonb) from public, an
 revoke all on function public.admin_set_profile_role(uuid, text) from public, anon;
 revoke all on function public.admin_update_variant_cost(uuid, numeric) from public, anon;
 revoke all on function public.admin_get_products() from public, anon;
+revoke all on function public.admin_get_promotion_variants(uuid) from public, anon;
+revoke all on function public.admin_set_promotion_variants(uuid, uuid[]) from public, anon;
 revoke all on function public.admin_update_order_transaction(uuid, text, text, date, numeric) from public, anon;
 revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid, text, text) from public, anon;
 revoke all on function public.admin_delete_pending_order(uuid) from public, anon;
@@ -2371,6 +2784,8 @@ grant execute on function public.admin_update_customer(uuid, jsonb) to authentic
 grant execute on function public.admin_set_profile_role(uuid, text) to authenticated;
 grant execute on function public.admin_update_variant_cost(uuid, numeric) to authenticated;
 grant execute on function public.admin_get_products() to authenticated;
+grant execute on function public.admin_get_promotion_variants(uuid) to authenticated;
+grant execute on function public.admin_set_promotion_variants(uuid, uuid[]) to authenticated;
 grant execute on function public.admin_update_order_transaction(uuid, text, text, date, numeric) to authenticated;
 grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid, text, text) to authenticated;
 grant execute on function public.admin_delete_pending_order(uuid) to authenticated;
@@ -2384,6 +2799,7 @@ alter table public.profiles enable row level security;
 alter table public.promotions enable row level security;
 alter table public.products enable row level security;
 alter table public.product_variants enable row level security;
+alter table public.promotion_variants enable row level security;
 alter table public.customers enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
@@ -2397,6 +2813,8 @@ grant insert, update, delete on public.promotions to authenticated;
 revoke select on public.product_variants from public, anon, authenticated;
 grant select (id, product_id, size_ml, price, stock, active, created_at)
   on public.product_variants to anon, authenticated;
+revoke all on public.promotion_variants from public, anon, authenticated;
+grant select on public.promotion_variants to anon, authenticated;
 grant select on public.profiles to authenticated;
 grant update (full_name, phone, email, delivery_address) on public.profiles to authenticated;
 grant select, insert, update, delete on public.products to authenticated;
@@ -2414,6 +2832,18 @@ create policy "Admins can manage promotions"
   on public.promotions for all to authenticated
   using ((select public.is_admin()))
   with check ((select public.is_admin()));
+
+drop policy if exists "Public can read active promotion variants" on public.promotion_variants;
+create policy "Public can read active promotion variants"
+  on public.promotion_variants for select to anon, authenticated
+  using (
+    exists (
+      select 1
+      from public.promotions promotion
+      where promotion.id = promotion_variants.promotion_id
+        and promotion.active = true
+    )
+  );
 
 drop policy if exists "Admins can manage sales advisors" on public.sales_advisors;
 create policy "Admins can manage sales advisors"

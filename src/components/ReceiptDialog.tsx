@@ -8,7 +8,7 @@ import {
   type ReceiptItem,
 } from "../services/orders";
 import { supabase } from "../lib/supabase";
-import { calculatePromotionPrice } from "../services/promotions";
+import { calculatePromotionPrice, isVariantPromotionEligible } from "../services/promotions";
 
 type ReceiptCartItem = {
   product: Product;
@@ -61,6 +61,7 @@ export default function ReceiptDialog({
       productId: item.product.id,
       promotionId: item.product.promotion_id ?? null,
       promotion: item.product.promotion,
+      promotionEligible: isVariantPromotionEligible(item.product, item.variant),
       variantId: item.variant.id,
       unitPrice: item.variant.price,
       quantity: item.quantity,

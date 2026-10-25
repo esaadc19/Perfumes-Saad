@@ -298,6 +298,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .gender { color: var(--accent); font-weight: 600; }
 .price { font-size: 20px; margin: 22px 0; font-weight: 600; }
 .promotion-detail-copy { margin: -12px 0 18px; color: #71492c; font-size: 13px; line-height: 1.5; }
+.promotion-detail-copy.muted { color: var(--muted); }
 .description { color: #666; line-height: 1.7; }
 .peek-rating { display: grid; justify-items: start; gap: 2px; margin-top: 18px; }
 .peek-rating-stars { display: flex; align-items: center; gap: 2px; }
@@ -484,6 +485,18 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .promotion-editor-modal { width: min(620px, 100%); }
 .promotion-checkbox { display: grid; grid-template-columns: 18px 1fr; align-items: start; gap: 10px; margin: 15px 0; color: #555; font-size: 13px; line-height: 1.5; }
 .add-modal .promotion-checkbox input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--black); }
+.promotion-margin-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 14px 0;
+  padding: 14px;
+  border: 1px solid #eadfd3;
+  background: #fbf8f4;
+}
+.promotion-margin-preview div { display: grid; gap: 4px; }
+.promotion-margin-preview span { color: var(--muted); font-size: 11px; }
+.promotion-margin-preview strong { color: #71492c; font-size: 15px; }
 .variant-editor { margin: 22px 0; }
 .variant-editor-head, .variant-form-row { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
 .variant-editor-head { margin-bottom: 10px; }
@@ -803,7 +816,97 @@ footer a { color: #111; }
 .admin-search input { min-width: 150px; border: 0; outline: 0; background: transparent; font-size: 12px; }
 
 .product-row { min-width: 1180px; grid-template-columns: 1.7fr .65fr .8fr 1.3fr .55fr .85fr 1.3fr; }
-.promotion-table .table-row { min-width: 870px; grid-template-columns: 1.2fr 1fr 1.6fr .7fr 1.3fr; }
+.promotion-table .table-row { min-width: 1080px; grid-template-columns: 1.1fr 1.25fr 1.25fr .65fr 1.85fr; }
+.promotion-package-cell { display: grid; gap: 4px; }
+.promotion-package-cell small { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.promotion-variants-modal { width: min(940px, 100%); }
+.promotion-variants-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0;
+}
+.promotion-variants-summary div {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid #eadfd3;
+  background: #fbf8f4;
+}
+.promotion-variants-summary span { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.promotion-variants-summary strong { color: #71492c; font-size: 16px; }
+.promotion-variants-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.promotion-variants-search {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.promotion-variants-search input { width: 100%; border: 0; outline: 0; background: transparent; font-family: "DM Sans", sans-serif; font-size: 12px; }
+.promotion-variants-filter { flex: 0 0 auto; margin: 0; white-space: nowrap; }
+.promotion-variants-toolbar-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-left: auto; }
+.promotion-variants-toolbar-actions .admin-button { min-height: 38px; padding: 0 10px; font-size: 11px; }
+.promotion-variants-list {
+  max-height: 44vh;
+  overflow: auto;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.promotion-variant-option {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1.7fr) minmax(160px, .7fr) 86px;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+}
+.promotion-variant-option:last-child { border-bottom: 0; }
+.promotion-variant-option:hover { background: #fbfaf8; }
+.promotion-variant-option.selected { background: #f5f8f5; }
+.promotion-variant-option.ineligible { color: var(--muted); }
+.promotion-variant-option.needs-review { background: #fdf1f1; }
+.promotion-variant-option input { width: 16px; height: 16px; margin: 0; accent-color: var(--black); }
+.promotion-variant-main { display: grid; gap: 4px; min-width: 0; }
+.promotion-variant-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.promotion-variant-main small { color: var(--muted); font-size: 11px; }
+.promotion-variant-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: right; }
+.promotion-variant-metrics span { display: grid; gap: 3px; }
+.promotion-variant-metrics small { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .04em; }
+.promotion-variant-metrics strong { font-size: 12px; }
+.promotion-variant-metrics .negative { color: var(--danger); }
+.promotion-variant-state {
+  justify-self: end;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.promotion-variant-state.eligible { background: #edf6ee; color: #3d7444; }
+.promotion-variant-state.blocked { background: #f4f0ea; color: #7b6a5e; }
+.promotion-variant-state.review { background: #f8dede; color: #8c3e3e; }
+.promotion-variants-empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 30px 18px;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
 .product-cell { display: flex; gap: 12px; align-items: center; }
 .product-cell img { width: 44px; height: 50px; object-fit: cover; }
 .product-cell div { display: grid; gap: 3px; }
@@ -3956,5 +4059,27 @@ footer a { color: #111; }
     width: 100%;
     margin-top: 8px;
     box-shadow: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .promotion-margin-preview { grid-template-columns: minmax(0, 1fr); }
+  .promotion-variants-summary { grid-template-columns: minmax(0, 1fr); }
+  .promotion-variants-toolbar { align-items: stretch; }
+  .promotion-variants-search { flex-basis: 100%; }
+  .promotion-variants-toolbar-actions { width: 100%; margin-left: 0; }
+  .promotion-variants-toolbar-actions .admin-button { flex: 1; }
+  .promotion-variant-option {
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+  }
+  .promotion-variant-metrics {
+    grid-column: 2;
+    justify-content: start;
+    text-align: left;
+  }
+  .promotion-variant-state {
+    grid-column: 2;
+    justify-self: start;
   }
 }

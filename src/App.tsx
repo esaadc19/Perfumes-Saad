@@ -28,7 +28,11 @@ import type { ImportedCustomer, ImportedProduct } from "./services/product-impor
 import {
   calculatePromotionPrice,
   deletePromotion,
+  getPromotionMaxUnitCost,
+  getPromotionNetBundle,
   getPromotions,
+  isVariantPromotionEligible,
+  productHasActivePromotion,
   savePromotion,
   togglePromotionActive,
   type Promotion,
@@ -108,6 +112,7 @@ const OrderEditorModal = lazy(() => import("./components/admin/OrderEditorModal"
 const OrdersPage = lazy(() => import("./pages/admin/OrdersPage"));
 const SettingsPage = lazy(() => import("./pages/admin/SettingsPage"));
 const PromotionsPage = lazy(() => import("./pages/admin/PromotionsPage"));
+const PromotionVariantsModal = lazy(() => import("./components/admin/PromotionVariantsModal"));
 const AdvisorsPage = lazy(() => import("./pages/admin/AdvisorsPage"));
 const ExpensesPage = lazy(() => import("./pages/admin/ExpensesPage"));
 const CustomersPage = lazy(() => import("./pages/admin/CustomersPage"));
@@ -154,16 +159,9 @@ import {
   KanbanSquare,
 } from "lucide-react";
 
-type Variant = {
-  id: string;
-  size: number;
-  price: number;
-  stock: number;
-};
-
 type CartItem = {
   product: Product;
-  variant: Variant;
+  variant: ProductVariant;
   quantity: number;
 };
 
@@ -740,8 +738,8 @@ function App() {
       const matchesGender = genderFilter === "Todos" || p.gender === genderFilter;
       const matchesOffer = offerFilter === "none"
         || (offerFilter === "all"
-          ? Boolean(p.promotion?.active)
-          : Boolean(p.promotion?.active) && p.promotion?.id === offerFilter);
+          ? productHasActivePromotion(p)
+          : productHasActivePromotion(p) && p.promotion?.id === offerFilter);
       return matchesSearch && matchesBrand && matchesCategory && matchesGender && matchesOffer;
     });
   }, [products, search, brandFilter, category, genderFilter, offerFilter]);
@@ -767,7 +765,7 @@ function App() {
     const counts: Record<string, number> = {};
     for (const product of products) {
       if (product.active === false || product.variants.length === 0) continue;
-      if (!product.promotion?.active) continue;
+      if (!product.promotion?.active || !productHasActivePromotion(product)) continue;
       counts[product.promotion.id] = (counts[product.promotion.id] ?? 0) + 1;
     }
     return counts;
@@ -795,6 +793,7 @@ function App() {
     productId: item.product.id,
     promotionId: item.product.promotion_id ?? null,
     promotion: item.product.promotion,
+    promotionEligible: isVariantPromotionEligible(item.product, item.variant),
     variantId: item.variant.id,
     unitPrice: item.variant.price,
     quantity: item.quantity,
@@ -813,6 +812,12 @@ function App() {
   const selectedVariant =
     selectedProduct?.variants.find((v) => v.id === selectedVariantId) ??
     selectedProduct?.variants[0];
+  const selectedVariantHasPromotion = selectedProduct && selectedVariant
+    ? isVariantPromotionEligible(selectedProduct, selectedVariant)
+    : false;
+  const selectedProductHasPromotion = selectedProduct
+    ? productHasActivePromotion(selectedProduct)
+    : false;
 
   const addVariantToCart = (product: Product, variant: ProductVariant) => {
     if (variant.stock <= 0) return;
@@ -1085,6 +1090,8 @@ function App() {
                       const cardVariant = product.variants.find((variant) =>
                         variant.id === catalogVariantIds[product.id]
                       ) ?? firstAvailable;
+                      const hasPromotion = productHasActivePromotion(product);
+                      const cardVariantHasPromotion = isVariantPromotionEligible(product, cardVariant);
                       return (
                         <article className="product-card" key={product.id}>
                           <button className="product-image" onClick={() => openProduct(product)}>
@@ -1092,7 +1099,7 @@ function App() {
                             {firstAvailable.stock <= 0 && (
                               <span className="sold-out">Agotado</span>
                             )}
-                            {product.promotion?.active && <span className="promotion-badge">Oferta</span>}
+                            {hasPromotion && <span className="promotion-badge">Oferta</span>}
                           </button>
                           <div className="product-info">
                             <span>{product.brand}</span>
@@ -1117,10 +1124,11 @@ function App() {
                               ))}
                             </div>
                             <strong>{money(cardVariant.price)}</strong>
-                            {product.promotion?.active && (
+                            {hasPromotion && (
                               <span className="promotion-card-copy">
-                                {product.promotion.required_quantity} por {money(product.promotion.bundle_price)}
-                                {product.promotion.allow_mixed ? " · combinables" : " · mismo perfume"}
+                                {cardVariantHasPromotion && product.promotion
+                                  ? `${product.promotion.required_quantity} por ${money(product.promotion.bundle_price)}${product.promotion.allow_mixed ? " · combinables" : " · mismo perfume"}`
+                                  : "Oferta disponible en otra presentación"}
                               </span>
                             )}
                             <div className="product-card-actions">
@@ -1204,11 +1212,16 @@ function App() {
                   <h2>{selectedProduct.name}</h2>
                   <p className="gender">{selectedProduct.gender}</p>
                   <div className="price">{selectedVariant ? money(selectedVariant.price) : "—"}</div>
-                  {selectedProduct.promotion?.active && (
+                  {selectedVariantHasPromotion && selectedProduct.promotion && (
                     <p className="promotion-detail-copy">
                       Oferta: {selectedProduct.promotion.required_quantity} por{" "}
                       {money(selectedProduct.promotion.bundle_price)}
                       {selectedProduct.promotion.allow_mixed ? " · puedes combinar referencias" : " · mismo perfume"}
+                    </p>
+                  )}
+                  {selectedProductHasPromotion && !selectedVariantHasPromotion && (
+                    <p className="promotion-detail-copy muted">
+                      La oferta aplica solo a las presentaciones participantes de este perfume.
                     </p>
                   )}
                   <p className="description">{selectedProduct.description}</p>
@@ -1468,7 +1481,6 @@ function App() {
         <AddProductModal
           onClose={() => setShowAddProduct(false)}
           onSave={handleProductSave}
-          promotions={promotions.filter((promotion) => promotion.active)}
           saving={savingProduct}
           error={adminError}
         />
@@ -1768,6 +1780,7 @@ function Admin({
     }
   };
   const [promotionEditor, setPromotionEditor] = useState<Promotion | null | "new">(null);
+  const [promotionVariantsEditor, setPromotionVariantsEditor] = useState<Promotion | null>(null);
   const [promotionSaving, setPromotionSaving] = useState(false);
   const [promotionFeedback, setPromotionFeedback] = useState<string | null>(null);
   const [productActionFeedback, setProductActionFeedback] = useState<string | null>(null);
@@ -2464,8 +2477,18 @@ function Admin({
       await savePromotion(input, promotionId);
       onPromotionsChange(await getPromotions(true));
       setPromotionEditor(null);
-      setPromotionFeedback("La promoción se guardó correctamente.");
-      notifySuccess("La promoción se guardó correctamente.");
+      let productsRefreshed = true;
+      try {
+        await onProductsRefresh();
+      } catch (refreshError) {
+        productsRefreshed = false;
+        console.error("La promoción se guardó, pero no se pudieron recargar los productos:", refreshError);
+        setSectionError("La promoción se guardó, pero no se pudo actualizar la lista de productos. Recarga el panel.");
+      }
+      if (productsRefreshed) {
+        setPromotionFeedback("La promoción se guardó correctamente.");
+        notifySuccess("La promoción se guardó correctamente.");
+      }
     } catch (saveError) {
       console.error("No se pudo guardar la promoción:", saveError);
       setSectionError(saveError instanceof Error
@@ -2474,6 +2497,23 @@ function Admin({
       notifyError("No se pudo guardar la promoción.");
     } finally {
       setPromotionSaving(false);
+    }
+  };
+
+  const handlePromotionVariantsSaved = async (count: number) => {
+    const promotion = promotionVariantsEditor;
+    setPromotionVariantsEditor(null);
+    setSectionError(null);
+    if (!promotion) return;
+    setPromotionFeedback(
+      `${count} presentación${count === 1 ? "" : "es"} participan en «${promotion.name}».`
+    );
+    notifySuccess("Las presentaciones de la promoción se actualizaron.");
+    try {
+      await onProductsRefresh();
+    } catch (refreshError) {
+      console.error("Se guardaron las presentaciones, pero no se pudieron recargar los productos:", refreshError);
+      setSectionError("Se guardaron las presentaciones, pero no se pudo actualizar la lista de productos. Recarga el panel.");
     }
   };
 
@@ -3121,6 +3161,10 @@ function Admin({
               feedback={promotionFeedback}
               onNew={() => setPromotionEditor("new")}
               onEdit={setPromotionEditor}
+              onManageVariants={(promotion) => {
+                setPromotionFeedback(null);
+                setPromotionVariantsEditor(promotion);
+              }}
               onToggle={(promotion) => void togglePromotion(promotion)}
               onDelete={(promotion) => void removePromotion(promotion)}
             />
@@ -3293,7 +3337,6 @@ function Admin({
       {editingProduct && (
         <EditProductModal
           product={editingProduct}
-          promotions={promotions}
           saving={savingProductEdit}
           error={error}
           onClose={() => { if (!savingProductEdit) setEditingProduct(null); }}
@@ -3311,6 +3354,15 @@ function Admin({
           onClose={() => { if (!promotionSaving) setPromotionEditor(null); }}
           onSave={(input) => void submitPromotion(input, promotionEditor === "new" ? undefined : promotionEditor.id)}
         />
+      )}
+      {promotionVariantsEditor && (
+        <Suspense fallback={null}>
+          <PromotionVariantsModal
+            promotion={promotionVariantsEditor}
+            onClose={() => setPromotionVariantsEditor(null)}
+            onSaved={(count) => void handlePromotionVariantsSaved(count)}
+          />
+        </Suspense>
       )}
       {editingCustomer && (
         <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !customerSaving) setEditingCustomer(null); }}>
@@ -3377,20 +3429,54 @@ function PromotionEditorModal({
   const [name, setName] = useState(promotion?.name ?? "");
   const [requiredQuantity, setRequiredQuantity] = useState(String(promotion?.required_quantity ?? 2));
   const [bundlePrice, setBundlePrice] = useState(String(promotion?.bundle_price ?? ""));
+  const [minimumProfit, setMinimumProfit] = useState(
+    promotion?.minimum_profit == null ? "60000" : String(promotion.minimum_profit)
+  );
+  const [taxRate, setTaxRate] = useState(
+    promotion?.tax_rate == null ? "19" : String(promotion.tax_rate * 100)
+  );
+  const [priceIncludesTax, setPriceIncludesTax] = useState(promotion?.price_includes_tax ?? true);
+  const [costIncludesTax, setCostIncludesTax] = useState(promotion?.cost_includes_tax ?? true);
   const [allowMixed, setAllowMixed] = useState(promotion?.allow_mixed ?? true);
   const [active, setActive] = useState(promotion?.active ?? true);
   const [error, setError] = useState<string | null>(null);
 
+  const quantity = Number(requiredQuantity);
+  const price = Number(bundlePrice);
+  const minimumProfitValue = Number(minimumProfit);
+  const taxPercent = Number(taxRate);
+  const previewReady =
+    Number.isInteger(quantity) && quantity >= 2 &&
+    Number.isFinite(price) && price >= 0 &&
+    Number.isFinite(minimumProfitValue) && minimumProfitValue >= 0 &&
+    Number.isFinite(taxPercent) && taxPercent >= 0 && taxPercent < 100;
+  const preview = {
+    required_quantity: quantity,
+    bundle_price: price,
+    minimum_profit: minimumProfitValue,
+    tax_rate: taxPercent / 100,
+    price_includes_tax: priceIncludesTax,
+    cost_includes_tax: costIncludesTax,
+  };
+  const previewNetBundle = previewReady ? getPromotionNetBundle(preview) : null;
+  const previewMaxUnitCost = previewReady ? getPromotionMaxUnitCost(preview) : null;
+
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const quantity = Number(requiredQuantity);
-    const price = Number(bundlePrice);
     if (!name.trim()) {
       setError("Escribe un nombre para la promoción.");
       return;
     }
     if (!Number.isInteger(quantity) || quantity < 2 || !Number.isFinite(price) || price < 0) {
       setError("La cantidad mínima es 2 y el precio debe ser un número igual o mayor a cero.");
+      return;
+    }
+    if (!Number.isFinite(minimumProfitValue) || minimumProfitValue < 0) {
+      setError("El margen mínimo debe ser un número igual o mayor a cero.");
+      return;
+    }
+    if (!Number.isFinite(taxPercent) || taxPercent < 0 || taxPercent >= 100) {
+      setError("El IVA debe ser un porcentaje entre 0 y 99,99.");
       return;
     }
     setError(null);
@@ -3400,6 +3486,10 @@ function PromotionEditorModal({
       bundle_price: price,
       allow_mixed: allowMixed,
       active,
+      minimum_profit: minimumProfitValue,
+      tax_rate: taxPercent / 100,
+      price_includes_tax: priceIncludesTax,
+      cost_includes_tax: costIncludesTax,
     });
   };
 
@@ -3414,6 +3504,29 @@ function PromotionEditorModal({
           <label>Cantidad del paquete<input type="number" min="2" step="1" value={requiredQuantity} onChange={(event) => setRequiredQuantity(event.target.value)} required /></label>
           <label>Precio del paquete<input type="number" min="0" step="1" value={bundlePrice} onChange={(event) => setBundlePrice(event.target.value)} placeholder="300000" required /></label>
         </div>
+        <div className="form-grid">
+          <label>Margen mínimo del paquete (COP)<input type="number" min="0" step="1" value={minimumProfit} onChange={(event) => setMinimumProfit(event.target.value)} required /></label>
+          <label>IVA (%)<input type="number" min="0" max="99.99" step="0.01" value={taxRate} onChange={(event) => setTaxRate(event.target.value)} required /></label>
+        </div>
+        <label className="promotion-checkbox">
+          <input type="checkbox" checked={priceIncludesTax} onChange={(event) => setPriceIncludesTax(event.target.checked)} />
+          <span>El precio del paquete ya incluye IVA</span>
+        </label>
+        <label className="promotion-checkbox">
+          <input type="checkbox" checked={costIncludesTax} onChange={(event) => setCostIncludesTax(event.target.checked)} />
+          <span>El costo registrado de las presentaciones ya incluye IVA</span>
+        </label>
+        <div className="promotion-margin-preview" aria-live="polite">
+          <div>
+            <span>Ingreso neto del paquete</span>
+            <strong>{previewNetBundle == null ? "—" : money(previewNetBundle)}</strong>
+          </div>
+          <div>
+            <span>Costo máximo por presentación</span>
+            <strong>{previewMaxUnitCost == null ? "Sin tope" : money(previewMaxUnitCost)}</strong>
+          </div>
+        </div>
+        <p className="order-editor-note">El margen mínimo se mide sin IVA y antes de domicilio y envío. Las presentaciones que superen el costo máximo no podrán participar en la promoción.</p>
         <label className="promotion-checkbox">
           <input type="checkbox" checked={allowMixed} onChange={(event) => setAllowMixed(event.target.checked)} />
           <span>Permitir combinar diferentes productos asociados a esta promoción</span>
@@ -3435,14 +3548,12 @@ function PromotionEditorModal({
 
 function EditProductModal({
   product,
-  promotions,
   saving,
   error: saveError,
   onClose,
   onSave,
 }: {
   product: Product;
-  promotions: Promotion[];
   saving: boolean;
   error: string | null;
   onClose: () => void;
@@ -3457,7 +3568,6 @@ function EditProductModal({
   const [description, setDescription] = useState(product.description);
   const [family, setFamily] = useState(product.family);
   const [climate, setClimate] = useState(product.climate.join(", "));
-  const [promotionId, setPromotionId] = useState(product.promotion_id ?? "");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [variants, setVariants] = useState(product.variants
     .map((variant) => ({
@@ -3513,7 +3623,6 @@ function EditProductModal({
       description: description.trim(),
       family: family.trim(),
       climate: climate.split(",").map((item) => item.trim()).filter(Boolean),
-      promotion_id: promotionId || null,
       image: images[0] ?? "",
       images,
       variants: parsedVariants.map(({ sizeDraft: _size, priceDraft: _price, costDraft: _cost, stockDraft: _stock, ...variant }) => variant),
@@ -3558,20 +3667,7 @@ function EditProductModal({
             <textarea value={description} disabled={saving} onChange={(event) => setDescription(event.target.value)} rows={3} />
           </label>
         </div>
-        <label className="auth-label">
-          Promoción
-          <select value={promotionId} disabled={saving} onChange={(event) => setPromotionId(event.target.value)}>
-            <option value="">Sin promoción</option>
-            {promotionId && !promotions.some((promotion) => promotion.id === promotionId) && (
-              <option value={promotionId}>Promoción actual (inactiva)</option>
-            )}
-            {promotions.map((promotion) => (
-              <option key={promotion.id} value={promotion.id} disabled={!promotion.active}>
-                {promotion.name}{promotion.active ? "" : " (inactiva)"}
-              </option>
-            ))}
-          </select>
-        </label>
+        <p className="order-editor-note">Las promociones se asignan por presentación desde Administración → Promociones → Presentaciones.</p>
         <section className="edit-product-images">
           <div>
             <strong>Imágenes</strong>
@@ -3712,13 +3808,11 @@ function EditProductModal({
 function AddProductModal({
   onClose,
   onSave,
-  promotions,
   saving,
   error: saveError,
 }: {
   onClose: () => void;
   onSave: (product: NewProductInput, variants: { size: number; price: number; cost: number; stock: number }[], images: File[]) => Promise<void>;
-  promotions: Promotion[];
   saving: boolean;
   error: string | null;
 }) {
@@ -3727,7 +3821,6 @@ function AddProductModal({
   const [sku, setSku] = useState("");
   const [category, setCategory] = useState<Product["category"]>("Diseñador");
   const [gender, setGender] = useState<Product["gender"]>("Unisex");
-  const [promotionId, setPromotionId] = useState("");
   const [images, setImages] = useState<File[]>([]);
   const [description, setDescription] = useState("");
   const [family, setFamily] = useState("");
@@ -3781,7 +3874,6 @@ function AddProductModal({
       family,
       climate: ["Todo el año"],
       image_url: "",
-      promotion_id: promotionId || null,
     }, parsedVariants, images);
   };
 
@@ -3797,16 +3889,6 @@ function AddProductModal({
           <label>SKU (opcional)<input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Ej. LAT-QAF-100" maxLength={64} autoComplete="off" spellCheck={false} /></label>
           <label>Categoría<select value={category} onChange={(e) => setCategory(e.target.value as Product["category"])}><option value="Diseñador">Diseñador</option><option value="Árabes">Árabes</option><option value="Nicho">Nicho</option></select></label>
           <label>Género<select value={gender} onChange={(e) => setGender(e.target.value as Product["gender"])}><option>Hombres</option><option>Mujeres</option><option>Unisex</option></select></label>
-          <label>Promoción
-            <select value={promotionId} onChange={(event) => setPromotionId(event.target.value)}>
-              <option value="">Sin promoción</option>
-              {promotions.map((promotion) => (
-                <option key={promotion.id} value={promotion.id}>
-                  {promotion.name} · {promotion.required_quantity} por {money(promotion.bundle_price)}
-                </option>
-              ))}
-            </select>
-          </label>
           <label>Familia olfativa<input value={family} onChange={(e) => setFamily(e.target.value)} placeholder="Ej. Amaderado" /></label>
           <label className="form-wide">Descripción<input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descripción del perfume" /></label>
         </div>

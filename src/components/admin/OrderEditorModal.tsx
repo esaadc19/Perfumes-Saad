@@ -126,6 +126,11 @@ export default function OrderEditorModal({
       productId: product.id,
       promotionId: product.promotion_id ?? null,
       promotion: promotions.find((promotion) => promotion.id === product.promotion_id) ?? null,
+      promotionEligible: Boolean(
+        product.promotion_id &&
+        promotions.find((promotion) => promotion.id === product.promotion_id)?.active &&
+        variant.promotionIds?.includes(product.promotion_id)
+      ),
     })))
     .sort((left, right) =>
       productCollator.compare(left.productSortName, right.productSortName) ||
@@ -150,6 +155,7 @@ export default function OrderEditorModal({
           productId: variant.productId,
           promotionId: variant.promotionId,
           promotion: variant.promotion,
+          promotionEligible: variant.promotionEligible,
           variantId: variant.id,
           unitPrice,
           quantity,

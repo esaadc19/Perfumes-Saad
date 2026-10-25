@@ -14,6 +14,7 @@ export interface ProductVariant {
   stock: number;
   minStock?: number;
   active?: boolean;
+  promotionIds?: string[];
 }
 
 export interface Product {
@@ -57,16 +58,42 @@ const productSelect = `
     required_quantity,
     bundle_price,
     allow_mixed,
-    active
+    active,
+    minimum_profit,
+    tax_rate,
+    price_includes_tax,
+    cost_includes_tax,
+    max_unit_cost
   ),
   product_variants (
     id,
     size_ml,
     price,
     stock,
-    active
+    active,
+    promotion_variants (
+      promotion_id
+    )
   )
 `;
+
+function readPromotionIds(variant: any): string[] {
+  if (Array.isArray(variant.promotion_ids)) {
+    return variant.promotion_ids.map((id: unknown) => String(id));
+  }
+
+  // PostgREST devuelve un objeto (no un arreglo) cuando variant_id es unico.
+  const promotionRows = variant.promotion_variants;
+  const rows = Array.isArray(promotionRows)
+    ? promotionRows
+    : promotionRows
+      ? [promotionRows]
+      : [];
+
+  return rows
+    .map((row: any) => row?.promotion_id)
+    .filter((id: unknown): id is string => typeof id === "string");
+}
 
 function mapProducts(data: any[], includeInactiveVariants = false): Product[] {
   return data.map((product: any) => ({
@@ -94,6 +121,15 @@ function mapProducts(data: any[], includeInactiveVariants = false): Product[] {
           ...product.promotion,
           required_quantity: Number(product.promotion.required_quantity),
           bundle_price: Number(product.promotion.bundle_price),
+          minimum_profit: product.promotion.minimum_profit == null
+            ? null
+            : Number(product.promotion.minimum_profit),
+          tax_rate: product.promotion.tax_rate == null ? 0.19 : Number(product.promotion.tax_rate),
+          price_includes_tax: product.promotion.price_includes_tax ?? true,
+          cost_includes_tax: product.promotion.cost_includes_tax ?? true,
+          max_unit_cost: product.promotion.max_unit_cost == null
+            ? null
+            : Number(product.promotion.max_unit_cost),
         }
       : null,
     variants: (product.product_variants ?? [])
@@ -110,6 +146,7 @@ function mapProducts(data: any[], includeInactiveVariants = false): Product[] {
         stock: Number(variant.stock),
         minStock: Number(variant.min_stock ?? 2),
         active: variant.active ?? true,
+        promotionIds: readPromotionIds(variant),
       })),
   }));
 }
@@ -162,7 +199,6 @@ export interface NewProductInput {
   climate: string[];
   image_url: string;
   image_urls?: string[];
-  promotion_id?: string | null;
 }
 
 export async function createProduct(
@@ -211,7 +247,6 @@ export async function createProduct(
         sku: product.sku?.trim() || null,
         image_url: imageUrls[0] ?? product.image_url,
         image_urls: imageUrls,
-        promotion_id: product.promotion_id?.trim() || null,
       },
       variants_data: variants,
     });
