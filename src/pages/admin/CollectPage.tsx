@@ -5,8 +5,8 @@ import {
   buildCollectionMessage,
   type CustomerToCollect,
 } from "../../services/credits";
-import AdminButton from "./AdminButton";
-import EmptyState from "./EmptyState";
+import AdminButton from "../../components/admin/AdminButton";
+import EmptyState from "../../components/admin/EmptyState";
 
 const money = (value: number) =>
   new Intl.NumberFormat("es-CO", {

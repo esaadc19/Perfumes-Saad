@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Save, Upload } from "lucide-react";
-import AdminButton from "./AdminButton";
-import PermissionsPanel, { type PermissionSection } from "./PermissionsPanel";
+import AdminButton from "../../components/admin/AdminButton";
+import PermissionsPanel, { type PermissionSection } from "../../components/admin/PermissionsPanel";
 import {
   removeStoreLogo,
   saveStoreSettings,

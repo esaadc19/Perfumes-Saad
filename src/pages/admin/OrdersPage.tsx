@@ -12,10 +12,10 @@ import {
   UserCheck,
 } from "lucide-react";
 import type { AdminOrder } from "../../services/admin";
-import Metric from "./Metric";
-import Pagination from "./Pagination";
-import AdminButton from "./AdminButton";
-import EmptyState from "./EmptyState";
+import Metric from "../../components/admin/Metric";
+import Pagination from "../../components/admin/Pagination";
+import AdminButton from "../../components/admin/AdminButton";
+import EmptyState from "../../components/admin/EmptyState";
 
 type OrderStatus = "pending_confirmation" | "confirmed" | "cancelled";
 type PaymentStatus = "pending" | "paid" | "refunded" | "credit" | "partial";

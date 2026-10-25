@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ADMIN_SECTION_PATHS, type AdminSection } from "../../lib/admin-routes";
 import {
   LayoutDashboard,
   ReceiptText,
@@ -85,21 +86,27 @@ sections: readonly DockSection[];
   const moreActive = rest.some((s) => s.id === current);
 
   const closeSheet = () => setSheetOpen(false);
+  const pathFor = (id: string) => ADMIN_SECTION_PATHS[id as AdminSection];
+  const followInternalLink = (event: React.MouseEvent<HTMLAnchorElement>, id: string) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onSelect(id);
+  };
 
   return (
     <>
       <nav className="admin-navdock" aria-label="Navegación principal">
         {primary.map((section) => (
-          <button
+          <a
             key={section.id}
-            type="button"
             className={`admin-navdock-item${current === section.id ? " is-active" : ""}`}
+            href={pathFor(section.id)}
             aria-current={current === section.id ? "page" : undefined}
-            onClick={() => onSelect(section.id)}
+            onClick={(event) => followInternalLink(event, section.id)}
           >
             <span className="admin-navdock-icon">{section.icon}</span>
             <span className="admin-navdock-label">{section.id === "overview" ? "Inicio" : section.title}</span>
-          </button>
+          </a>
         ))}
         <button
           type="button"
@@ -134,20 +141,35 @@ sections: readonly DockSection[];
                   <div className="admin-navsheet-grid">
                     {items.map((section) => {
                       const Icon = ICONS[section.id];
+                      if (section.external) {
+                        return (
+                          <a
+                            key={section.id}
+                            className="admin-navsheet-tile"
+                            href="/crm/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={closeSheet}
+                          >
+                            <span className="admin-navdock-icon">{Icon ? <Icon size={19} /> : section.icon}</span>
+                            <span>{section.title}</span>
+                          </a>
+                        );
+                      }
                       return (
-                        <button
+                        <a
                           key={section.id}
-                          type="button"
                           className={`admin-navsheet-tile${current === section.id ? " is-active" : ""}`}
+                          href={pathFor(section.id)}
                           aria-current={current === section.id ? "page" : undefined}
-                          onClick={() => {
+                          onClick={(event) => {
+                            followInternalLink(event, section.id);
                             closeSheet();
-                            onSelect(section.id);
                           }}
                         >
                           <span className="admin-navdock-icon">{Icon ? <Icon size={19} /> : section.icon}</span>
                           <span>{section.title}</span>
-                        </button>
+                        </a>
                       );
                     })}
                   </div>
@@ -161,17 +183,19 @@ sections: readonly DockSection[];
             <section className="admin-navsheet-group">
               <h3>Tienda</h3>
               <div className="admin-navsheet-grid">
-                <button
-                  type="button"
+                <a
                   className="admin-navsheet-tile"
-                  onClick={() => {
+                  href="/"
+                  onClick={(event) => {
+                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
                     closeSheet();
                     onGoToStore();
                   }}
                 >
                   <span className="admin-navdock-icon"><Store size={19} /></span>
                   <span>Ver catálogo</span>
-                </button>
+                </a>
               </div>
             </section>
           </div>

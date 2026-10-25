@@ -1,6 +1,16 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session, User as AuthUser } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
+import { getBogotaDate, money } from "./lib/format";
+import {
+  getAdminSectionFromPath,
+  pushAdminPath,
+  pushStorePath,
+  ADMIN_SECTIONS,
+  ADMIN_SECTION_PATHS,
+  ADMIN_SECTION_TITLES,
+  type AdminSection,
+} from "./lib/admin-routes";
 import {
   createProduct,
   getAdminProducts,
@@ -64,7 +74,6 @@ import {
   deleteRecurringExpense,
   deleteExpense,
   markRecurringExpensePaid,
-  EXPENSE_CATEGORIES,
   type Expense,
   type RecurrenceFrequency,
   type RecurringExpense,
@@ -75,9 +84,6 @@ import ReceiptDialog from "./components/ReceiptDialog";
 import OrderTracking from "./components/OrderTracking";
 import PeekRating from "./components/PeekRating";
 import Dock from "./components/Dock";
-import Metric from "./components/admin/Metric";
-import MetricGroup from "./components/admin/MetricGroup";
-import MobileOverview from "./components/admin/MobileOverview";
 import {
   PERIOD_PRESETS,
   customPeriod,
@@ -86,35 +92,36 @@ import {
   validateRange,
   type PeriodPresetId,
 } from "./services/report-periods";
-import AlertBlock from "./components/admin/AlertBlock";
-import Pagination from "./components/admin/Pagination";
 import AdminButton from "./components/admin/AdminButton";
 import EmptyState from "./components/admin/EmptyState";
 import { Toaster, useToasts } from "./components/Toast";
 
 // Solo el panel de administración necesita estos módulos: se cargan bajo demanda
 // para que los visitantes de la tienda descarguen un bundle inicial más pequeño.
-const Charts = lazy(() => import("./components/admin/Charts"));
-const CreditPage = lazy(() => import("./components/admin/CreditPage"));
-const CollectPage = lazy(() => import("./components/admin/CollectPage"));
+const CreditPage = lazy(() => import("./pages/admin/CreditPage"));
+const CollectPage = lazy(() => import("./pages/admin/CollectPage"));
+const DashboardPage = lazy(() => import("./pages/admin/DashboardPage"));
 const ConfirmDialog = lazy(() => import("./components/admin/ConfirmDialog"));
 const AdminDock = lazy(() => import("./components/admin/AdminDock"));
-import type { DockSection } from "./components/admin/AdminDock";
-const ProfitabilityTable = lazy(() => import("./components/admin/ProfitabilityTable"));
 const MovementModal = lazy(() => import("./components/admin/MovementModal"));
 const OrderEditorModal = lazy(() => import("./components/admin/OrderEditorModal"));
-const OrdersPage = lazy(() => import("./components/admin/OrdersPage"));
-const SettingsPage = lazy(() => import("./components/admin/SettingsPage"));
+const OrdersPage = lazy(() => import("./pages/admin/OrdersPage"));
+const SettingsPage = lazy(() => import("./pages/admin/SettingsPage"));
+const PromotionsPage = lazy(() => import("./pages/admin/PromotionsPage"));
+const AdvisorsPage = lazy(() => import("./pages/admin/AdvisorsPage"));
+const ExpensesPage = lazy(() => import("./pages/admin/ExpensesPage"));
+const CustomersPage = lazy(() => import("./pages/admin/CustomersPage"));
+const ProfilesPage = lazy(() => import("./pages/admin/ProfilesPage"));
+const ReportsPage = lazy(() => import("./pages/admin/ReportsPage"));
+const ProductsPage = lazy(() => import("./pages/admin/ProductsPage"));
 import {
   DEFAULT_STORE_SETTINGS,
   getStoreSettings,
   type StoreSettings,
 } from "./services/store-settings";
 import {
-  AlertTriangle,
   ArrowLeft,
   BarChart3,
-  Check,
   ChevronLeft,
   ChevronRight,
   PanelLeftClose,
@@ -123,7 +130,6 @@ import {
   LayoutDashboard,
   Menu,
   Package,
-  Pencil,
   Plus,
   DollarSign,
   RefreshCw,
@@ -136,19 +142,12 @@ import {
   Tag,
   Trash2,
   Wallet,
-  Lock,
-  CalendarClock,
-  Percent,
-  Calculator,
-  Truck,
-  TrendingUp,
   Upload,
   User,
   UserCheck,
   Users,
   LogOut,
   X,
-  CalendarDays,
   MessageCircle,
   KanbanSquare,
 } from "lucide-react";
@@ -220,31 +219,43 @@ const seedProducts: Product[] = [
   },
 ];
 
-const money = (value: number) =>
-  new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const getBogotaDate = () => new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/Bogota",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-}).format(new Date());
-
-const formatBogotaDate = (date: string) => new Date(`${date}T12:00:00-05:00`)
-  .toLocaleDateString("es-CO", { timeZone: "America/Bogota" });
-
-const getDaysUntil = (date: string) => Math.round(
-  (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${getBogotaDate()}T00:00:00Z`)) / 86_400_000
-);
-
 const productNameCollator = new Intl.Collator("es", { sensitivity: "base" });
 
 function App() {
-  const [view, setView] = useState<"store" | "admin">("store");
+  const [view, setView] = useState<"store" | "admin">(
+    () => getAdminSectionFromPath(window.location.pathname) ? "admin" : "store"
+  );
+  const [adminSection, setAdminSection] = useState<AdminSection>(
+    () => getAdminSectionFromPath(window.location.pathname) ?? "overview"
+  );
+  const enterAdmin = useCallback((next?: AdminSection) => {
+    const target = next ?? getAdminSectionFromPath(window.location.pathname) ?? "overview";
+    setAdminSection(target);
+    setView("admin");
+    pushAdminPath(target);
+  }, []);
+  const goToStore = useCallback(() => {
+    setView("store");
+    pushStorePath();
+  }, []);
+  const navigateAdminSection = useCallback((next: AdminSection) => {
+    setAdminSection(next);
+    pushAdminPath(next);
+  }, []);
+
+  useEffect(() => {
+    const handleRouteChange = () => {
+      const nextSection = getAdminSectionFromPath(window.location.pathname);
+      if (nextSection) {
+        setAdminSection(nextSection);
+        setView("admin");
+      } else {
+        setView("store");
+      }
+    };
+    window.addEventListener("popstate", handleRouteChange);
+    return () => window.removeEventListener("popstate", handleRouteChange);
+  }, []);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [userRole, setUserRole] = useState<"customer" | "admin" | "asesor" | null>(null);
   // `admin` y `asesor` pueden entrar al panel. Lo que puede VER dentro
@@ -316,8 +327,10 @@ function App() {
     };
   }, []);
   useEffect(() => {
-    document.title = storeSettings.store_name;
-  }, [storeSettings.store_name]);
+    document.title = view === "admin"
+      ? `${ADMIN_SECTION_TITLES[adminSection]} · ${storeSettings.store_name}`
+      : storeSettings.store_name;
+  }, [view, adminSection, storeSettings.store_name]);
 
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -458,14 +471,14 @@ function App() {
     if (!adminAccessPending || authLoading || !user || !userRole) return;
     setAdminAccessPending(false);
     if (isStaff) {
-      setView("admin");
+      enterAdmin();
       setShowLogin(false);
       setLoginFeedback(null);
     } else {
       setLoginFeedback("Esta cuenta es de cliente y no tiene permisos de administración.");
       setShowLogin(true);
     }
-  }, [adminAccessPending, authLoading, user, userRole]);
+  }, [adminAccessPending, authLoading, user, userRole, isStaff, enterAdmin]);
 
   useEffect(() => {
     if (view !== "admin" || !isStaff) return;
@@ -541,7 +554,7 @@ function App() {
     }
     if (user && isStaff) {
       setAdminAccessPending(false);
-      setView("admin");
+      enterAdmin();
     } else {
       setShowLogin(true);
     }
@@ -1192,6 +1205,8 @@ function App() {
         </>
       ) : isStaff ? (
         <Admin
+          section={adminSection}
+          onSectionChange={navigateAdminSection}
           products={products}
           storeSettings={storeSettings}
           storeSettingsError={storeSettingsError}
@@ -1215,7 +1230,7 @@ function App() {
           savingStockVariantId={savingStockVariantId}
             onDeletingProductIdChange={setDeletingProductId}
           onBack={() => {
-            setView("store");
+            goToStore();
             void getProducts().then(setProducts).catch((loadError: unknown) => {
               console.error("No se pudo recargar el catálogo al volver a la tienda:", loadError);
               setError("No se pudo actualizar el catálogo. Recarga la página e inténtalo de nuevo.");
@@ -1237,7 +1252,7 @@ function App() {
               setAdminError("No se pudo cerrar la sesión. Inténtalo de nuevo.");
               return;
             }
-            setView("store");
+            goToStore();
             void getProducts().then(setProducts).catch((loadError: unknown) => {
               console.error("No se pudo recargar el catálogo al cerrar sesión:", loadError);
               setError("No se pudo actualizar el catálogo. Recarga la página e inténtalo de nuevo.");
@@ -1258,7 +1273,7 @@ function App() {
           <button className="primary" onClick={requestAdminAccess} disabled={authLoading}>
             Iniciar sesión como administrador
           </button>
-          <button className="secondary full" onClick={() => setView("store")}>Volver a la tienda</button>
+          <button className="secondary full" onClick={goToStore}>Volver a la tienda</button>
         </main>
       )}
 
@@ -1292,7 +1307,7 @@ function App() {
           onClose={() => setShowAccount(false)}
           onOpenAdmin={() => {
             setShowAccount(false);
-            setView("admin");
+            enterAdmin();
           }}
           onSignOut={async () => {
             if (!supabase) return;
@@ -1303,6 +1318,7 @@ function App() {
               return;
             }
             setShowAccount(false);
+            goToStore();
           }}
         />
       )}
@@ -1355,6 +1371,8 @@ function App() {
 }
 
 function Admin({
+  section: requestedSection,
+  onSectionChange,
   products,
   storeSettings,
   storeSettingsError,
@@ -1383,6 +1401,8 @@ function Admin({
   error,
   onSignOut,
 }: {
+  section: AdminSection;
+  onSectionChange: (section: AdminSection) => void;
   products: Product[];
   storeSettings: StoreSettings;
   storeSettingsError: string | null;
@@ -1416,7 +1436,6 @@ function Admin({
   error: string | null;
   onSignOut: () => void;
 }) {
-  const [sectionRaw, setSectionRaw] = useState<"overview" | "products" | "promotions" | "transactions" | "customers" | "expenses" | "advisors" | "reports" | "collect" | "collect" | "profiles" | "settings" | "credit">("overview");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem("saad-admin-sidebar") === "collapsed"
   );
@@ -1718,16 +1737,29 @@ function Admin({
   // La seccion activa nunca puede ser una que la cuenta no puede ver.
   // Si le quitan el permiso mientras la tiene abierta, cae a la primera
   // que si puede ver.
-  const section = (
-    visibleSections.some((item) => item.id === sectionRaw)
-      ? sectionRaw
-      : visibleSections[0]?.id ?? "overview"
-  ) as typeof sectionRaw;
+  const section: AdminSection = visibleSections.some((item) => item.id === requestedSection)
+    ? requestedSection
+    : (visibleSections.find((item) => item.id !== "crm")?.id as AdminSection | undefined) ?? "overview";
 
-  const setSection = (next: typeof sectionRaw) => {
+  // Si alguien entra por una URL que no puede ver, se reemplaza por la
+  // primera seccion permitida. Asi la barra de direcciones nunca queda
+  // mostrando una pagina que la cuenta tiene bloqueada.
+  useEffect(() => {
+    if (!permissionsLoaded || allowedSections === null) return;
+    if (allowedSections.includes(requestedSection)) return;
+    const fallback = ADMIN_SECTIONS.find((id) => allowedSections.includes(id));
+    if (fallback) onSectionChange(fallback);
+  }, [permissionsLoaded, allowedSections, requestedSection, onSectionChange]);
+
+  const setSection = (next: AdminSection) => {
     if (allowedSections !== null && !allowedSections.includes(next)) return;
-    setSectionRaw(next);
+    onSectionChange(next);
   };
+
+  useEffect(() => {
+    setSearch("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [section]);
 
   // Booleano y no el arreglo: el efecto de carga depende de este valor,
   // y si dependiera del arreglo se re-dispararia solo, porque cada
@@ -2520,10 +2552,13 @@ function Admin({
                 <span className="admin-nav-item-label">{item.title}</span>
               </a>
             ) : (
-              <button
+              <a
                 key={item.id}
                 className={`admin-nav-item${section === item.id ? " active" : ""}`}
-                onClick={() => {
+                href={ADMIN_SECTION_PATHS[item.id]}
+                onClick={(event) => {
+                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                  event.preventDefault();
                   setSection(item.id);
                   setSearch("");
                 }}
@@ -2533,7 +2568,7 @@ function Admin({
               >
                 {item.icon}
                 <span className="admin-nav-item-label">{item.title}</span>
-              </button>
+              </a>
             )
           )}
         </nav>
@@ -2681,471 +2716,35 @@ function Admin({
           )}
         </nav>
 
-        {section === "reports" && (
-          <div className="report-section">
-            <div className="report-panel">
-              <div className="report-panel-head">
-                <h3>Reporte por periodo</h3>
-                <p>
-                  Elige un periodo rapido o escribe el rango. Puedes tomar
-                  varios dias o varios meses: el rango es desde-hasta.
-                </p>
-              </div>
-
-              <div className="metrics-period report-period-switch">
-                <span className="metrics-period-label">Periodo</span>
-                {/* Cuando se edita una fecha a mano ningun preset coincide y el
-                    pill se quedaria sin seleccion. Este chip lo avisa y devuelve
-                    al ultimo preset. */}
-                <div className="chart-period-switch" role="group" aria-label="Periodo del reporte">
-                  {PERIOD_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      className={reportPeriodId === preset.id ? "selected" : ""}
-                      aria-pressed={reportPeriodId === preset.id}
-                      disabled={reportLoading}
-                      onClick={() => {
-                        const period = resolvePeriod(preset.id);
-                        setReportPeriodId(preset.id);
-                        setReportCustomFrom(period.from);
-                        setReportCustomTo(period.to);
-                      }}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                  {PERIOD_PRESETS.some((p) => {
-                    const r = resolvePeriod(p.id);
-                    return r.from === reportCustomFrom && r.to === reportCustomTo;
-                  }) ? null : (
-                    <button
-                      type="button"
-                      className="selected"
-                      aria-pressed="true"
-                      disabled={reportLoading}
-                      onClick={() => {
-                        const back = resolvePeriod("last-week");
-                        setReportPeriodId("last-week");
-                        setReportCustomFrom(back.from);
-                        setReportCustomTo(back.to);
-                      }}
-                      title="Volver a la semana pasada"
-                    >
-                      A medida
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="report-range">
-                <label className="report-date-field">
-                  Desde
-                  <input
-                    type="date"
-                    value={reportCustomFrom}
-                    max={getBogotaDate()}
-                    disabled={reportLoading}
-                    onChange={(event) => {
-                      setReportPeriodId("custom");
-                      setReportCustomFrom(event.target.value);
-                    }}
-                  />
-                </label>
-                <label className="report-date-field">
-                  Hasta
-                  <input
-                    type="date"
-                    value={reportCustomTo}
-                    max={getBogotaDate()}
-                    disabled={reportLoading}
-                    onChange={(event) => {
-                      setReportPeriodId("custom");
-                      setReportCustomTo(event.target.value);
-                    }}
-                  />
-                </label>
-                <AdminButton
-                  tone="primary"
-                  compact
-                  type="button"
-                  onClick={() => void generateReport()}
-                  disabled={reportLoading}
-                >
-                  <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Generar reporte"}
-                </AdminButton>
-              </div>
-
-              {reportRangeError && <p className="form-error" role="alert">{reportRangeError}</p>}
-            </div>
-
-            {reportError && <p className="form-error" role="alert">{reportError}</p>}
-            {reportResult && (
-              <p className="report-result" role="status">
-                Reporte {reportResult.label} generado. {reportResult.emailSent
-                  ? "Correo enviado. "
-                  : `${reportResult.emailError ?? "No se pudo enviar el correo."} `}
-                <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
-              </p>
-            )}
-
-            <div className="report-actions report-actions-left">
-              <AdminButton
-                tone="secondary"
-                compact
-                type="button"
-                onClick={() => void generateReport()}
-                disabled={reportLoading}
-              >
-                <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Reporte semanal"}
-              </AdminButton>
-              <label className="report-date-field">
-                Fecha del reporte diario
-                <input
-                  type="date"
-                  value={reportDate}
-                  max={getBogotaDate()}
-                  disabled={reportLoading}
-                  onChange={(event) => setReportDate(event.target.value)}
-                />
-              </label>
-              <AdminButton
-                tone="secondary"
-                compact
-                type="button"
-                onClick={() => void generateReport(reportDate)}
-                disabled={reportLoading || !reportDate}
-              >
-                <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Reporte diario"}
-              </AdminButton>
-            </div>
-          </div>
-        )}
-        {error && section === "products" && <p className="form-error" role="alert">{error}</p>}
-        {section === "products" && importFeedback && <p className="import-feedback" role="status">{importFeedback}</p>}
-        {section === "products" && importError && <p className="form-error" role="alert">{importError}</p>}
-        {section === "products" && (
-          <p className="customer-import-hint">
-            Descarga la plantilla y luego importa ese archivo desde aquí. No importes este CSV directamente en la tabla
-            <code> products</code> de Supabase: la tienda también crea las presentaciones en <code>product_variants</code>.
-          </p>
-        )}
-        {section === "promotions" && promotionFeedback && <p className="import-feedback" role="status">{promotionFeedback}</p>}
-        {sectionError && <p className="form-error" role="alert">{sectionError}</p>}
-        {sectionLoading && (
-          <div className="loading-state" role="status" aria-live="polite">
-            <span className="loading-spinner" aria-hidden="true" />
-            <span>Cargando {pageTitle.toLowerCase()}…</span>
-          </div>
-        )}
-
         {section === "overview" && metrics && (
-          <div className="overview-flow">
-            {/* Estructura movil: resumen, ingresos y pedidos recientes. En
-                escritorio este bloque no se muestra y el orden no cambia. */}
-            <MobileOverview
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando dashboard…</span></div>}>
+            <DashboardPage
               metrics={metrics}
               orders={orders}
-              onOpenOrders={canOpenOrders ? () => setSection("transactions") : undefined}
+              products={products}
+              soldOut={soldOut}
+              lowStock={lowStock}
+              totalStock={totalStock}
+              avgTicket={avgTicket}
+              metricsPeriod={metricsPeriod}
+              onMetricsPeriodChange={setMetricsPeriod}
+              profitability={profitability}
+              profitabilityLoading={profitabilityLoading}
+              profitabilityError={profitabilityError}
+              dashboardDetail={dashboardDetail}
+              onDashboardDetailChange={setDashboardDetail}
+              waste={waste}
+              wasteDays={wasteDays}
+              wasteLoading={wasteLoading}
+              wasteError={wasteError}
+              canOpenOrders={canOpenOrders}
+              onSectionChange={setSection}
+              reportLoading={reportLoading}
+              reportError={reportError}
+              reportResult={reportResult}
+              onGenerateReport={() => void generateReport()}
             />
-            {/* El panel completo vive en la seccion Reportes. Acá quedan solo las
-                dos acciones rapidas, sin formulario de fechas: el dashboard
-                es para mirar, no para configurar. */}
-            <div className="report-actions">
-              <AdminButton
-                tone="secondary"
-                compact
-                type="button"
-                onClick={() => void generateReport()}
-                disabled={reportLoading}
-              >
-                <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Generar reporte semanal"}
-              </AdminButton>
-              <AdminButton
-                tone="secondary"
-                compact
-                type="button"
-                onClick={() => setSection("reports")}
-              >
-                <CalendarDays size={16} /> Reportes por periodo
-              </AdminButton>
-            </div>
-            {reportError && <p className="form-error" role="alert">{reportError}</p>}
-            {reportResult && section === "overview" && (
-              <p className="report-result" role="status">
-                Reporte {reportResult.label} generado. {reportResult.emailSent
-                  ? "Correo enviado. "
-                  : `${reportResult.emailError ?? "No se pudo enviar el correo."} `}
-                <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
-              </p>
-            )}
-            {reportResult && (
-              <p className="report-result" role="status">
-                Reporte {reportResult.label} generado. {reportResult.emailSent
-                  ? "Correo enviado. "
-                  : `${reportResult.emailError ?? "No se pudo enviar el correo."} `}
-                <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
-              </p>
-            )}
-            <AlertBlock
-              items={[
-                lowStock > 0 ? (
-                  <Metric key="low-stock" title="Presentaciones con stock bajo" value={String(lowStock)} numericValue={lowStock} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("low-stock")} />
-                ) : null,
-                soldOut > 0 ? (
-                  <Metric key="sold-out" title="Presentaciones agotadas" value={String(soldOut)} numericValue={soldOut} icon={<X />} warning onClick={() => setDashboardDetail("sold-out")} />
-                ) : null,
-                metrics.pending_orders > 0 ? (
-                  <Metric key="pending" title="Pedidos pendientes de pago" value={String(metrics.pending_orders)} numericValue={metrics.pending_orders} icon={<AlertTriangle />} warning onClick={() => setDashboardDetail("pending")} />
-                ) : null,
-                metrics.missing_cost_items > 0 ? (
-                  <Metric key="missing-cost" title="Costos por completar" value={String(metrics.missing_cost_items)} numericValue={metrics.missing_cost_items} icon={<AlertTriangle />} warning onClick={() => setSection("products")} />
-                ) : null,
-                metrics.credit_overdue_balance > 0 ? (
-                  <Metric key="overdue" title="Cartera vencida" value={money(Number(metrics.credit_overdue_balance))} numericValue={Number(metrics.credit_overdue_balance)} format="money" icon={<AlertTriangle />} warning onClick={() => setSection("credit")} />
-                ) : null,
-                metrics.credit_customers_with_overdue > 0 ? (
-                  <Metric key="overdue-clients" title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<Users />} warning onClick={() => setSection("credit")} />
-                ) : null,
-              ]}
-            />
-            <div className="metrics-period">
-              <span className="metrics-period-label">Período</span>
-              <div className="chart-period-switch" role="group" aria-label="Rango de tiempo del dashboard">
-                {([7, 30, 90] as const).map((days) => (
-                  <button
-                    key={days}
-                    type="button"
-                    className={metricsPeriod === days ? "selected" : ""}
-                    aria-pressed={metricsPeriod === days}
-                    onClick={() => setMetricsPeriod(days)}
-                  >
-                    {days} días
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className={metricsPeriod === null ? "selected" : ""}
-                  aria-pressed={metricsPeriod === null}
-                  onClick={() => setMetricsPeriod(null)}
-                >
-                  Todo
-                </button>
-              </div>
-            </div>
-            <div className="metric-groups">
-              <MetricGroup
-                title="Cartera"
-                hint="Lo vendido a fiado y lo que todavía no es tuyo."
-                icon={<DollarSign />}
-              >
-                <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} numericValue={metrics.credit_sales} icon={<ReceiptText />} />
-                <Metric title="Total a crédito" value={money(Number(metrics.credit_revenue))} numericValue={Number(metrics.credit_revenue)} format="money" icon={<BarChart3 />} />
-                <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} numericValue={Number(metrics.credit_outstanding_balance)} format="money" icon={<DollarSign />} />
-                <Metric
-                  title="Utilidad no cobrada"
-                  value={money(Number(metrics.locked_credit_profit))}
-                  numericValue={Number(metrics.locked_credit_profit)}
-                  format="money"
-                  icon={<Lock />}
-                  hint="Margen que sigue en cartera; entra a utilidad al cobrarse."
-                />
-                {metrics.committed_expenses > 0 && (
-                  <Metric
-                    title="Gastos comprometidos"
-                    value={money(Number(metrics.committed_expenses))}
-                    numericValue={Number(metrics.committed_expenses)}
-                    format="money"
-                    icon={<CalendarClock />}
-                    hint="Recordatorios ya creados que aún no se han pagado."
-                  />
-                )}
-              </MetricGroup>
-
-              <MetricGroup
-                title="Inventario"
-                hint="Lo que tienes disponible para vender hoy."
-                icon={<Package />}
-              >
-                <Metric title="Productos activos" value={String(products.filter((product) => !product.archived).length)} numericValue={products.filter((product) => !product.archived).length} icon={<Package />} />
-                <Metric title="Unidades en stock" value={String(totalStock)} numericValue={totalStock} icon={<ShoppingBag />} />
-                <Metric title="Presentaciones agotadas" value={String(soldOut)} numericValue={soldOut} icon={<X />} onClick={() => setDashboardDetail("sold-out")} />
-              </MetricGroup>
-
-              <MetricGroup
-                title="Clientes"
-                hint="Cuánta gente te ha comprado y quién te debe."
-                icon={<Users />}
-              >
-                <Metric title="Clientes registrados" value={String(metrics.customer_count)} numericValue={metrics.customer_count} icon={<Users />} />
-                <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<AlertTriangle />} onClick={() => setSection("credit")} />
-                <Metric title="Pedidos registrados" value={String(metrics.total_orders)} numericValue={metrics.total_orders} icon={<ReceiptText />} />
-              </MetricGroup>
-            </div>
-
-            <MetricGroup
-              title="Ventas"
-              hint="Solo lo cobrado. Lo vendido a fiado se resta por su costo mientras no te lo pagan."
-              icon={<BarChart3 />}
-              wide
-            >
-              {/* "Ventas completadas" abre el grupo: es la respuesta corta a
-                  "cuanto vendi", y de entrada da el contexto de las cifras
-                  que siguen abajo. Sin delta porque cuenta pedidos, no
-                  montos, y compararlo contra el periodo anterior mislead. */}
-              <Metric title="Ventas completadas" value={String(metrics.completed_sales)} numericValue={metrics.completed_sales} icon={<ShoppingBag />} />
-              <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} numericValue={Number(metrics.sales_revenue)} format="money" icon={<ReceiptText />} delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
-              <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} numericValue={Number(metrics.sales_cost)} format="money" icon={<Package />} />
-              <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} numericValue={Number(metrics.sales_delivery_cost)} format="money" icon={<Truck />} />
-              <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} numericValue={Number(metrics.total_expenses)} format="money" icon={<Wallet />} />
-              <Metric
-                title="Costo del fiado por cobrar"
-                value={money(Number(metrics.credit_cost_pending))}
-                numericValue={Number(metrics.credit_cost_pending)}
-                format="money"
-                icon={<Lock />}
-                hint="Ya lo pagaste al proveedor; vuelve a tu utilidad cuando el cliente te pague."
-              />
-              {/* Sin costo completo no hay numero que contar: la tarjeta dice
-                  "Incompleta" y el conteo se queda quieto. */}
-              <Metric
-                title="Utilidad neta"
-                value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
-                numericValue={metrics.missing_cost_items > 0 ? undefined : Number(metrics.sales_profit)}
-                format="money"
-                icon={<TrendingUp />}
-                warning={metrics.sales_profit < 0}
-                emphasis
-                delta={metrics.period_days ? { current: Number(metrics.sales_profit), previous: Number(metrics.previous.sales_profit) } : undefined}
-              />
-              <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} numericValue={Number(metrics.net_margin_percent)} format="percent" icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
-              <Metric title="Ticket promedio" value={money(avgTicket)} numericValue={avgTicket} format="money" icon={<Calculator />} hint="Venta cobrada promedio." />
-            </MetricGroup>
-            <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
-              <Charts orders={orders} products={metrics.top_products} />
-            </Suspense>
-
-            {/* Rentabilidad por producto: no dice cuanto se vendio, sino que
-                perfume deja mas utilidad. Se abre a pedido porque la consulta
-                es pesada. */}
-            <div className="profitability-toggle">
-              <AdminButton
-                tone="secondary"
-                compact
-                type="button"
-                aria-expanded={dashboardDetail === "profitability"}
-                onClick={() =>
-                  setDashboardDetail(dashboardDetail === "profitability" ? null : "profitability")
-                }
-              >
-                <BarChart3 size={16} />
-                {dashboardDetail === "profitability" ? "Ocultar rentabilidad" : "Ver rentabilidad por producto"}
-              </AdminButton>
-            </div>
-
-            {dashboardDetail === "profitability" && (
-              <div className="admin-card profitability-card">
-                <div className="card-title">
-                  <div>
-                    <h2>Que perfume deja mas utilidad</h2>
-                    <span>
-                      {metricsPeriod
-                        ? `Ultimos ${metricsPeriod} dias`
-                        : "Todo el historial"}
-                    </span>
-                  </div>
-                  <Percent size={18} />
-                </div>
-                {profitabilityLoading && (
-                  <div className="loading-state" role="status">
-                    <span className="loading-spinner" aria-hidden="true" />
-                    <span>Calculando rentabilidad…</span>
-                  </div>
-                )}
-                {profitabilityError && <p className="form-error" role="alert">{profitabilityError}</p>}
-                {!profitabilityLoading && !profitabilityError && (
-                  <ProfitabilityTable data={profitability} />
-                )}
-              </div>
-            )}
-            <section className="insight-grid">
-              {/* Merma: la pregunta que sin registro no tiene respuesta.
-                  Dice cuanto se perdio, no solo cuantas unidades faltaron. */}
-              <div className="admin-card waste-card">
-                <div className="card-title">
-                  <div>
-                    <h2>Merma</h2>
-                    <span>Valor perdido ultimos {wasteDays} dias</span>
-                  </div>
-                  <Package size={18} />
-                </div>
-                {wasteLoading && (
-                  <div className="loading-state" role="status">
-                    <span className="loading-spinner" aria-hidden="true" />
-                    <span>Calculando…</span>
-                  </div>
-                )}
-                {wasteError && <p className="form-error" role="alert">{wasteError}</p>}
-                {!wasteLoading && !wasteError && waste && waste.length === 0 && (
-                  <p className="insight">
-                    Sin merma registrada. Cuando registres una rotura, un robo o un
-                    vencimiento desde el boton "Merma o ingreso" de cada presentacion, aqui
-                    aparece cuanto se perdio.
-                  </p>
-                )}
-                {!wasteLoading && !wasteError && waste && waste.length > 0 && (
-                  <>
-                    <p className="waste-total">
-                      <span>Perdido</span>
-                      <strong>{money(waste.reduce((sum, row) => sum + Number(row.total_lost), 0))}</strong>
-                    </p>
-                    <div className="waste-list">
-                      {waste.slice(0, 6).map((row) => (
-                        <div className="waste-row" key={`${row.product_name}-${row.size_ml}`}>
-                          <span className="waste-name">
-                            {row.product_name}
-                            <small>{row.size_ml} ml</small>
-                          </span>
-                          <span className="waste-units">{row.units_lost} und</span>
-                          <span className="waste-money">{money(Number(row.total_lost))}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {waste.length > 6 && (
-                      <p className="report-hint">y {waste.length - 6} presentations mas</p>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <div className="admin-card">
-                <div className="card-title"><div><h2>Consejo</h2><span>Lectura inicial del inventario</span></div><Sparkles size={18}/></div>
-                <p className="insight">{metrics.top_products[0]
-                  ? `“${metrics.top_products[0].name}” es el producto más solicitado (${metrics.top_products[0].units} unidades en pedidos). Revisa su stock antes de impulsar nuevas ventas.`
-                  : "Cuando registres pedidos, aquí aparecerá el producto más solicitado para ayudarte a planificar el inventario."}</p>
-              </div>
-              <div className="admin-card">
-                <div className="card-title"><div><h2>Alertas</h2><span>Inventario y pedidos por atender</span></div><AlertTriangle size={18}/></div>
-                <div className="alert-list">
-                  <button className="alert-link" onClick={() => setDashboardDetail("sold-out")}>
-                    <span>Productos agotados</span><strong>{soldOut}</strong>
-                  </button>
-                  <button className="alert-link" onClick={() => setDashboardDetail("low-stock")}>
-                    <span>Presentaciones con stock bajo</span><strong>{lowStock}</strong>
-                  </button>
-                  <button className="alert-link" onClick={() => setDashboardDetail("pending")}>
-                    <span>Confirmados pendientes de pago</span><strong>{metrics.pending_orders}</strong>
-                  </button>
-                  {soldOut === 0 && lowStock === 0 && metrics.pending_orders === 0 && (
-                    <EmptyState
-                      title="Todo en orden"
-                      hint="No hay productos agotados, stock bajo ni pedidos pendientes."
-                    />
-                  )}
-                </div>
-              </div>
-            </section>
-          </div>
+          </Suspense>
         )}
 
         {section === "collect" && (
@@ -3161,281 +2760,67 @@ function Admin({
         )}
 
         {section === "expenses" && (
-          <section className="admin-card">
-            <div className="card-title">
-              <div>
-                <h2>Gastos</h2>
-                <span>Registra gastos, programa recordatorios y consulta los pagos incluidos en reportes diarios y semanales.</span>
-              </div>
-            </div>
-            <form className="expense-form" onSubmit={(event) => void saveExpense(event)}>
-              <label>Nombre
-                <input value={expenseForm.name} onChange={(event) => setExpenseForm((current) => ({ ...current, name: event.target.value }))} placeholder="Ej. Alquiler local" required />
-              </label>
-              <label>Monto
-                <input type="number" min="0" step="1" value={expenseForm.amount} onChange={(event) => setExpenseForm((current) => ({ ...current, amount: event.target.value }))} placeholder="0" required />
-              </label>
-              <label>Categoría
-                <select value={expenseForm.category} onChange={(event) => setExpenseForm((current) => ({ ...current, category: event.target.value }))}>
-                  {EXPENSE_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
-              </label>
-              <label>{expenseForm.recurring ? "Primer vencimiento" : "Fecha"}
-                <input type="date" value={expenseForm.date} onChange={(event) => setExpenseForm((current) => ({ ...current, date: event.target.value }))} required />
-              </label>
-              <label className="expense-recurring-toggle">
-                <span>¿Es un gasto recurrente?</span>
-                <input
-                  type="checkbox"
-                  checked={expenseForm.recurring}
-                  onChange={(event) => setExpenseForm((current) => ({ ...current, recurring: event.target.checked }))}
-                />
-              </label>
-              {expenseForm.recurring && (
-                <label>Frecuencia
-                  <select
-                    value={expenseForm.frequency}
-                    onChange={(event) => setExpenseForm((current) => ({
-                      ...current,
-                      frequency: event.target.value as RecurrenceFrequency,
-                    }))}
-                  >
-                    <option value="weekly">Semanal</option>
-                    <option value="monthly">Mensual</option>
-                    <option value="yearly">Anual</option>
-                  </select>
-                </label>
-              )}
-              <AdminButton type="submit" disabled={savingExpense}>
-                {savingExpense ? "Guardando..." : expenseForm.recurring ? "Crear recordatorio" : "Agregar gasto"}
-              </AdminButton>
-            </form>
-            {expenseForm.recurring && (
-              <p className="profile-notice">
-                La fecha indicada será el primer vencimiento. Verás los próximos pagos aquí y el correo se enviará el día del vencimiento y cada día que siga pendiente.
-              </p>
-            )}
-            {recurringExpenses.length > 0 && (
-              <div className="recurring-expenses">
-                <h3>Recordatorios de pagos recurrentes</h3>
-                {recurringExpenses.map((expense) => {
-                  const daysUntil = getDaysUntil(expense.next_due_date);
-                  const dueLabel = daysUntil < 0
-                    ? `Vencido hace ${Math.abs(daysUntil)} día(s)`
-                    : daysUntil === 0
-                      ? "Vence hoy"
-                      : `Vence en ${daysUntil} día(s)`;
-                  const frequencyLabel = expense.frequency === "weekly"
-                    ? "Semanal"
-                    : expense.frequency === "yearly" ? "Anual" : "Mensual";
-                  return (
-                    <div className="recurring-expense-row" key={expense.id}>
-                      <div>
-                        <strong>{expense.name} · {money(expense.amount)}</strong>
-                        <span>{expense.category} · {frequencyLabel} · {formatBogotaDate(expense.next_due_date)}</span>
-                        <small className={daysUntil <= 0 ? "expense-overdue" : ""}>{dueLabel}</small>
-                      </div>
-                      <div className="recurring-expense-actions">
-                        <AdminButton
-                          tone="secondary"
-                          compact
-                          type="button"
-                          disabled={payingRecurringExpenseId === expense.id}
-                          onClick={() => void payRecurringExpense(expense)}
-                        >
-                          {payingRecurringExpenseId === expense.id ? "Guardando..." : "Registrar pago"}
-                        </AdminButton>
-                        <AdminButton
-                          tone="danger"
-                          variant="outline"
-                          compact
-                          type="button"
-                          aria-label={`Eliminar recordatorio ${expense.name}`}
-                          disabled={deletingRecurringExpenseId === expense.id}
-                          onClick={() => void removeRecurringExpense(expense.id)}
-                        >
-                          <Trash2 size={16} />
-                        </AdminButton>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {expenses.length > 0 ? (
-              <>
-                <div className="admin-table">
-                  <div className="table-row expense-row header"><span>Nombre</span><span>Categoría</span><span className="cell-center">Monto</span><span className="cell-center">Fecha</span><span></span></div>
-                  {paginatedExpenses.map((expense) => (
-                    <div className="table-row expense-row" key={expense.id}>
-                      <strong>{expense.name}</strong>
-                      <span>{expense.category}</span>
-                      <span className="cell-center">{money(expense.amount)}</span>
-                      <span className="cell-center">{expense.expense_date}</span>
-                      <AdminButton
-                        tone="danger"
-                        variant="outline"
-                        compact
-                        type="button"
-                        aria-label={`Eliminar gasto ${expense.name}`}
-                        disabled={deletingExpenseId === expense.id}
-                        onClick={() => {
-                          onConfirm({
-                            title: "Eliminar gasto",
-                            message: `¿Eliminar el gasto "${expense.name}"? Esta acción no se puede deshacer.`,
-                            onConfirm: () => void removeExpense(expense.id),
-                          });
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </AdminButton>
-                    </div>
-                  ))}
-                </div>
-                <Pagination
-                  page={currentExpensePage}
-                  pageCount={expensePageCount}
-                  total={expenses.length}
-                  noun="gasto"
-                  label="Paginación de gastos"
-                  onPageChange={setExpensePage}
-                />
-              </>
-            ) : (
-              !sectionLoading && (
-                <EmptyState
-                  icon={<Wallet size={26} />}
-                  title="Todavía no registras gastos"
-                  hint="Usa el formulario de arriba para agregar tu primer gasto. También puedes marcarlo como recurrente para recibir recordatorios."
-                />
-              )
-            )}
-          </section>
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gastos…</span></div>}>
+            <ExpensesPage
+              form={expenseForm}
+              onFormChange={setExpenseForm}
+              onSubmit={saveExpense}
+              saving={savingExpense}
+              recurringExpenses={recurringExpenses}
+              payingRecurringExpenseId={payingRecurringExpenseId}
+              deletingRecurringExpenseId={deletingRecurringExpenseId}
+              onPayRecurring={(expense) => void payRecurringExpense(expense)}
+              onDeleteRecurring={(id) => void removeRecurringExpense(id)}
+              expenses={expenses}
+              paginatedExpenses={paginatedExpenses}
+              currentPage={currentExpensePage}
+              pageCount={expensePageCount}
+              onPageChange={setExpensePage}
+              deletingExpenseId={deletingExpenseId}
+              onDeleteExpense={(expense) => {
+                onConfirm({
+                  title: "Eliminar gasto",
+                  message: `¿Eliminar el gasto "${expense.name}"? Esta acción no se puede deshacer.`,
+                  onConfirm: () => void removeExpense(expense.id),
+                });
+              }}
+              loading={sectionLoading}
+            />
+          </Suspense>
         )}
 
         {section === "advisors" && (
-          <section className="admin-card">
-            <div className="card-title">
-              <div>
-                <h2>Asesores de venta</h2>
-                <span>Registra quién atendió cada pedido. Solo los asesores activos aparecen al crear o editar un pedido.</span>
-              </div>
-            </div>
-            <form className="advisor-form" onSubmit={saveAdvisor}>
-              <div className="advisor-form-grid">
-                <label className="auth-label">
-                  Nombre completo
-                  <input
-                    type="text"
-                    required
-                    placeholder="Nombre del asesor"
-                    value={advisorForm.full_name}
-                    disabled={savingAdvisor}
-                    onChange={(event) => setAdvisorForm((current) => ({ ...current, full_name: event.target.value }))}
-                  />
-                </label>
-                <label className="auth-label">
-                  WhatsApp
-                  <input
-                    type="tel"
-                    placeholder="Opcional"
-                    value={advisorForm.phone}
-                    disabled={savingAdvisor}
-                    onChange={(event) => setAdvisorForm((current) => ({ ...current, phone: event.target.value }))}
-                  />
-                </label>
-                <label className="auth-label">
-                  Correo
-                  <input
-                    type="email"
-                    placeholder="Opcional"
-                    value={advisorForm.email}
-                    disabled={savingAdvisor}
-                    onChange={(event) => setAdvisorForm((current) => ({ ...current, email: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className="advisor-form-actions">
-                <AdminButton type="submit" disabled={savingAdvisor || !advisorForm.full_name.trim()}>
-                  {editingAdvisor ? "Guardar cambios" : "Agregar asesor"}
-                </AdminButton>
-                {editingAdvisor && (
-                  <AdminButton
-                    tone="secondary"
-                    compact
-                    type="button"
-                    disabled={savingAdvisor}
-                    onClick={() => {
-                      setEditingAdvisor(null);
-                      setAdvisorForm({ full_name: "", phone: "", email: "" });
-                    }}
-                  >
-                    Cancelar
-                  </AdminButton>
-                )}
-              </div>
-            </form>
-            <div className="admin-table">
-              <div className="table-row advisor-row header">
-                <span>Asesor</span><span>WhatsApp</span><span>Correo</span><span className="cell-center">Estado</span><span></span>
-              </div>
-              {salesAdvisors.map((advisor) => (
-                <div className="table-row advisor-row" key={advisor.id}>
-                  <strong>{advisor.full_name}</strong>
-                  <span>{advisor.phone || "—"}</span>
-                  <span>{advisor.email || "—"}</span>
-                  <span className={`cell-center ${advisor.active ? "advisor-active" : "advisor-inactive"}`}>
-                    {advisor.active ? "Activo" : "Inactivo"}
-                  </span>
-                  <div className="order-actions">
-                    <AdminButton
-                      tone="secondary"
-                      compact
-                      type="button"
-                      aria-label={`Editar ${advisor.full_name}`}
-                      disabled={savingAdvisor}
-                      onClick={() => {
-                        setEditingAdvisor(advisor);
-                        setAdvisorForm({
-                          full_name: advisor.full_name,
-                          phone: advisor.phone ?? "",
-                          email: advisor.email ?? "",
-                        });
-                      }}
-                    >
-                      <Pencil size={15} /> Editar
-                    </AdminButton>
-                    <AdminButton
-                      tone="danger"
-                      variant="outline"
-                      compact
-                      type="button"
-                      aria-label={`Eliminar ${advisor.full_name}`}
-                      disabled={deletingAdvisorId === advisor.id}
-                      onClick={() => {
-                        onConfirm({
-                          title: "Eliminar asesor",
-                          message: `¿Eliminar al asesor "${advisor.full_name}"? Los pedidos existentes conservarán su nombre, pero no se podrá asignar a nuevos pedidos.`,
-                          onConfirm: () => void removeAdvisor(advisor),
-                        });
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </AdminButton>
-                  </div>
-                </div>
-              ))}
-              {!sectionLoading && salesAdvisors.length === 0 && (
-                <EmptyState
-                  icon={<UserCheck size={26} />}
-                  title="No hay asesores registrados"
-                  hint="Agrega el primero con el formulario de arriba."
-                />
-              )}
-            </div>
-          </section>
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando asesores…</span></div>}>
+            <AdvisorsPage
+              advisors={salesAdvisors}
+              form={advisorForm}
+              editingAdvisor={editingAdvisor}
+              saving={savingAdvisor}
+              deletingAdvisorId={deletingAdvisorId}
+              loading={sectionLoading}
+              onSubmit={saveAdvisor}
+              onFormChange={setAdvisorForm}
+              onEdit={(advisor) => {
+                setEditingAdvisor(advisor);
+                setAdvisorForm({
+                  full_name: advisor.full_name,
+                  phone: advisor.phone ?? "",
+                  email: advisor.email ?? "",
+                });
+              }}
+              onCancelEdit={() => {
+                setEditingAdvisor(null);
+                setAdvisorForm({ full_name: "", phone: "", email: "" });
+              }}
+              onDelete={(advisor) => {
+                onConfirm({
+                  title: "Eliminar asesor",
+                  message: `¿Eliminar al asesor "${advisor.full_name}"? Los pedidos existentes conservarán su nombre, pero no se podrá asignar a nuevos pedidos.`,
+                  onConfirm: () => void removeAdvisor(advisor),
+                });
+              }}
+            />
+          </Suspense>
         )}
 
         {section === "settings" && (
@@ -3453,393 +2838,144 @@ function Admin({
           </Suspense>
         )}
 
-        {section === "products" && <section className="admin-card">
-          <div className="card-title">
-            <div>
-              <h2>{showArchivedProducts ? "Productos archivados" : "Productos"}</h2>
-              <span>Gestiona disponibilidad, costos y stock. Para importar, usa una fila por presentación y repite marca, nombre y SKU del producto para agrupar variantes.</span>
-            </div>
-            <div className="product-list-tools">
-              <button
-                className="secondary archived-products-toggle"
-                type="button"
-                onClick={() => setShowArchivedProducts((current) => !current)}
-                disabled={archivedProductsCount === 0 && !showArchivedProducts}
-              >
-                {showArchivedProducts ? "Volver a productos" : `Archivados (${archivedProductsCount})`}
-              </button>
-              {!showArchivedProducts && (
-                <>
-                  <label className="product-filter-select">
-                    <span>Disponibilidad</span>
-                    <select
-                      value={productStockFilter}
-                      onChange={(event) => setProductStockFilter(event.target.value as "all" | "available" | "sold-out")}
-                      aria-label="Filtrar productos por disponibilidad"
-                    >
-                      <option value="all">Todos</option>
-                      <option value="available">Disponibles</option>
-                      <option value="sold-out">Agotados</option>
-                    </select>
-                  </label>
-                  <details className="product-price-filter">
-                    <summary>
-                      Costo y precio
-                      {hasProductPriceFilter && <span className="filter-active-dot" aria-label="Filtro activo" />}
-                    </summary>
-                    <div className="product-price-filter-panel">
-                      <p className="product-price-filter-heading">Rango por presentación</p>
-                      <div className="product-price-filter-grid">
-                        <label>Costo mín.
-                          <input type="number" min="0" step="1000" inputMode="numeric" placeholder="0" value={productPriceFilter.costMin} onChange={(event) => updateProductPriceFilter("costMin", event.target.value)} />
-                        </label>
-                        <label>Costo máx.
-                          <input type="number" min="0" step="1000" inputMode="numeric" placeholder="Sin límite" value={productPriceFilter.costMax} onChange={(event) => updateProductPriceFilter("costMax", event.target.value)} />
-                        </label>
-                        <label>Precio mín.
-                          <input type="number" min="0" step="1000" inputMode="numeric" placeholder="0" value={productPriceFilter.priceMin} onChange={(event) => updateProductPriceFilter("priceMin", event.target.value)} />
-                        </label>
-                        <label>Precio máx.
-                          <input type="number" min="0" step="1000" inputMode="numeric" placeholder="Sin límite" value={productPriceFilter.priceMax} onChange={(event) => updateProductPriceFilter("priceMax", event.target.value)} />
-                        </label>
-                      </div>
-                      <div className="product-price-filter-actions">
-                        <button type="button" onClick={clearProductPriceFilter} disabled={!hasProductPriceFilter}>Limpiar</button>
-                        <span>{visibleProducts.length} productos</span>
-                      </div>
-                    </div>
-                  </details>
-                </>
-              )}
-              <label className="admin-search">
-                <Search size={16} />
-                <input
-                  aria-label={showArchivedProducts ? "Buscar productos archivados por marca, nombre o SKU" : "Buscar productos por marca, nombre o SKU"}
-                  placeholder="Buscar marca, nombre o SKU"
-                  value={productSearch}
-                  onChange={(event) => setProductSearch(event.target.value)}
-                />
-              </label>
-            </div>
-          </div>
-          {showArchivedProducts && (
-            <p className="customer-import-hint">
-              Estos productos se quitaron de la tienda, pero se conservan porque tienen pedidos o movimientos de inventario asociados.
-            </p>
-          )}
+        {section === "reports" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando reportes…</span></div>}>
+            <ReportsPage
+              reportPeriodId={reportPeriodId}
+              reportCustomFrom={reportCustomFrom}
+              reportCustomTo={reportCustomTo}
+              reportDate={reportDate}
+              reportLoading={reportLoading}
+              reportError={reportError}
+              reportRangeError={reportRangeError}
+              reportResult={reportResult}
+              onPeriodPresetChange={(presetId, from, to) => {
+                setReportPeriodId(presetId);
+                setReportCustomFrom(from);
+                setReportCustomTo(to);
+              }}
+              onCustomFromChange={(value) => {
+                setReportPeriodId("custom");
+                setReportCustomFrom(value);
+              }}
+              onCustomToChange={(value) => {
+                setReportPeriodId("custom");
+                setReportCustomTo(value);
+              }}
+              onReportDateChange={setReportDate}
+              onGenerateReport={(dailyReportDate) => void generateReport(dailyReportDate)}
+            />
+          </Suspense>
+        )}
+        {section === "products" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando productos…</span></div>}>
+            <ProductsPage
+              visibleProducts={visibleProducts}
+              promotions={promotions}
+              archivedProductsCount={archivedProductsCount}
+              showArchivedProducts={showArchivedProducts}
+              onToggleArchived={() => setShowArchivedProducts((current) => !current)}
+              productSearch={productSearch}
+              onProductSearchChange={setProductSearch}
+              productStockFilter={productStockFilter}
+              onProductStockFilterChange={setProductStockFilter}
+              productPriceFilter={productPriceFilter}
+              onProductPriceFilterChange={updateProductPriceFilter}
+              hasProductPriceFilter={hasProductPriceFilter}
+              onClearProductPriceFilter={clearProductPriceFilter}
+              costDrafts={costDrafts}
+              onCostDraftChange={(variantId, value) => setCostDrafts((current) => ({ ...current, [variantId]: value }))}
+              onCostDraftClear={(variantId) => setCostDrafts((current) => {
+                const next = { ...current };
+                delete next[variantId];
+                return next;
+              })}
+              stockDrafts={stockDrafts}
+              onStockDraftChange={(variantId, value) => setStockDrafts((current) => ({ ...current, [variantId]: value }))}
+              onStockDraftClear={(variantId) => setStockDrafts((current) => {
+                const next = { ...current };
+                delete next[variantId];
+                return next;
+              })}
+              onVariantCostChange={onVariantCostChange}
+              savingCostVariantId={savingCostVariantId}
+              onVariantStockChange={onVariantStockChange}
+              savingStockVariantId={savingStockVariantId}
+              onOpenMovement={(productId, variant) => setMovementEditor({ productId, variant })}
+              onProductActiveChange={onProductActiveChange}
+              updatingProductId={updatingProductId}
+              onEdit={(product) => {
+                setProductActionFeedback(null);
+                setProductActionError(null);
+                setEditingProduct(product);
+              }}
+              onDelete={(product) => {
+                setConfirmAction({
+                  title: "Eliminar producto",
+                  message: `¿Eliminar ${product.brand} ${product.name}? Si tiene pedidos o movimientos de inventario, se quita de la tienda y se archiva para proteger ese historial.`,
+                  confirmLabel: "Eliminar producto",
+                  run: () => deleteProductConfirmed(product),
+                });
+              }}
+              deletingProductId={deletingProductId}
+              error={error}
+              importFeedback={importFeedback}
+              importError={importError}
+              productActionFeedback={productActionFeedback}
+              productActionError={productActionError}
+            />
+          </Suspense>
+        )}
 
-          <div className="admin-table">
-            <div className="table-row product-row header">
-              <span>Producto</span><span>SKU</span><span>Categoría</span><span>Presentación y costo unitario</span><span className="cell-center">Stock</span><span className="cell-center">Estado</span><span className="cell-center">Acciones</span>
-            </div>
-            {visibleProducts.map((product) => {
-              const stock = product.variants.reduce((s, v) => s + v.stock, 0);
-              const available = !product.archived && product.active !== false && stock > 0;
-              return (
-                <div className="table-row product-row" key={product.id}>
-                  <div className="product-cell">
-                    <img src={product.image} alt="" loading="lazy" decoding="async" />
-                    <div>
-                      <b>{product.brand}</b>
-                      <span>{product.name}</span>
-                    </div>
-                  </div>
-                  <div className="product-sku-cell">
-                    {product.sku
-                      ? <code title={product.sku}>{product.sku}</code>
-                      : <span className="sku-missing">Sin SKU</span>}
-                  </div>
-                  <div className="product-category-cell">
-                    <span>{product.category}</span>
-                    {product.promotion_id && (
-                      <small>{promotions.find((promotion) => promotion.id === product.promotion_id)?.name ?? "Promoción no disponible"}</small>
-                    )}
-                  </div>
-                  <div className="variant-cost-list">
-                    {product.variants.map((variant) => (
-                      <label key={variant.id}>
-                        <span>
-                          {variant.size} ml · precio {money(variant.price)}
-                          {variant.active === false && <small className="variant-hidden-label">Oculta en tienda</small>}
-                        </span>
-                        <span className="cost-input-wrap">
-                          <span>Costo</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            aria-label={`Costo unitario de ${product.name} ${variant.size} ml`}
-                            value={costDrafts[variant.id] ?? (variant.cost == null ? "" : String(variant.cost))}
-                            placeholder="Sin costo"
-                            disabled={savingCostVariantId === variant.id}
-                            onChange={(event) => setCostDrafts((current) => ({ ...current, [variant.id]: event.target.value }))}
-                            onBlur={(event) => {
-                              const rawCost = event.target.value.trim();
-                              if (!rawCost) return;
-                              const cost = Number(rawCost);
-                              if (!Number.isFinite(cost) || cost < 0) return;
-                              void onVariantCostChange(variant.id, cost)
-                                .then(() => setCostDrafts((current) => {
-                                  const next = { ...current };
-                                  delete next[variant.id];
-                                  return next;
-                                }))
-                                .catch(() => {});
-                            }}
-                          />
-                        </span>
-                        {savingCostVariantId === variant.id && <small>Guardando…</small>}
-                      </label>
-                    ))}
-                    {product.variants.map((variant) => (
-                      <div className="stock-control-group" key={`stock-${variant.id}`}>
-                      <label className="stock-control">
-                        <span>Stock disponible · {variant.size} ml</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          inputMode="numeric"
-                          aria-label={`Stock de ${product.name} ${variant.size} ml`}
-                          value={stockDrafts[variant.id] ?? String(variant.stock)}
-                          disabled={savingStockVariantId === variant.id}
-                          onChange={(event) => setStockDrafts((current) => ({ ...current, [variant.id]: event.target.value }))}
-                          onBlur={(event) => {
-                            const rawStock = event.target.value.trim();
-                            if (!rawStock) {
-                              setStockDrafts((current) => {
-                                const next = { ...current };
-                                delete next[variant.id];
-                                return next;
-                              });
-                              return;
-                            }
-                            const stock = Number(rawStock);
-                            if (stock === variant.stock) {
-                              setStockDrafts((current) => {
-                                const next = { ...current };
-                                delete next[variant.id];
-                                return next;
-                              });
-                              return;
-                            }
-                            void onVariantStockChange(variant.id, stock)
-                              .then(() => setStockDrafts((current) => {
-                                const next = { ...current };
-                                delete next[variant.id];
-                                return next;
-                              }))
-                              .catch(() => {});
-                          }}
-                        />
-                        {savingStockVariantId === variant.id && <small>Guardando…</small>}
-                      </label>
-                      {/* Escribir el stock a mano borra el rastro de por que
-                          bajo. Este boton deja el motivo registrado. */}
-                      <AdminButton
-                        tone="secondary"
-                        compact
-                        variant="ghost"
-                        type="button"
-                        onClick={() => setMovementEditor({ productId: product.id, variant })}
-                      >
-                        <Package size={14} /> Merma o ingreso
-                      </AdminButton>
-                      </div>
-                    ))}
-                  </div>
-                  <span className="cell-center">{stock}</span>
-                  {product.archived ? (
-                    <span className="status sold archived-status">Archivado</span>
-                  ) : (
-                    <button
-                      className={available ? "status available" : "status sold"}
-                      disabled={updatingProductId === product.id}
-                      onClick={() => onProductActiveChange(product)}
-                    >
-                      {updatingProductId === product.id
-                        ? "Guardando..."
-                        : product.active === false
-                          ? <>Oculto · mostrar</>
-                          : available ? <><Check size={13}/> Disponible · ocultar</> : <>Agotado · ocultar</>}
-                    </button>
-                  )}
-                  {product.archived ? (
-                    <span className="archived-history-note">Se conserva por su historial de ventas o inventario.</span>
-                  ) : (
-                    <div className="product-actions">
-                      <AdminButton tone="secondary" compact type="button" onClick={() => {
-                          setProductActionFeedback(null);
-                          setProductActionError(null);
-                          setEditingProduct(product);
-                      }}>
-                          <Pencil size={14}/> Editar
-                      </AdminButton>
-                      <AdminButton
-                          tone="danger"
-                          variant="outline"
-                          compact
-                          type="button"
-                          disabled={deletingProductId === product.id}
-                          onClick={() => {
-                            setConfirmAction({
-                              title: "Eliminar producto",
-                              message: `¿Eliminar ${product.brand} ${product.name}? Si tiene pedidos o movimientos de inventario, se quita de la tienda y se archiva para proteger ese historial.`,
-                              confirmLabel: "Eliminar producto",
-                              run: () => deleteProductConfirmed(product),
-                            });
-                          }}
-                      >
-                          <Trash2 size={14}/>{deletingProductId === product.id ? "Eliminando..." : "Eliminar"}
-                      </AdminButton>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            {visibleProducts.length === 0 && (
-              <p className="insight">
-                {showArchivedProducts
-                  ? "No hay productos archivados que coincidan con la búsqueda."
-                  : "No hay productos activos que coincidan con la búsqueda."}
-              </p>
-            )}
-          </div>
-          {productActionFeedback && <p className="import-feedback" role="status">{productActionFeedback}</p>}
-          {productActionError && <p className="form-error" role="alert">{productActionError}</p>}
-        </section>}
         {section === "promotions" && (
-          <section className="admin-card">
-            <div className="card-title">
-              <div>
-                <h2>Promociones y ofertas</h2>
-                <span>Asocia los productos desde su formulario. La oferta se repite por cada paquete completo.</span>
-              </div>
-              <AdminButton type="button" onClick={() => setPromotionEditor("new")}><Plus size={17}/> Nueva promoción</AdminButton>
-            </div>
-            {promotions.length === 0 ? (
-              <EmptyState
-                icon={<Tag size={26} />}
-                title="Todavía no hay promociones"
-                hint="Crea una para ofrecer paquetes con precio especial."
-                action={
-                  <AdminButton tone="secondary" compact type="button" onClick={() => setPromotionEditor("new")}>
-                    <Plus size={14} /> Nueva promoción
-                  </AdminButton>
-                }
-              />
-            ) : (
-              <div className="admin-table promotion-table">
-                <div className="table-row header"><span>Promoción</span><span>Paquete</span><span>Combinación</span><span className="cell-center">Estado</span><span className="cell-center">Acciones</span></div>
-                {promotions.map((promotion) => (
-                  <div className="table-row" key={promotion.id}>
-                    <strong>{promotion.name}</strong>
-                    <span>{promotion.required_quantity} por {money(promotion.bundle_price)}</span>
-                    <span>{promotion.allow_mixed ? "Productos asociados combinables" : "Mismo perfume"}</span>
-                    <button
-                      type="button"
-                      className={`status-pill ${promotion.active ? "status-paid" : ""} status-toggle`}
-                      aria-pressed={promotion.active}
-                      title={promotion.active ? "Activa · pausar" : "Pausada · activar"}
-                      onClick={() => void togglePromotion(promotion)}
-                    >
-                      {promotion.active ? "Activa" : "Inactiva"}
-                    </button>
-                    <div className="product-actions">
-                      <AdminButton tone="secondary" compact onClick={() => setPromotionEditor(promotion)}><Pencil size={15}/> Editar</AdminButton>
-                      <AdminButton tone="danger" variant="outline" compact onClick={() => void removePromotion(promotion)}><Trash2 size={15}/> Eliminar</AdminButton>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando promociones…</span></div>}>
+            <PromotionsPage
+              promotions={promotions}
+              feedback={promotionFeedback}
+              onNew={() => setPromotionEditor("new")}
+              onEdit={setPromotionEditor}
+              onToggle={(promotion) => void togglePromotion(promotion)}
+              onDelete={(promotion) => void removePromotion(promotion)}
+            />
+          </Suspense>
         )}
 
-        {(section === "customers" || section === "profiles") && (
-          <section className="admin-card">
-            <div className="card-title">
-              <div>
-                <h2>{section === "customers" ? "Clientes y pedidos" : section === "profiles" ? "Cuentas y permisos" : "Pedidos y transacciones"}</h2>
-                <span>{section === "customers"
-                  ? "Consulta compras y actualiza los datos de contacto."
-                  : section === "profiles"
-                    ? "Asigna acceso administrativo únicamente a cuentas registradas."
-                    : "Al marcar un pedido como pagado, se completa la venta y se actualiza el inventario."}</span>
-              </div>
-              <label className="admin-search">
-                <Search size={16} />
-                <input aria-label={`Buscar ${pageTitle.toLowerCase()}`} placeholder="Buscar" value={search} onChange={(event) => setSearch(event.target.value)} />
-              </label>
-            </div>
-            {section === "customers" && (
-              <>
-              {customerImportFeedback && <p className="import-feedback" role="status">{customerImportFeedback}</p>}
-              {customerImportError && <p className="form-error" role="alert">{customerImportError}</p>}
-              <p className="customer-import-hint">Importa CSV o Excel (.xlsx) con las columnas <code>full_name</code> y, opcionalmente, <code>phone</code>, <code>email</code> y <code>city</code>. Se omiten coincidencias por correo o teléfono.</p>
-              <div className="admin-table">
-                <div className="table-row customer-row header"><span>Cliente</span><span>WhatsApp</span><span>Correo</span><span>Ciudad</span><span className="cell-center">Pedidos</span><span></span></div>
-                {paginatedCustomers.map((customer) => (
-                  <div className="table-row customer-row" key={customer.id}>
-                    <strong>{customer.full_name}</strong><span>{customer.phone || "—"}</span><span>{customer.email || "—"}</span><span>{customer.city || "—"}</span><span className="cell-center">{customer.orders?.length ?? 0}</span>
-                    <AdminButton tone="secondary" compact type="button" aria-label={`Editar ${customer.full_name}`} onClick={() => setEditingCustomer(customer)}><Pencil size={16}/></AdminButton>
-                  </div>
-                ))}
-                {!sectionLoading && visibleCustomers.length === 0 && (
-                  <EmptyState
-                    icon={<Users size={26} />}
-                    title="No hay clientes que coincidan con la búsqueda."
-                    hint="Prueba con otro nombre o teléfono."
-                  />
-                )}
-              </div>
-              <Pagination
-                page={currentCustomerPage}
-                pageCount={customerPageCount}
-                total={visibleCustomers.length}
-                noun="cliente"
-                label="Paginación de clientes"
-                onPageChange={setCustomerPage}
-              />
-              </>
-            )}
-            {section === "profiles" && (
-              <>
-                <div className="profile-notice"><ShieldCheck size={17}/> Los usuarios se registran desde la tienda como clientes. Puedes promover una cuenta a administrador; no puedes cambiar tu propio rol.</div>
-                <div className="admin-table">
-                  <div className="table-row profile-row header"><span>Perfil</span><span>WhatsApp</span><span className="cell-center">Alta</span><span className="cell-center">Permiso</span></div>
-                  {paginatedProfiles.map((profile) => (
-                    <div className="table-row profile-row" key={profile.id}>
-                      <div className="profile-cell"><strong>{profile.full_name || "Sin nombre"}</strong><span>{profile.email || "Sin correo"}</span></div>
-                      <span>{profile.phone || "—"}</span>
-                      <span className="cell-center">{new Date(profile.created_at).toLocaleDateString("es-CO")}</span>
-                      <label className="mobile-select-cell">
-                        <select aria-label={`Permiso de ${profile.email ?? profile.id}`} value={profile.role} disabled={profile.id === currentUserId || savingProfileId === profile.id} onChange={(event) => void saveProfileRole(profile, event.target.value as AdminProfile["role"])}>
-                          <option value="customer">Cliente</option><option value="admin">Administrador</option><option value="asesor">Asesor</option>
-                        </select>
-                      </label>
-                    </div>
-                  ))}
-                  {!sectionLoading && visibleProfiles.length === 0 && (
-                  <EmptyState
-                    icon={<ShieldCheck size={26} />}
-                    title="No hay perfiles que coincidan con la búsqueda."
-                    hint="Prueba con otro nombre o correo."
-                  />
-                )}
-                </div>
-                <Pagination
-                  page={currentProfilePage}
-                  pageCount={profilePageCount}
-                  total={visibleProfiles.length}
-                  noun="perfil"
-                  label="Paginación de perfiles"
-                  onPageChange={setProfilePage}
-                />
-              </>
-            )}
-          </section>
+        {section === "customers" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando clientes…</span></div>}>
+            <CustomersPage
+              customers={paginatedCustomers}
+              visibleCount={visibleCustomers.length}
+              loading={sectionLoading}
+              search={search}
+              onSearchChange={setSearch}
+              importFeedback={customerImportFeedback}
+              importError={customerImportError}
+              onEdit={setEditingCustomer}
+              page={currentCustomerPage}
+              pageCount={customerPageCount}
+              onPageChange={setCustomerPage}
+            />
+          </Suspense>
         )}
+
+        {section === "profiles" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando perfiles…</span></div>}>
+            <ProfilesPage
+              profiles={paginatedProfiles}
+              visibleCount={visibleProfiles.length}
+              loading={sectionLoading}
+              search={search}
+              onSearchChange={setSearch}
+              currentUserId={currentUserId}
+              savingProfileId={savingProfileId}
+              onRoleChange={(profile, role) => void saveProfileRole(profile, role)}
+              page={currentProfilePage}
+              pageCount={profilePageCount}
+              onPageChange={setProfilePage}
+            />
+          </Suspense>
+        )}
+
         {section === "transactions" && (
           <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando pedidos…</span></div>}>
           <OrdersPage
