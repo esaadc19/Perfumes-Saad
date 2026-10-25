@@ -122,6 +122,7 @@ import {
 import {
   ArrowLeft,
   BarChart3,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   PanelLeftClose,
@@ -138,6 +139,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingBag,
+  SlidersHorizontal,
   Sparkles,
   Tag,
   Trash2,
@@ -304,6 +306,22 @@ function App() {
       active = false;
     };
   }, []);
+  // La tienda necesita las promociones activas aunque el visitante no haya
+  // abierto el panel: la sección de ofertas del catálogo se alimenta de aquí.
+  useEffect(() => {
+    if (!supabase || view !== "store") return;
+    let active = true;
+    void getPromotions()
+      .then((loaded) => {
+        if (active) setPromotions(loaded);
+      })
+      .catch((promotionsError: unknown) => {
+        console.error("No se pudieron cargar las ofertas de la tienda:", promotionsError);
+      });
+    return () => {
+      active = false;
+    };
+  }, [view]);
   useEffect(() => {
     if (!supabase) return;
     let active = true;
@@ -359,6 +377,10 @@ function App() {
   const [brandFilter, setBrandFilter] = useState("Todas");
   const [category, setCategory] = useState("Todos");
   const [genderFilter, setGenderFilter] = useState("Todos");
+  // "none" = sin filtro, "all" = cualquier producto en oferta y cualquier
+  // otro valor es el id de una promoción concreta.
+  const [offerFilter, setOfferFilter] = useState("none");
+  const [catalogFiltersOpen, setCatalogFiltersOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showTracking, setShowTracking] = useState(() => {
@@ -714,17 +736,61 @@ function App() {
       const matchesSearch =
         `${p.brand} ${p.name}`.toLowerCase().includes(search.toLowerCase());
       const matchesBrand = brandFilter === "Todas" || p.brand === brandFilter;
-      const matchesCategory = category === "Todos"
-        || (category === "Ofertas" ? Boolean(p.promotion?.active) : p.category === category);
+      const matchesCategory = category === "Todos" || p.category === category;
       const matchesGender = genderFilter === "Todos" || p.gender === genderFilter;
-      return matchesSearch && matchesBrand && matchesCategory && matchesGender;
+      const matchesOffer = offerFilter === "none"
+        || (offerFilter === "all"
+          ? Boolean(p.promotion?.active)
+          : Boolean(p.promotion?.active) && p.promotion?.id === offerFilter);
+      return matchesSearch && matchesBrand && matchesCategory && matchesGender && matchesOffer;
     });
-  }, [products, search, brandFilter, category, genderFilter]);
+  }, [products, search, brandFilter, category, genderFilter, offerFilter]);
   const availableBrands = useMemo(
     () => [...new Set(products.filter((product) => product.active !== false).map((product) => product.brand))]
       .sort((a, b) => a.localeCompare(b, "es")),
     [products]
   );
+  // Se combinan las promociones cargadas y las que ya vienen incluidas en
+  // cada producto para que una oferta no desaparezca si la consulta pública
+  // de promociones falla o llega después que el catálogo.
+  const activePromotions = useMemo(() => {
+    const seen = new Set<string>();
+    const result: Promotion[] = [];
+    for (const promotion of [...promotions, ...products.map((product) => product.promotion)]) {
+      if (!promotion?.active || seen.has(promotion.id)) continue;
+      seen.add(promotion.id);
+      result.push(promotion);
+    }
+    return result;
+  }, [promotions, products]);
+  const promotionProductCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const product of products) {
+      if (product.active === false || product.variants.length === 0) continue;
+      if (!product.promotion?.active) continue;
+      counts[product.promotion.id] = (counts[product.promotion.id] ?? 0) + 1;
+    }
+    return counts;
+  }, [products]);
+  const offerProductCount = useMemo(
+    () => Object.values(promotionProductCounts).reduce((sum, count) => sum + count, 0),
+    [promotionProductCounts]
+  );
+  const activeFilterCount = [
+    brandFilter !== "Todas",
+    category !== "Todos",
+    genderFilter !== "Todos",
+    offerFilter !== "none",
+  ].filter(Boolean).length;
+  const selectedPromotion = offerFilter !== "none" && offerFilter !== "all"
+    ? activePromotions.find((promotion) => promotion.id === offerFilter)
+    : null;
+  const clearCatalogFilters = () => {
+    setBrandFilter("Todas");
+    setCategory("Todos");
+    setGenderFilter("Todos");
+    setOfferFilter("none");
+  };
   const cartPrice = useMemo(() => calculatePromotionPrice(cart.map((item) => ({
     productId: item.product.id,
     promotionId: item.product.promotion_id ?? null,
@@ -841,120 +907,241 @@ function App() {
                   <p className="eyebrow">CATÁLOGO</p>
                   <h2>Perfumes destacados</h2>
                 </div>
-                <span>{filteredProducts.length} productos</span>
+                <span>
+                  {filteredProducts.length} producto{filteredProducts.length === 1 ? "" : "s"}
+                </span>
               </div>
 
-              <div className="catalog-filters">
-                <div className="filter-group">
-                  <span className="filter-label" id="filtro-categoria">Categoría</span>
-                  <div className="category-pills" role="group" aria-labelledby="filtro-categoria">
-                    {["Todos", "Diseñador", "Árabes", "Nicho", "Ofertas"].map((item) => (
-                      <button
-                        key={item}
-                        className={category === item ? "pill active" : "pill"}
-                        aria-pressed={category === item}
-                        onClick={() => setCategory(item)}
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              <div className="catalog-layout">
+                <aside className="catalog-sidebar" aria-label="Filtros del catálogo">
+                  <div className={catalogFiltersOpen ? "catalog-filter-panel open" : "catalog-filter-panel"}>
+                    <button
+                      type="button"
+                      className="catalog-filter-toggle"
+                      aria-expanded={catalogFiltersOpen}
+                      aria-controls="catalog-filter-body"
+                      onClick={() => setCatalogFiltersOpen((open) => !open)}
+                    >
+                      <span><SlidersHorizontal size={16} /> Filtros</span>
+                      <span className="catalog-filter-toggle-state">
+                        {activeFilterCount > 0
+                          ? `${activeFilterCount} activo${activeFilterCount === 1 ? "" : "s"}`
+                          : "Ver filtros"}
+                        <ChevronDown size={16} />
+                      </span>
+                    </button>
 
-                <div className="filter-group">
-                  <span className="filter-label" id="filtro-para">Para</span>
-                  <div className="category-pills" role="group" aria-labelledby="filtro-para">
-                    {["Todos", "Hombres", "Mujeres", "Unisex"].map((item) => (
-                      <button
-                        key={item}
-                        className={genderFilter === item ? "pill active" : "pill"}
-                        aria-pressed={genderFilter === item}
-                        onClick={() => setGenderFilter(item)}
-                      >
-                        {item}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <label className="brand-filter">
-                  <span>Filtrar por marca</span>
-                  <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
-                    <option value="Todas">Todas las marcas</option>
-                    {availableBrands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
-                  </select>
-                </label>
-              </div>
-
-              {catalogNotice && <p className="catalog-message">{catalogNotice}</p>}
-              <div className="product-grid">
-                {loading ? (
-                  <p className="catalog-message" role="status">Cargando perfumes...</p>
-                ) : error ? (
-                  <p className="catalog-message error-state" role="alert">{error}</p>
-                ) : filteredProducts.length === 0 ? (
-                  <p className="catalog-message">No encontramos perfumes con esos filtros.</p>
-                ) : filteredProducts.map((product) => {
-                  const firstAvailable =
-                    product.variants.find((v) => v.stock > 0) ?? product.variants[0];
-                  const cardVariant = product.variants.find((variant) =>
-                    variant.id === catalogVariantIds[product.id]
-                  ) ?? firstAvailable;
-                  return (
-                    <article className="product-card" key={product.id}>
-                      <button className="product-image" onClick={() => openProduct(product)}>
-                        <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
-                        {firstAvailable.stock <= 0 && (
-                          <span className="sold-out">Agotado</span>
+                    <div className="catalog-filter-body" id="catalog-filter-body">
+                      <div className="catalog-filter-heading">
+                        <strong>Refinar búsqueda</strong>
+                        {activeFilterCount > 0 && (
+                          <button type="button" onClick={clearCatalogFilters}>Limpiar</button>
                         )}
-                        {product.promotion?.active && <span className="promotion-badge">Oferta</span>}
-                      </button>
-                      <div className="product-info">
-                        <span>{product.brand}</span>
-                        <h3>{product.name}</h3>
-                        <p>{product.gender}</p>
-                        <div className="catalog-variant-options" role="group" aria-label={`Presentaciones de ${product.name}`}>
-                          {product.variants.map((variant) => (
+                      </div>
+
+                      <div className="filter-group">
+                        <span className="filter-label" id="filtro-categoria">Categoría</span>
+                        <div className="filter-choice-list" role="group" aria-labelledby="filtro-categoria">
+                          {["Todos", "Diseñador", "Árabes", "Nicho"].map((item) => (
                             <button
-                              key={variant.id}
+                              key={item}
                               type="button"
-                              className={cardVariant.id === variant.id ? "catalog-variant-option selected" : "catalog-variant-option"}
-                              aria-pressed={cardVariant.id === variant.id}
-                              disabled={variant.stock <= 0}
-                              onClick={() => setCatalogVariantIds((current) => ({
-                                ...current,
-                                [product.id]: variant.id,
-                              }))}
+                              className={category === item ? "filter-choice active" : "filter-choice"}
+                              aria-pressed={category === item}
+                              onClick={() => setCategory(item)}
                             >
-                              <span>{variant.size} ml</span>
-                              <small>{money(variant.price)}</small>
+                              {item}
                             </button>
                           ))}
                         </div>
-                        <strong>{money(cardVariant.price)}</strong>
-                        {product.promotion?.active && (
-                          <span className="promotion-card-copy">
-                            {product.promotion.required_quantity} por {money(product.promotion.bundle_price)}
-                            {product.promotion.allow_mixed ? " · combinables" : " · mismo perfume"}
-                          </span>
-                        )}
-                        <div className="product-card-actions">
-                          <button className="text-button" onClick={() => openProduct(product)}>
-                            Ver producto →
-                          </button>
-                          <button
-                            type="button"
-                            className="quick-add-button"
-                            disabled={cardVariant.stock <= 0}
-                            onClick={() => addVariantToCart(product, cardVariant)}
-                          >
-                            <Plus size={15} /> Agregar
-                          </button>
+                      </div>
+
+                      <div className="filter-group">
+                        <span className="filter-label" id="filtro-marca">Marca</span>
+                        <select
+                          className="catalog-brand-select"
+                          value={brandFilter}
+                          aria-labelledby="filtro-marca"
+                          onChange={(event) => setBrandFilter(event.target.value)}
+                        >
+                          <option value="Todas">Todas las marcas</option>
+                          {availableBrands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="filter-group">
+                        <span className="filter-label" id="filtro-para">Para</span>
+                        <div className="filter-choice-list" role="group" aria-labelledby="filtro-para">
+                          {["Todos", "Hombres", "Mujeres", "Unisex"].map((item) => (
+                            <button
+                              key={item}
+                              type="button"
+                              className={genderFilter === item ? "filter-choice active" : "filter-choice"}
+                              aria-pressed={genderFilter === item}
+                              onClick={() => setGenderFilter(item)}
+                            >
+                              {item}
+                            </button>
+                          ))}
                         </div>
                       </div>
-                    </article>
-                  );
-                })}
+
+                      <div className="filter-group filter-offers">
+                        <div className="filter-offers-heading">
+                          <span className="filter-label" id="filtro-ofertas">Ofertas</span>
+                          <span className="filter-offers-count">{activePromotions.length}</span>
+                        </div>
+                        <div className="filter-offer-list" role="group" aria-labelledby="filtro-ofertas">
+                          {activePromotions.length === 0 ? (
+                            <p className="filter-offers-empty">No hay ofertas activas por ahora.</p>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className={offerFilter === "all" ? "offer-option active" : "offer-option"}
+                                aria-pressed={offerFilter === "all"}
+                                onClick={() => setOfferFilter(offerFilter === "all" ? "none" : "all")}
+                              >
+                                <span className="offer-option-name">Todas las ofertas</span>
+                                <span className="offer-option-meta">
+                                  {offerProductCount} producto{offerProductCount === 1 ? "" : "s"} en promoción
+                                </span>
+                              </button>
+                              {activePromotions.map((promotion) => {
+                                const productCount = promotionProductCounts[promotion.id] ?? 0;
+                                return (
+                                  <button
+                                    key={promotion.id}
+                                    type="button"
+                                    className={offerFilter === promotion.id ? "offer-option active" : "offer-option"}
+                                    aria-pressed={offerFilter === promotion.id}
+                                    onClick={() => setOfferFilter(
+                                      offerFilter === promotion.id ? "none" : promotion.id
+                                    )}
+                                  >
+                                    <span className="offer-option-name">{promotion.name}</span>
+                                    <span className="offer-option-deal">
+                                      {promotion.required_quantity} por {money(promotion.bundle_price)}
+                                    </span>
+                                    <span className="offer-option-meta">
+                                      {productCount > 0
+                                        ? `${productCount} producto${productCount === 1 ? "" : "s"}`
+                                        : "Sin productos asociados"}
+                                      {promotion.allow_mixed ? " · Combinable" : ""}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </aside>
+
+                <div className="catalog-results">
+                  {activeFilterCount > 0 && (
+                    <div className="catalog-active-filters" aria-label="Filtros activos">
+                      {brandFilter !== "Todas" && (
+                        <button type="button" onClick={() => setBrandFilter("Todas")}>
+                          Marca: {brandFilter} <X size={12} />
+                        </button>
+                      )}
+                      {category !== "Todos" && (
+                        <button type="button" onClick={() => setCategory("Todos")}>
+                          {category} <X size={12} />
+                        </button>
+                      )}
+                      {genderFilter !== "Todos" && (
+                        <button type="button" onClick={() => setGenderFilter("Todos")}>
+                          Para: {genderFilter} <X size={12} />
+                        </button>
+                      )}
+                      {offerFilter !== "none" && (
+                        <button type="button" onClick={() => setOfferFilter("none")}>
+                          {offerFilter === "all"
+                            ? "Todas las ofertas"
+                            : selectedPromotion?.name ?? "Oferta"} <X size={12} />
+                        </button>
+                      )}
+                      <button type="button" className="active-filter-clear" onClick={clearCatalogFilters}>
+                        Limpiar filtros
+                      </button>
+                    </div>
+                  )}
+
+                  {catalogNotice && <p className="catalog-message">{catalogNotice}</p>}
+                  <div className="product-grid">
+                    {loading ? (
+                      <p className="catalog-message" role="status">Cargando perfumes...</p>
+                    ) : error ? (
+                      <p className="catalog-message error-state" role="alert">{error}</p>
+                    ) : filteredProducts.length === 0 ? (
+                      <p className="catalog-message">No encontramos perfumes con esos filtros.</p>
+                    ) : filteredProducts.map((product) => {
+                      const firstAvailable =
+                        product.variants.find((v) => v.stock > 0) ?? product.variants[0];
+                      const cardVariant = product.variants.find((variant) =>
+                        variant.id === catalogVariantIds[product.id]
+                      ) ?? firstAvailable;
+                      return (
+                        <article className="product-card" key={product.id}>
+                          <button className="product-image" onClick={() => openProduct(product)}>
+                            <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
+                            {firstAvailable.stock <= 0 && (
+                              <span className="sold-out">Agotado</span>
+                            )}
+                            {product.promotion?.active && <span className="promotion-badge">Oferta</span>}
+                          </button>
+                          <div className="product-info">
+                            <span>{product.brand}</span>
+                            <h3>{product.name}</h3>
+                            <p>{product.gender}</p>
+                            <div className="catalog-variant-options" role="group" aria-label={`Presentaciones de ${product.name}`}>
+                              {product.variants.map((variant) => (
+                                <button
+                                  key={variant.id}
+                                  type="button"
+                                  className={cardVariant.id === variant.id ? "catalog-variant-option selected" : "catalog-variant-option"}
+                                  aria-pressed={cardVariant.id === variant.id}
+                                  disabled={variant.stock <= 0}
+                                  onClick={() => setCatalogVariantIds((current) => ({
+                                    ...current,
+                                    [product.id]: variant.id,
+                                  }))}
+                                >
+                                  <span>{variant.size} ml</span>
+                                  <small>{money(variant.price)}</small>
+                                </button>
+                              ))}
+                            </div>
+                            <strong>{money(cardVariant.price)}</strong>
+                            {product.promotion?.active && (
+                              <span className="promotion-card-copy">
+                                {product.promotion.required_quantity} por {money(product.promotion.bundle_price)}
+                                {product.promotion.allow_mixed ? " · combinables" : " · mismo perfume"}
+                              </span>
+                            )}
+                            <div className="product-card-actions">
+                              <button className="text-button" onClick={() => openProduct(product)}>
+                                Ver producto →
+                              </button>
+                              <button
+                                type="button"
+                                className="quick-add-button"
+                                disabled={cardVariant.stock <= 0}
+                                onClick={() => addVariantToCart(product, cardVariant)}
+                              >
+                                <Plus size={15} /> Agregar
+                              </button>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </section>
           </main>

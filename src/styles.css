@@ -84,15 +84,159 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .section-head { display: flex; justify-content: space-between; align-items: end; margin-bottom: 24px; }
 .section-head h2, .card-title h2 { margin: 0; font: 500 32px "Playfair Display", serif; }
 .section-head > span { color: var(--muted); font-size: 13px; }
-.category-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
 /* Los filtros van en grupos rotulados. Dos filas de pastillas sin
    nombre al lado no se distinguen: el usuario ve dos listas de botones
    iguales y no sabe cual esta filtrando. */
 .filter-group { margin-bottom: 20px; }
-.filter-group .category-pills { margin-bottom: 0; }
 .filter-label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 9px; }
-.pill { background: white; border: 1px solid var(--border); padding: 9px 15px; border-radius: 99px; color: #222; }
-.pill.active { background: #111; color: #fff; border-color: #111; }
+
+/* CATALOGO CON FILTROS A LA IZQUIERDA
+   La columna de filtros es independiente de la grilla de productos. En
+   escritorio queda fija al hacer scroll para que el cliente pueda cambiar
+   de marca u oferta sin volver a subir hasta el inicio del catalogo. */
+.catalog-layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 34px;
+  align-items: start;
+}
+.catalog-sidebar { position: sticky; top: 94px; min-width: 0; }
+.catalog-filter-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 112px);
+  background: #fcfaf6;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.catalog-filter-toggle { display: none; }
+.catalog-filter-body {
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.catalog-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.catalog-filter-heading strong { font: 500 17px "Playfair Display", serif; color: var(--verde); }
+.catalog-filter-heading button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cuero);
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.catalog-filter-heading button:hover { color: var(--verde); }
+
+.filter-choice-list { display: grid; gap: 2px; }
+.filter-choice {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #51463f;
+  font-size: 13px;
+  text-align: left;
+  transition: background .18s ease, color .18s ease;
+}
+.filter-choice:hover { background: #f1ece4; color: var(--verde); }
+.filter-choice.active { background: var(--verde); color: #fff; }
+.filter-choice.active:hover { background: var(--verde); color: #fff; }
+
+.catalog-brand-select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: #fff;
+  color: var(--black);
+  font-size: 12px;
+}
+
+.filter-offers { margin-top: 4px; padding-top: 18px; border-top: 1px solid var(--border); }
+.filter-offers-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.filter-offers-heading .filter-label { margin: 0; }
+.filter-offers-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 99px;
+  background: #f4e8dc;
+  color: #71492c;
+  font-size: 10px;
+  font-weight: 700;
+}
+.filter-offer-list { display: grid; gap: 5px; }
+.offer-option {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--black);
+  text-align: left;
+  transition: border-color .18s ease, background .18s ease;
+}
+.offer-option:hover { border-color: rgba(201,169,110,.45); }
+.offer-option.active {
+  border-color: var(--accent);
+  background: #fdf8ef;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.offer-option-name { color: var(--verde); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.offer-option-deal { color: #71492c; font-size: 12px; font-weight: 600; }
+.offer-option-meta { color: var(--muted); font-size: 10px; line-height: 1.4; }
+.filter-offers-empty { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+.catalog-results { min-width: 0; }
+.catalog-active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.catalog-active-filters button {
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #e7dbcb;
+  border-radius: 99px;
+  background: #fbf6ee;
+  color: #5f4b3d;
+  font-size: 11px;
+}
+.catalog-active-filters button:hover { border-color: var(--accent); }
+.catalog-active-filters .active-filter-clear {
+  padding: 0 4px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--cuero);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 .product-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px 20px; }
 .catalog-message { grid-column: 1 / -1; margin: 0; color: var(--muted); line-height: 1.6; }
@@ -119,8 +263,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .product-card-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .quick-add-button { min-height: 36px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--border); background: white; font-size: 11px; }
 .quick-add-button:disabled { cursor: not-allowed; opacity: .5; }
-.brand-filter { display: flex; align-items: center; gap: 10px; margin: -14px 0 25px; color: var(--muted); font-size: 12px; }
-.brand-filter select { min-width: 190px; min-height: 40px; padding: 0 12px; border: 1px solid var(--border); background: white; color: var(--black); }
 
 .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; display: grid; place-items: center; padding: 20px; }
 /* El diálogo va por encima de todo: `.overlay` normal usa z-index 50, pero
@@ -1617,6 +1759,43 @@ footer a { color: #111; }
 .order-editor-note { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .order-editor-total { display: flex; justify-content: space-between; padding: 14px 0 0; border-top: 1px solid var(--border); }
 
+@media (max-width: 1080px) {
+  .catalog-layout { grid-template-columns: 222px minmax(0, 1fr); gap: 24px; }
+  .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 850px) {
+  .catalog-layout { grid-template-columns: 1fr; gap: 18px; }
+  .catalog-sidebar { position: static; }
+  .catalog-filter-panel { max-height: none; }
+  .catalog-filter-toggle {
+    width: 100%;
+    min-height: 50px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 0;
+    background: transparent;
+    color: var(--verde);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .catalog-filter-toggle > span { display: flex; align-items: center; gap: 7px; }
+  .catalog-filter-toggle-state { color: var(--cuero); font-size: 11px; font-weight: 500; }
+  .catalog-filter-toggle-state svg { transition: transform .2s ease; }
+  .catalog-filter-panel.open .catalog-filter-toggle-state svg { transform: rotate(180deg); }
+  .catalog-filter-body {
+    display: none;
+    padding: 0 16px 18px;
+    border-top: 1px solid var(--border);
+  }
+  .catalog-filter-panel.open .catalog-filter-body { display: block; }
+  .catalog-filter-heading { padding-top: 14px; margin-bottom: 14px; }
+  .filter-choice-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  .filter-choice { border-color: var(--border); background: #fff; text-align: center; }
+  .catalog-active-filters { margin-bottom: 14px; }
+}
 @media (max-width: 850px) {
   .topbar { grid-template-columns: auto 1fr auto; padding: 0 18px; }
   .nav-left { display: none; }
@@ -1649,8 +1828,6 @@ footer a { color: #111; }
   .admin-search { width: 100%; }
   .admin-search input { flex: 1; min-width: 0; }
   .product-list-tools { flex-wrap: wrap; justify-content: flex-start; }
-  .brand-filter { align-items: start; flex-direction: column; margin-top: 0; }
-  .brand-filter select { width: 100%; }
   .product-carousel-arrow { width: 36px; height: 36px; }
   .receipt-dialog { max-height: 96vh; padding: 28px 18px; }
   .receipt-printing-stage { min-height: 360px; }
@@ -1683,11 +1860,8 @@ footer a { color: #111; }
   .catalog-section { padding: 18px 16px 60px; }
   .section-head { align-items: start; gap: 12px; }
   .section-head h2, .card-title h2 { font-size: 27px; }
-  .category-pills { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 22px; padding: 0 16px 5px; }
   .filter-group { margin-bottom: 16px; }
-  .filter-group .category-pills { margin-bottom: 0; }
   .filter-label { margin-bottom: 7px; }
-  .pill { flex: 0 0 auto; }
   /* CATALOGO EN MOVIL
      Se conservan las dos columnas: en un catalogo de perfumes el frasco
      es la vitrina, y a una sola columna la imagen se vuelve diminuta.

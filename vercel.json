@@ -90,6 +90,18 @@
     { "source": "/asesores", "destination": "/index.html" },
     { "source": "/reportes", "destination": "/index.html" },
     { "source": "/perfiles", "destination": "/index.html" },
-    { "source": "/configuracion", "destination": "/index.html" }
+    { "source": "/configuracion", "destination": "/index.html" },
+    { "source": "/dashboard/", "destination": "/index.html" },
+    { "source": "/productos/", "destination": "/index.html" },
+    { "source": "/promociones/", "destination": "/index.html" },
+    { "source": "/pedidos/", "destination": "/index.html" },
+    { "source": "/cobrar/", "destination": "/index.html" },
+    { "source": "/cartera/", "destination": "/index.html" },
+    { "source": "/clientes/", "destination": "/index.html" },
+    { "source": "/gastos/", "destination": "/index.html" },
+    { "source": "/asesores/", "destination": "/index.html" },
+    { "source": "/reportes/", "destination": "/index.html" },
+    { "source": "/perfiles/", "destination": "/index.html" },
+    { "source": "/configuracion/", "destination": "/index.html" }
   ]
 }
