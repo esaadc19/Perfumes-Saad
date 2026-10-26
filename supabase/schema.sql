@@ -2873,6 +2873,10 @@ create policy "Public can read active products"
   on public.products for select to anon, authenticated
   using (active = true);
 
+-- Politica vieja que quedo duplicada en produccion. Se elimina para que
+-- Postgres no evalue dos SELECT identicos por cada fila.
+drop policy if exists "public_read_active_products" on public.products;
+
 drop policy if exists "Admins can manage products" on public.products;
 create policy "Admins can manage products"
   on public.products for all to authenticated
@@ -2888,6 +2892,9 @@ create policy "Public can read active variants"
       where products.id = product_variants.product_id and products.active = true
     )
   );
+
+-- Duplicado viejo de la politica anterior.
+drop policy if exists "public_read_active_variants" on public.product_variants;
 
 drop policy if exists "Admins can manage variants" on public.product_variants;
 create policy "Admins can manage variants"
@@ -3830,6 +3837,76 @@ $$;
 
 revoke all on function public.get_order_tracking(text, text) from public;
 grant execute on function public.get_order_tracking(text, text) to anon, authenticated;
+
+-- ============================================
+-- INDICES DE RENDIMIENTO
+-- ============================================
+-- Mismos indices que aplica
+-- migrations/20261026120000_database_performance_indexes.sql. Los indices
+-- del CRM y de admin_section_permissions viven solo en esa migracion porque
+-- schema.sql no crea esas tablas.
+
+create index if not exists products_promotion_id_idx
+  on public.products (promotion_id);
+
+create index if not exists orders_customer_id_idx
+  on public.orders (customer_id);
+
+create index if not exists order_items_order_id_idx
+  on public.order_items (order_id);
+
+create index if not exists order_items_variant_id_idx
+  on public.order_items (variant_id);
+
+create index if not exists inventory_movements_order_id_idx
+  on public.inventory_movements (order_id);
+
+create index if not exists inventory_movements_variant_created_idx
+  on public.inventory_movements (variant_id, created_at desc);
+
+create index if not exists customer_credit_payments_recorded_by_idx
+  on public.customer_credit_payments (recorded_by);
+
+create index if not exists products_active_created_at_idx
+  on public.products (created_at desc)
+  where active;
+
+create index if not exists products_created_at_idx
+  on public.products (created_at desc);
+
+create index if not exists orders_created_at_idx
+  on public.orders (created_at desc);
+
+create index if not exists orders_paid_at_idx
+  on public.orders (paid_at)
+  where payment_status = 'paid';
+
+create index if not exists orders_credit_created_at_idx
+  on public.orders (created_at)
+  where payment_status in ('credit', 'partial');
+
+create index if not exists orders_credit_due_date_idx
+  on public.orders (credit_due_date)
+  where payment_status in ('credit', 'partial')
+    and credit_due_date is not null;
+
+create index if not exists inventory_movements_waste_idx
+  on public.inventory_movements (created_at)
+  where movement_type in ('merma', 'rotura', 'robo', 'vencimiento')
+    and quantity < 0;
+
+create index if not exists customers_created_at_idx
+  on public.customers (created_at desc);
+
+create index if not exists customers_credit_full_name_idx
+  on public.customers (full_name)
+  where credit_enabled;
+
+create index if not exists expenses_expense_date_idx
+  on public.expenses (expense_date);
+
+create index if not exists orders_code_prefix_idx
+  on public.orders (upper(left(id::text, 8)));
 
 -- ============================================
 -- CRON JOB: REPORTE SEMANAL (Domingos 8am Colombia = 1pm UTC)
