@@ -69,7 +69,10 @@ function formatReport(data: any): string {
 
   // Igual que en el HTML: se separan la utilidad de lo cobrado y el costo
   // de lo vendido a fiado, para que un negativo no se lea como perdida.
+  // Los abonos de fiados abiertos ya son plata cobrada y suman a la utilidad.
   const creditCost = num(week.credit_cost);
+  const creditCollected = num(week.credit_collected);
+  const cashCollected = num(week.cash_collected ?? (num(week.sales) + creditCollected));
   const cashProfit = profit + creditCost;
 
   // Si falta el costo de alguna venta, la utilidad no es un numero que se
@@ -78,22 +81,31 @@ function formatReport(data: any): string {
   const profitLine = profitComplete
     ? `*Utilidad cobrada:* ${formatCurrency(cashProfit)}`
     : `⚠️ *Utilidad incompleta* — ${missingCost} ${missingCost === 1 ? "pedido no tiene" : "pedidos no tienen"} costo registrado`;
-  const margin = profitComplete && num(week.sales) > 0
-    ? ` (margen ${((cashProfit / num(week.sales)) * 100).toFixed(1)}%)`
+  const margin = profitComplete && cashCollected > 0
+    ? ` (margen ${((cashProfit / cashCollected) * 100).toFixed(1)}%)`
     : "";
+
+  const collectedLines = creditCollected > 0
+    ? [
+        `Ventas cobradas: ${formatCurrency(num(week.sales))}`,
+        `+ Abonos de fiado: ${formatCurrency(creditCollected)}`,
+        `= Total cobrado: ${formatCurrency(cashCollected)}`,
+      ]
+    : [`Ventas cobradas: ${formatCurrency(num(week.sales))}`];
 
   const lines: string[] = [
     `💰 *UTILIDAD COBRADA — ${periodWord}*`,
     `${data.week_start} al ${data.week_end}`,
     profitLine + margin,
     ``,
-    `Ventas cobradas: ${formatCurrency(num(week.sales))}`,
+    ...collectedLines,
     `− Costo productos: ${formatCurrency(num(week.product_cost))}`,
     `− Costo domicilio: ${formatCurrency(num(week.delivery_cost))}`,
     `− Gastos: ${formatCurrency(num(week.expenses))}`,
     ``,
     `📊 *INGRESOS*`,
     `${isWeek ? "Esta semana" : "Este periodo"}: ${formatCurrency(num(week.sales))} (${num(week.orders)} pedidos)`,
+    ...(creditCollected > 0 ? [`Abonos de fiado: ${formatCurrency(creditCollected)}`] : []),
     `${prevWord}: ${formatCurrency(num(previous.sales))} (${num(previous.orders)} pedidos)`,
     formatVariation(num(week.sales), num(previous.sales)),
     `Ticket promedio: ${formatCurrency(num(week.average_order_value))}`,
@@ -101,6 +113,9 @@ function formatReport(data: any): string {
     `💳 *FIADO Y CARTERA*`,
     `Vendido a crédito ${isWeek ? "esta semana" : "en el periodo"}: ${formatCurrency(num(credit.week_sales))} (${num(credit.week_orders)} pedidos)`,
     `Te pagaron de fiado: ${formatCurrency(num(credit.week_collected))}`,
+    ...(creditCollected > 0
+      ? [`De fiados abiertos: ${formatCurrency(num(credit.week_collected_open ?? creditCollected))}`]
+      : []),
     `Por cobrar en total: ${formatCurrency(num(credit.outstanding_balance))}`,
     `Costo de lo que te deben: ${formatCurrency(num(credit.outstanding_cost))}`,
   ];
@@ -109,7 +124,10 @@ function formatReport(data: any): string {
     lines.push(
       ``,
       `ℹ️ Vendiste ${formatCurrency(num(credit.week_sales))} a fiado ${isWeek ? "esta semana" : "en el periodo"}.`,
-      `Ese producto ya te costó ${formatCurrency(creditCost)} y todavía no te lo pagan.`,
+      `Ese producto ya te costó ${formatCurrency(creditCost)} y el fiado aún no está saldado.`,
+      creditCollected > 0
+        ? `De eso ya te abonaron ${formatCurrency(creditCollected)}; el resto vuelve cuando paguen.`
+        : `Todavía no te lo pagan.`,
       `_No es pérdida: es plata invertida que vuelve cuando te paguen._`,
     );
   }

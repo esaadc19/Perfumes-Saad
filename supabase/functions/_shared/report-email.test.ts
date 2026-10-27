@@ -5,8 +5,8 @@
 //
 // Cubre: titulos dinamicos (DIARIO/SEMANAL/MENSUAL/por dias), numero de
 // reporte, fechas en largo, utilidad incompleta, falta de periodo de
-// comparacion, nota de fiado, canales, escape de HTML y degradacion
-// cuando la RPC vieja no trae los datos nuevos.
+// comparacion, nota de fiado, abonos de fiado, canales, escape de HTML y
+// degradacion cuando la RPC vieja no trae los datos nuevos.
 
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
@@ -231,6 +231,36 @@ const creditWeek = formatEmailHtml({
 }, false);
 check("nota de fiado", creditWeek.includes("No es pérdida"));
 check("monto fiado visible", creditWeek.includes(money(400000)));
+
+// ---------------------------------------------------------------
+// 7b. Abonos de fiado abierto: suman a la utilidad y se ven aparte
+// ---------------------------------------------------------------
+const abonoWeek = formatEmailHtml({
+  ...weeklyFull,
+  current_week: {
+    ...weeklyFull.current_week,
+    credit_cost: 270000,
+    credit_collected: 200000,
+    cash_collected: 970000,
+    net_profit: 255000,
+  },
+  credit: {
+    ...weeklyFull.credit,
+    week_sales: 400000,
+    week_orders: 2,
+    week_collected: 520000,
+    week_collected_open: 200000,
+  },
+}, false);
+clean(abonoWeek);
+const abonoCashProfit = 970000 - 410000 - 35000;
+check("abonos suman a la utilidad", abonoWeek.includes(money(abonoCashProfit)));
+check("abonos se muestran aparte", abonoWeek.includes("Abonos de fiado") && abonoWeek.includes(money(200000)));
+check("total cobrado", abonoWeek.includes(money(970000)));
+check("margen sobre total cobrado", abonoWeek.includes("54.1% Margen Neto"));
+check("formula incluye abonos", abonoWeek.includes("Ventas pagadas") && abonoWeek.includes("Abonos fiado"));
+check("nota de fiado con abono", abonoWeek.includes("De eso ya te abonaron"));
+check("sin abonos no inventa linea", !weekly.includes("Abonos de fiado"));
 
 // ---------------------------------------------------------------
 // 8. Escape de HTML en nombres de producto

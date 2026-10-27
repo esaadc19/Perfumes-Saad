@@ -309,9 +309,10 @@ function channelBar(percent: number, color: string): string {
  * Reglas de negocio que no se pueden romper:
  * - Sin costo registrado la utilidad se declara "Incompleta": nunca se
  *   rellena con cero ni se muestra un numero inflado.
- * - La utilidad mostrada es cobrada: ventas - costo de producto -
- *   domicilio - gastos. El costo del fiado no se descuenta (se explica
- *   aparte: no es perdida, es inversion que vuelve al cobrar).
+ * - La utilidad mostrada es cobrada: ventas pagadas + abonos de fiado -
+ *   costo de producto - domicilio - gastos. El costo del fiado no se
+ *   descuenta (se explica aparte: no es perdida, es inversion que vuelve
+ *   al cobrar).
  * - El diario omite comparaciones: no tiene con que comparar.
  */
 export function formatEmailHtml(data: any, isDaily: boolean): string {
@@ -340,6 +341,8 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
   const monthExpenses = isDaily ? num(data?.monthly_expenses) : num(expenses.monthly);
   const missingCost = isDaily ? num(data?.missing_cost_items) : num(week.missing_cost_items);
   const creditCost = isDaily ? 0 : num(week.credit_cost);
+  const creditCollected = isDaily ? 0 : num(week.credit_collected);
+  const cashCollected = isDaily ? sales : num(week.cash_collected ?? (sales + creditCollected));
   const prevSales = isDaily ? 0 : num(previous.sales);
   const prevOrders = isDaily ? 0 : num(previous.orders);
 
@@ -348,9 +351,10 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
     : num(week.average_order_value);
 
   // Utilidad cobrada: sin costo completo no hay numero que defender.
-  const cashProfit = sales - productCost - deliveryCost - periodExpenses;
+  // Los abonos de fiado que siguen abiertos ya entraron a la caja.
+  const cashProfit = cashCollected - productCost - deliveryCost - periodExpenses;
   const profitComplete = missingCost === 0;
-  const margin = profitComplete && sales > 0 ? (cashProfit / sales) * 100 : null;
+  const margin = profitComplete && cashCollected > 0 ? (cashProfit / cashCollected) * 100 : null;
 
   const variation = variationBadge(sales, prevSales);
   const growth = growthText(sales, prevSales);
@@ -407,6 +411,9 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
       </tr>
     </table>
     <div style="border-top:1px solid #d1fae5;margin-top:10px;padding-top:8px;font-size:11px;color:#64748b;">${escapeHtml(kpiSalesFooter)}</div>
+    ${!isDaily && creditCollected > 0
+      ? `<div style="font-size:11px;color:#047857;margin-top:4px;font-weight:600;">+ Abonos de fiado: ${money(creditCollected)} · Total cobrado: ${money(cashCollected)}</div>`
+      : ""}
   `, "#f0fdf9", "#a7f3d0");
 
   const kpiTicket = card(`
@@ -582,6 +589,12 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
       ].join("")
     : [
         financeRow(`${isWeek ? "Ventas de la semana" : "Ventas del periodo"}`, `<span style="color:#059669;">${money(sales)}</span>`),
+        ...(creditCollected > 0
+          ? [
+              financeRow("Abonos de fiado", `<span style="color:#059669;">${money(creditCollected)}</span>`),
+              financeRow("Total cobrado", `<span style="color:#059669;">${money(cashCollected)}</span>`),
+            ]
+          : []),
         financeRow("Ventas periodo anterior", money(prevSales), { muted: true }),
         financeRow("Crecimiento neto", pillHtml(growth.html, growth.tone), { labelBold: true, last: true }),
       ].join("");
@@ -602,7 +615,9 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">${gastosRows}</table>
   `);
 
-  const calcLine = `Calculado: Ventas (${money(sales)}) − Costos (${money(productCost + deliveryCost)}) − Gastos (${money(periodExpenses)})`;
+  const calcLine = creditCollected > 0
+    ? `Calculado: Ventas pagadas (${money(sales)}) + Abonos fiado (${money(creditCollected)}) − Costos (${money(productCost + deliveryCost)}) − Gastos (${money(periodExpenses)})`
+    : `Calculado: Ventas (${money(sales)}) − Costos (${money(productCost + deliveryCost)}) − Gastos (${money(periodExpenses)})`;
 
   const profitBand = `
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;background-color:#0f172a;background-image:linear-gradient(90deg,#064e3b 0%,#0f172a 55%,#020617 100%);border:2px solid #059669;border-radius:16px;margin-top:12px;">
@@ -642,6 +657,7 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
             <tr>
               <td style="padding:12px 16px;font-size:13px;line-height:1.55;color:#78350f;">
                 Vendiste ${money(num(credit.week_sales))} a fiado ${isWeek ? "esta semana" : "en el periodo"}: el producto ya salió y su costo ya salió de la caja, pero la plata entra cuando te paguen.
+                ${creditCollected > 0 ? `De eso ya te abonaron ${money(creditCollected)}.` : ""}
                 <strong>No es pérdida: es inversión que vuelve al cobrar.</strong>
               </td>
             </tr>
