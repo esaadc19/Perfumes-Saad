@@ -922,12 +922,11 @@ declare
   updated_rows integer;
   credit_due_date_val date := credit_due_date_param;
   credit_limit_snapshot_val numeric := credit_limit_snapshot_param;
+  customer_credit_enabled boolean;
   customer_credit_terms text;
   customer_credit_limit numeric;
 begin
-  if not public.is_admin() then
-    raise exception 'Administrator access required' using errcode = '42501';
-  end if;
+  perform public.admin_require_section('transactions');
   if new_status is null or new_payment_status is null
      or new_status not in ('pending_confirmation', 'confirmed', 'shipped', 'delivered', 'cancelled')
      or new_payment_status not in ('pending', 'paid', 'refunded', 'credit', 'partial') then
@@ -955,12 +954,12 @@ begin
   -- Handle credit payment status transition
   if new_payment_status in ('credit', 'partial') and order_record.payment_status not in ('credit', 'partial') then
     -- New credit sale: need to check customer credit limit and terms
-    select c.credit_enabled, c.credit_limit, c.credit_terms, c.credit_blocked
-    into customer_credit_terms, customer_credit_limit
+    select c.credit_enabled, c.credit_limit, c.credit_terms
+    into customer_credit_enabled, customer_credit_limit, customer_credit_terms
     from public.customers c
     join public.orders o on o.customer_id = c.id
     where o.id = target_order_id;
-    if not customer_credit_terms then
+    if not customer_credit_enabled then
       raise exception 'Customer does not have credit enabled';
     end if;
     if customer_credit_limit is null then
@@ -1311,7 +1310,7 @@ begin
   if available_credit < order_total then
     return jsonb_build_object(
       'allowed', false,
-      'reason', format('Credit limit exceeded. Available: $%, Order: $%', available_credit, order_total),
+      'reason', format('Credit limit exceeded. Available: $%s, Order: $%s', available_credit, order_total),
       'available_credit', available_credit,
       'current_balance', current_credit_balance,
       'credit_limit', customer_record.credit_limit
@@ -1786,6 +1785,95 @@ begin
           end
         else null
       end
+  where id = saved_order_id;
+
+  return saved_order_id;
+end;
+$$;
+
+create or replace function public.admin_create_recorded_order(
+  target_customer_id uuid,
+  customer_data jsonb,
+  items_data jsonb,
+  target_order_date date
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  saved_customer_id uuid := target_customer_id;
+  customer_name text;
+  customer_phone text;
+  customer_email text;
+  customer_city text;
+  saved_order_id uuid;
+begin
+  if not public.is_admin() then
+    raise exception 'Administrator access required' using errcode = '42501';
+  end if;
+  if target_order_date is null
+     or target_order_date > (now() at time zone 'America/Bogota')::date then
+    raise exception 'Order date cannot be in the future';
+  end if;
+
+  if target_customer_id is null then
+    if jsonb_typeof(customer_data) is distinct from 'object' then
+      raise exception 'Enter the new customer details';
+    end if;
+    customer_name := nullif(trim(customer_data->>'full_name'), '');
+    customer_phone := nullif(trim(customer_data->>'phone'), '');
+    customer_email := lower(nullif(trim(customer_data->>'email'), ''));
+    customer_city := nullif(trim(customer_data->>'city'), '');
+
+    if customer_name is null then
+      raise exception 'Customer name is required';
+    end if;
+    if customer_phone is null and customer_email is null then
+      raise exception 'Enter a phone number or email for the customer';
+    end if;
+    if customer_phone is not null
+       and regexp_replace(customer_phone, '\D', '', 'g') = '' then
+      raise exception 'Enter a valid customer phone number';
+    end if;
+    if customer_email is not null
+       and customer_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$' then
+      raise exception 'Enter a valid email address';
+    end if;
+    if exists (
+      select 1
+      from public.customers c
+      where (customer_email is not null and lower(c.email) = customer_email)
+         or (
+           customer_phone is not null
+           and regexp_replace(coalesce(c.phone, ''), '\D', '', 'g')
+             = regexp_replace(customer_phone, '\D', '', 'g')
+         )
+    ) then
+      raise exception 'A customer with this phone or email already exists; select the existing customer';
+    end if;
+
+    insert into public.customers (full_name, phone, email, city, source)
+    values (customer_name, customer_phone, customer_email, customer_city, 'admin')
+    returning id into saved_customer_id;
+  elsif customer_data is not null then
+    raise exception 'Select an existing customer or enter a new customer, not both';
+  end if;
+
+  saved_order_id := public.admin_save_pending_order(
+    target_order_id => null,
+    target_customer_id => saved_customer_id,
+    customer_data => null,
+    items_data => items_data,
+    order_date => target_order_date,
+    new_delivery_cost => 0,
+    sales_advisor_id => null,
+    new_status => 'pending_confirmation',
+    new_payment_status => 'pending'
+  );
+  update public.orders
+  set created_at = target_order_date::timestamp at time zone 'America/Bogota'
   where id = saved_order_id;
 
   return saved_order_id;
@@ -2773,6 +2861,7 @@ revoke all on function public.admin_get_promotion_variants(uuid) from public, an
 revoke all on function public.admin_set_promotion_variants(uuid, uuid[]) from public, anon;
 revoke all on function public.admin_update_order_transaction(uuid, text, text, date, numeric) from public, anon;
 revoke all on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid, text, text) from public, anon;
+revoke all on function public.admin_create_recorded_order(uuid, jsonb, jsonb, date) from public, anon;
 revoke all on function public.admin_delete_pending_order(uuid) from public, anon;
 revoke all on function public.admin_update_variant_stock(uuid, integer) from public, anon;
 revoke all on function public.admin_record_credit_payment(uuid, numeric, text, text, timestamptz) from public, anon;
@@ -2788,6 +2877,7 @@ grant execute on function public.admin_get_promotion_variants(uuid) to authentic
 grant execute on function public.admin_set_promotion_variants(uuid, uuid[]) to authenticated;
 grant execute on function public.admin_update_order_transaction(uuid, text, text, date, numeric) to authenticated;
 grant execute on function public.admin_save_pending_order(uuid, uuid, jsonb, jsonb, date, numeric, uuid, text, text) to authenticated;
+grant execute on function public.admin_create_recorded_order(uuid, jsonb, jsonb, date) to authenticated;
 grant execute on function public.admin_delete_pending_order(uuid) to authenticated;
 grant execute on function public.admin_update_variant_stock(uuid, integer) to authenticated;
 grant execute on function public.admin_record_credit_payment(uuid, numeric, text, text, timestamptz) to authenticated;
