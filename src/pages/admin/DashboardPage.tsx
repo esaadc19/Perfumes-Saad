@@ -189,7 +189,7 @@ export default function DashboardPage({
             numericValue={Number(metrics.locked_credit_profit)}
             format="money"
             icon={<Lock />}
-            hint="Margen que sigue en cartera; entra a utilidad al cobrarse."
+            hint="Margen de los fiados abiertos; se reduce cuando los abonos superan el costo."
           />
           {metrics.committed_expenses > 0 && (
             <Metric
@@ -226,7 +226,7 @@ export default function DashboardPage({
 
       <MetricGroup
         title="Ventas"
-        hint="Solo lo cobrado. Lo vendido a fiado se resta por su costo mientras no te lo pagan."
+        hint="Solo lo cobrado, incluidos los abonos. Lo vendido a fiado se resta por su costo mientras siga abierto."
         icon={<BarChart3 />}
         wide
       >
@@ -235,7 +235,7 @@ export default function DashboardPage({
             que siguen abajo. Sin delta porque cuenta pedidos, no
             montos, y compararlo contra el periodo anterior mislead. */}
         <Metric title="Ventas completadas" value={String(metrics.completed_sales)} numericValue={metrics.completed_sales} icon={<ShoppingBag />} />
-        <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} numericValue={Number(metrics.sales_revenue)} format="money" icon={<ReceiptText />} delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
+        <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} numericValue={Number(metrics.sales_revenue)} format="money" icon={<ReceiptText />} hint="Incluye los abonos de fiados que siguen abiertos." delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
         <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} numericValue={Number(metrics.sales_cost)} format="money" icon={<Package />} />
         <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} numericValue={Number(metrics.sales_delivery_cost)} format="money" icon={<Truck />} />
         <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} numericValue={Number(metrics.total_expenses)} format="money" icon={<Wallet />} />
@@ -245,7 +245,7 @@ export default function DashboardPage({
           numericValue={Number(metrics.credit_cost_pending)}
           format="money"
           icon={<Lock />}
-          hint="Ya lo pagaste al proveedor; vuelve a tu utilidad cuando el cliente te pague."
+          hint="Costo de las ventas a fiado que siguen abiertas; ya lo pagaste al proveedor. Los abonos ya suman a la utilidad."
         />
         {/* Sin costo completo no hay numero que contar: la tarjeta dice
             "Incompleta" y el conteo se queda quieto. */}

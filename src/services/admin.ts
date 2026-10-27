@@ -1,10 +1,11 @@
 import { supabase } from "../lib/supabase";
 
 export interface AdminDashboardMetrics {
-  /** Ventas efectivamente cobradas (payment_status = 'paid'). */
+  /** Total de pedidos registrados. */
   total_orders: number;
   pending_orders: number;
   completed_sales: number;
+  /** Ventas cobradas: pedidos pagados + abonos de fiados abiertos. */
   sales_revenue: number;
   sales_cost: number;
   sales_delivery_cost: number;
@@ -15,13 +16,12 @@ export interface AdminDashboardMetrics {
   /** Compromisos firmados que aun no se pagan. Informa, no resta. */
   committed_expenses: number;
   /**
-   * Costo + domicilio que ya pagaste de las ventas a fiado que siguen sin
-   * cobrarte. La utilidad lo resta mientras el fiado esta vivo, y lo
-   * recupera cuando el cliente paga (ahi entran los 320.000 completos,
-   * que ya incluyen la utilidad de esa venta).
+   * Costo + domicilio de las ventas a fiado que siguen abiertas. Ya salio
+   * de tu bolsillo y la utilidad lo resta mientras el fiado no se salde.
+   * Los abonos ya suman a sales_revenue y a sales_profit.
    */
   credit_cost_pending: number;
-  /** Utilidad neta = cobrado - costo - domicilio - costo del fiado - gastos. */
+  /** Utilidad neta = cobrado (incluye abonos) - costo - domicilio - costo del fiado abierto - gastos. */
   sales_profit: number;
   net_margin_percent: number;
 
@@ -29,9 +29,8 @@ export interface AdminDashboardMetrics {
   credit_sales: number;
   credit_revenue: number;
   /**
-   * Utilidad que sigue parada en cartera: no entra en sales_profit hasta
-   * que el fiado queda saldado. Reemplaza a credit_profit, que se perdia
-   * para siempre en cuanto el pedido pasaba a 'paid'.
+   * Margen de los fiados abiertos que sigue en cartera. Se reduce cuando
+   * los abonos superan el costo y empiezan a dejar utilidad.
    */
   locked_credit_profit: number;
   credit_outstanding_balance: number;

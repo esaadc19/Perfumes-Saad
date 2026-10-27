@@ -2470,9 +2470,8 @@ $$;
 revoke all on function public.create_whatsapp_order(jsonb, jsonb) from public;
 grant execute on function public.create_whatsapp_order(jsonb, jsonb) to anon, authenticated;
 
--- Ver migrations/20261009000000_dashboard_expenses.sql: la version vigente
--- descuenta gastos, realiza la utilidad solo con ventas cobradas y acepta
--- un rango de fechas opcional.
+-- Dashboard: utilidad cobrada, incluidos abonos de fiado.
+-- Ver migrations/20261027210842_fix_credit_abono_profit.sql.
 create or replace function public.admin_dashboard_metrics(
   period_days integer default null
 )
@@ -2490,8 +2489,9 @@ declare
   v_prev_from date;
   v_scoped boolean := period_days is not null and period_days > 0;
 
-  -- Utilidad realizada (ventas cobradas)
+  -- Utilidad realizada (ventas cobradas, incluidos abonos)
   c_revenue numeric;
+  c_cash_revenue numeric;
   c_cost numeric;
   c_delivery numeric;
   c_profit numeric;
@@ -2499,6 +2499,8 @@ declare
 
   -- Periodo anterior, para deltas
   p_revenue numeric;
+  p_credit_collected numeric;
+  p_cash_revenue numeric;
   p_cost numeric;
   p_delivery numeric;
   p_profit numeric;
@@ -2511,17 +2513,21 @@ declare
   cr_cost numeric;
   cr_delivery numeric;
   cr_gross numeric;
-  -- Costo yapagado de las ventas a credito que siguen sin cobrar.
-  -- Es lo que se resta de la utilidad.
+  -- Abonos cobrados en el periodo de fiados que siguen abiertos.
+  cr_collected numeric;
+  -- Abonos acumulados de esos fiados, para calcular el margen que sigue
+  -- en cartera.
+  cr_collected_open numeric;
+  cr_locked_profit numeric;
+  -- Costo y domicilio ya pagados de las ventas a credito que siguen
+  -- abiertas. Es lo que se resta de la utilidad.
   cr_cost_pending numeric;
   cr_outstanding numeric;
   cr_overdue numeric;
   cr_overdue_clients integer;
   cr_committed numeric;
 begin
-  if not public.is_admin() then
-    raise exception 'Administrator access required' using errcode = '42501';
-  end if;
+  perform public.admin_require_section('overview');
 
   if v_scoped then
     v_from := v_today - (period_days - 1);
@@ -2530,7 +2536,7 @@ begin
   end if;
 
   -- ==========================================================
-  -- Utilidad realizada: solo ventas cobradas (paid), por paid_at
+  -- Utilidad realizada: ventas pagadas, por paid_at
   -- ==========================================================
   select
     coalesce(sum(o.total), 0),
@@ -2580,14 +2586,36 @@ begin
       (o.created_at at time zone 'America/Bogota')::date between v_from and v_today
     ));
 
-  -- Margen que sigue en cartera: entra a utilidad cuando se cobre.
+  -- Abonos recibidos de los fiados que siguen abiertos. Se cuentan por
+  -- fecha de pago para el periodo, y acumulados para el margen en cartera.
+  select
+    coalesce(sum(cp.amount) filter (
+      where not v_scoped or (
+        (cp.paid_at at time zone 'America/Bogota')::date between v_from and v_today
+      )
+    ), 0),
+    coalesce(sum(cp.amount) filter (
+      where not v_scoped or (
+        (o.created_at at time zone 'America/Bogota')::date between v_from and v_today
+      )
+    ), 0)
+  into cr_collected, cr_collected_open
+  from public.customer_credit_payments cp
+  join public.orders o on o.id = cp.order_id
+  where o.payment_status in ('credit', 'partial')
+    and cp.paid_at <= now();
+
+  -- Margen de los fiados abiertos. Si los abonos ya superaron el costo,
+  -- esa parte del margen dejo de estar en cartera.
   cr_gross := cr_revenue - cr_cost - cr_delivery;
+  cr_locked_profit := cr_gross - greatest(cr_collected_open - cr_cost - cr_delivery, 0);
 
   -- Lo que YA pagaste de esas ventas pero aun no te devolvieron.
-  -- Es lo que la utilidad tiene que absorber mientras el fiado esta vivo.
   cr_cost_pending := cr_cost + cr_delivery;
 
-  c_profit := (c_revenue - c_cost - c_delivery) - cr_cost_pending - c_expenses;
+  -- Los abonos son plata cobrada: suman a las ventas y a la utilidad.
+  c_cash_revenue := c_revenue + cr_collected;
+  c_profit := (c_cash_revenue - c_cost - c_delivery) - cr_cost_pending - c_expenses;
 
   -- ==========================================================
   -- Periodo anterior con la misma formula, para los deltas
@@ -2616,6 +2644,14 @@ begin
     from public.expenses e
     where e.expense_date between v_prev_from and v_prev_to;
 
+    select coalesce(sum(cp.amount), 0)
+    into p_credit_collected
+    from public.customer_credit_payments cp
+    join public.orders o on o.id = cp.order_id
+    where o.payment_status in ('credit', 'partial')
+      and cp.paid_at <= now()
+      and (cp.paid_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to;
+
     -- Mismo criterio para el credito pendiente en el periodo anterior.
     select coalesce(sum(oi.unit_cost_snapshot * oi.quantity), 0)
       + coalesce((
@@ -2630,9 +2666,11 @@ begin
       and oi.unit_cost_snapshot is not null
       and (o.created_at at time zone 'America/Bogota')::date between v_prev_from and v_prev_to;
 
-    p_profit := (p_revenue - p_cost - p_delivery) - p_credit_pending - p_expenses;
+    p_cash_revenue := p_revenue + p_credit_collected;
+    p_profit := (p_cash_revenue - p_cost - p_delivery) - p_credit_pending - p_expenses;
   else
-    p_revenue := 0; p_cost := 0; p_delivery := 0;
+    p_revenue := 0; p_credit_collected := 0; p_cash_revenue := 0;
+    p_cost := 0; p_delivery := 0;
     p_profit := 0; p_credit_pending := 0; p_expenses := 0;
   end if;
 
@@ -2658,7 +2696,7 @@ begin
     'period_from', v_from,
     'period_to', v_today,
 
-    -- Realizado (cobrado)
+    -- Realizado (cobrado, incluidos abonos)
     'total_orders', (select count(*) from public.orders),
     'pending_orders', (
       select count(*) from public.orders
@@ -2671,35 +2709,35 @@ begin
           (o.paid_at at time zone 'America/Bogota')::date between v_from and v_today
         ))
     ),
-    'sales_revenue', c_revenue,
+    'sales_revenue', c_cash_revenue,
     'sales_cost', c_cost,
     'sales_delivery_cost', c_delivery,
     'total_expenses', c_expenses,
     'committed_expenses', cr_committed,
 
-    -- Lo que ya pagaste de las ventas a fiado y sigue sin devolverte
+    -- Costo de las ventas a fiado que siguen abiertas
     'credit_cost_pending', cr_cost_pending,
 
     'sales_profit', c_profit,
     'net_margin_percent', case
-      when c_revenue > 0 then round((c_profit / c_revenue) * 100, 1)
+      when c_cash_revenue > 0 then round((c_profit / c_cash_revenue) * 100, 1)
       else 0
     end,
 
     -- Credito (pipeline)
     'credit_sales', cr_count,
     'credit_revenue', cr_revenue,
-    'locked_credit_profit', cr_gross,
+    'locked_credit_profit', cr_locked_profit,
     'credit_outstanding_balance', cr_outstanding,
     'credit_overdue_balance', cr_overdue,
     'credit_customers_with_overdue', cr_overdue_clients,
 
     -- Deltas contra el periodo anterior
     'previous', jsonb_build_object(
-      'sales_revenue', p_revenue,
+      'sales_revenue', p_cash_revenue,
       'sales_profit', p_profit,
       'net_margin_percent', case
-        when p_revenue > 0 then round((p_profit / p_revenue) * 100, 1)
+        when p_cash_revenue > 0 then round((p_profit / p_cash_revenue) * 100, 1)
         else 0
       end,
       'credit_cost_pending', p_credit_pending
