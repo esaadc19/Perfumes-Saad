@@ -126,6 +126,7 @@ import {
 } from "./services/store-settings";
 import {
   ArrowLeft,
+  ArrowUpRight,
   BarChart3,
   ChevronDown,
   ChevronLeft,
@@ -134,7 +135,6 @@ import {
   PanelLeftOpen,
   Download,
   LayoutDashboard,
-  Menu,
   Package,
   Plus,
   DollarSign,
@@ -370,6 +370,58 @@ function App() {
   }, [cart]);
 
   const [cartOpen, setCartOpen] = useState(false);
+  const productModalRef = useRef<HTMLDivElement>(null);
+  const cartDrawerRef = useRef<HTMLElement>(null);
+  const storefrontDialogOpen = Boolean(selectedProduct) || cartOpen;
+
+  useEffect(() => {
+    if (!selectedProduct && !cartOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (cartOpen) {
+          setCartOpen(false);
+          return;
+        }
+        setSelectedProduct(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const dialog = cartOpen ? cartDrawerRef.current : productModalRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedProduct, cartOpen]);
+
+  useEffect(() => {
+    if (!storefrontDialogOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [storefrontDialogOpen]);
+
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("Todas");
@@ -743,6 +795,17 @@ function App() {
       return matchesSearch && matchesBrand && matchesCategory && matchesGender && matchesOffer;
     });
   }, [products, search, brandFilter, category, genderFilter, offerFilter]);
+  const heroProduct = useMemo(() => {
+    const candidates = products.filter((product) =>
+      product.active !== false
+      && product.variants.some((variant) => variant.stock > 0)
+      && Boolean(product.images?.[0] ?? product.image)
+    );
+    return candidates.find((product) => product.featured) ?? candidates[0] ?? null;
+  }, [products]);
+  const heroProductPrice = heroProduct
+    ? Math.min(...heroProduct.variants.filter((variant) => variant.stock > 0).map((variant) => variant.price))
+    : 0;
   const availableBrands = useMemo(
     () => [...new Set(products.filter((product) => product.active !== false).map((product) => product.brand))]
       .sort((a, b) => a.localeCompare(b, "es")),
@@ -840,6 +903,7 @@ function App() {
   const addToCart = () => {
     if (!selectedProduct || !selectedVariant) return;
     addVariantToCart(selectedProduct, selectedVariant);
+    setSelectedProduct(null);
   };
 
   const total = cartPrice.total;
@@ -849,7 +913,22 @@ function App() {
       {view === "store" ? (
         <>
           <header className="topbar">
-            <button className="mobile-menu"><Menu size={19} /></button>
+            <button
+              className="mobile-menu"
+              type="button"
+              aria-label="Ir a los filtros del catálogo"
+              onClick={() => {
+                setCatalogFiltersOpen(true);
+                requestAnimationFrame(() => {
+                  document.getElementById("catalogo")?.scrollIntoView({
+                    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+                    block: "start",
+                  });
+                });
+              }}
+            >
+              <SlidersHorizontal size={19} aria-hidden="true" />
+            </button>
             <nav className="nav-left">
               <button onClick={() => setCategory("Diseñador")}>Diseñador</button>
               <button onClick={() => setCategory("Árabes")}>Árabes</button>
@@ -864,18 +943,35 @@ function App() {
 
             <div className="nav-actions">
               <div className="search-box">
-                <Search size={17} />
+                <Search size={17} aria-hidden="true" />
                 <input
+                  type="search"
+                  name="buscar"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Buscar"
+                  aria-label="Buscar perfumes"
+                  enterKeyHint="search"
+                  autoComplete="off"
                 />
               </div>
-              <button title="Cuenta" onClick={() => user ? setShowAccount(true) : setShowLogin(true)}>
-                <User size={19} />
+              <button
+                type="button"
+                title="Cuenta"
+                aria-label={user ? "Mi cuenta" : "Iniciar sesión"}
+                onClick={() => user ? setShowAccount(true) : setShowLogin(true)}
+              >
+                <User size={19} aria-hidden="true" />
               </button>
-              <button title="Carrito" onClick={() => setCartOpen(true)} className="cart-button">
-                <ShoppingBag size={19} />
+              <button
+                type="button"
+                title="Carrito"
+                aria-label={`Carrito${cart.length > 0 ? `, ${cart.length} producto${cart.length === 1 ? "" : "s"}` : ""}`}
+                aria-haspopup="dialog"
+                onClick={() => setCartOpen(true)}
+                className="cart-button"
+              >
+                <ShoppingBag size={19} aria-hidden="true" />
                 {cart.length > 0 && <span>{cart.length}</span>}
               </button>
             </div>
@@ -899,10 +995,39 @@ function App() {
                   Preguntar por WhatsApp
                 </a>
               </div>
-              <div className="hero-card">
-                <Sparkles size={24} />
-                <strong>Compra sencilla</strong>
-                <span>Elige tu perfume, presentación y recibimos tu pedido por WhatsApp.</span>
+              <div className="hero-visual">
+                {heroProduct ? (
+                  <button
+                    type="button"
+                    className="hero-product"
+                    onClick={() => openProduct(heroProduct)}
+                    aria-label={`Ver ${heroProduct.brand} ${heroProduct.name}, desde ${money(heroProductPrice)}`}
+                  >
+                    <img
+                      src={heroProduct.image || heroProduct.images?.[0]}
+                      alt={`${heroProduct.brand} ${heroProduct.name}`}
+                      fetchPriority="high"
+                      decoding="async"
+                    />
+                    {heroProduct.featured && (
+                      <span className="hero-product-badge">Destacado</span>
+                    )}
+                    <span className="hero-product-caption">
+                      <span className="hero-product-copy">
+                        <small>{heroProduct.brand}</small>
+                        <strong>{heroProduct.name}</strong>
+                        <span className="hero-product-price">Desde {money(heroProductPrice)}</span>
+                      </span>
+                      <ArrowUpRight className="hero-product-arrow" size={18} aria-hidden="true" />
+                    </span>
+                  </button>
+                ) : (
+                  <div className="hero-card">
+                    <Sparkles size={24} aria-hidden="true" />
+                    <strong>Compra sencilla</strong>
+                    <span>Elige tu perfume, presentación y recibimos tu pedido por WhatsApp.</span>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -965,6 +1090,7 @@ function App() {
                         <span className="filter-label" id="filtro-marca">Marca</span>
                         <select
                           className="catalog-brand-select"
+                          name="marca"
                           value={brandFilter}
                           aria-labelledby="filtro-marca"
                           onChange={(event) => setBrandFilter(event.target.value)}
@@ -1094,7 +1220,12 @@ function App() {
                       const cardVariantHasPromotion = isVariantPromotionEligible(product, cardVariant);
                       return (
                         <article className="product-card" key={product.id}>
-                          <button className="product-image" onClick={() => openProduct(product)}>
+                          <button
+                            type="button"
+                            className="product-image"
+                            onClick={() => openProduct(product)}
+                            aria-label={`Ver ${product.brand} ${product.name}`}
+                          >
                             <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
                             {firstAvailable.stock <= 0 && (
                               <span className="sold-out">Agotado</span>
@@ -1132,7 +1263,12 @@ function App() {
                               </span>
                             )}
                             <div className="product-card-actions">
-                              <button className="text-button" onClick={() => openProduct(product)}>
+                              <button
+                                type="button"
+                                className="text-button"
+                                onClick={() => openProduct(product)}
+                                aria-label={`Ver detalles de ${product.name}`}
+                              >
                                 Ver producto →
                               </button>
                               <button
@@ -1140,8 +1276,9 @@ function App() {
                                 className="quick-add-button"
                                 disabled={cardVariant.stock <= 0}
                                 onClick={() => addVariantToCart(product, cardVariant)}
+                                aria-label={`Agregar ${product.name} ${cardVariant.size} ml al pedido`}
                               >
-                                <Plus size={15} /> Agregar
+                                <Plus size={15} aria-hidden="true" /> Agregar
                               </button>
                             </div>
                           </div>
@@ -1155,10 +1292,27 @@ function App() {
           </main>
 
           {selectedProduct && (
-            <div className="overlay">
-              <div className="product-modal">
-                <button className="close" onClick={() => setSelectedProduct(null)}>
-                  <X />
+            <div
+              className="overlay storefront-overlay"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setSelectedProduct(null);
+              }}
+            >
+              <div
+                ref={productModalRef}
+                className="product-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`${selectedProduct.brand} ${selectedProduct.name}`}
+              >
+                <button
+                  type="button"
+                  className="close"
+                  onClick={() => setSelectedProduct(null)}
+                  aria-label="Cerrar ficha del producto"
+                  autoFocus
+                >
+                  <X aria-hidden="true" />
                 </button>
                 <div className="product-detail-image">
                   <img
@@ -1294,14 +1448,33 @@ function App() {
           )}
 
           {cartOpen && (
-            <div className="overlay">
-              <aside className="cart-drawer">
+            <div
+              className="overlay storefront-overlay"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setCartOpen(false);
+              }}
+            >
+              <aside
+                ref={cartDrawerRef}
+                className="cart-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Tu pedido"
+              >
                 <div className="drawer-head">
                   <div>
                     <p className="eyebrow">PEDIDO</p>
                     <h2>Tu selección</h2>
                   </div>
-                  <button className="close-small" onClick={() => setCartOpen(false)}><X /></button>
+                  <button
+                    type="button"
+                    className="close-small"
+                    onClick={() => setCartOpen(false)}
+                    aria-label="Cerrar pedido"
+                    autoFocus
+                  >
+                    <X aria-hidden="true" />
+                  </button>
                 </div>
 
                 {cart.length === 0 ? (
@@ -1327,6 +1500,7 @@ function App() {
                               <span>Unidades</span>
                               <input
                                 type="number"
+                                name={`unidades-${item.variant.id}`}
                                 min="1"
                                 max={item.variant.stock}
                                 value={item.quantity}
