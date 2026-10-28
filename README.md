@@ -117,7 +117,7 @@ El número de WhatsApp de pedidos se configura en `VITE_WHATSAPP_NUMBER`, en for
 
 ### Cartera / Crédito y abonos
 
-En **Cartera / Crédito** se registran los abonos de los pedidos vendidos a fiado. Un abono es dinero que ya entró: en el dashboard suma a **Ventas cobradas** y a la utilidad; en el reporte semanal aparece como **Abonos de fiado** y se suma al **Total cobrado** y a la utilidad. Mientras el pedido siga abierto, el costo de sus productos se mantiene restado; los abonos van compensando ese costo y, cuando lo superan, empiezan a dejar utilidad. Cuando el pedido queda pagado, el abono final no se cuenta dos veces: el pedido completo se reconoce como venta pagada. Los abonos se pueden editar o eliminar desde la cartera y esos cambios recalculan las métricas.
+En **Cartera / Crédito** se registran los abonos de los pedidos vendidos a fiado. Un abono es dinero que ya entró: en el dashboard suma a **Ventas cobradas** y a la utilidad; en el reporte semanal aparece como **Abonos de fiado** y se suma al **Total cobrado** y a la utilidad. Mientras el pedido siga abierto, el costo de sus productos se mantiene restado; los abonos van compensando ese costo y, cuando lo superan, empiezan a dejar utilidad. Cuando el pedido queda pagado, el abono final no se cuenta dos veces: el pedido completo se reconoce como venta pagada. Los abonos se pueden editar o eliminar desde la cartera y esos cambios recalculan las métricas. El detalle del pedido muestra el acumulado de abonos y el saldo pendiente, tanto en la lista de **Pedidos** como al abrir el pedido.
 
 ### Reportes y gastos recurrentes
 

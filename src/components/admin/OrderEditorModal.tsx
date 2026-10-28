@@ -195,6 +195,12 @@ export default function OrderEditorModal({
     const variant = availableMatches[0];
     if (variant) addVariant(variant);
   };
+  const isOpenCredit = Boolean(
+    order && (order.payment_status === "credit" || order.payment_status === "partial")
+  );
+  const creditTotal = order ? Number(order.total) : 0;
+  const creditBalance = order ? Math.max(0, Number(order.credit_amount ?? 0)) : 0;
+  const creditPaid = Math.max(0, creditTotal - creditBalance);
 
   return (
     <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
@@ -234,6 +240,18 @@ export default function OrderEditorModal({
         <button className="close" type="button" onClick={onClose} aria-label="Cerrar"><X /></button>
         <p className="eyebrow">GESTIÓN DE PEDIDOS</p>
         <h2 id="order-editor-title">{order ? "Editar pedido" : "Crear pedido"}</h2>
+        {isOpenCredit && (
+          <div className="order-credit-summary-card">
+            <div>
+              <span>Abonado</span>
+              <strong>{money(creditPaid)} de {money(creditTotal)}</strong>
+            </div>
+            <div>
+              <span>Saldo pendiente</span>
+              <strong>{money(creditBalance)}</strong>
+            </div>
+          </div>
+        )}
         <div className="order-entry-fields">
           <div className="order-client-entry">
             <span>Cliente</span>

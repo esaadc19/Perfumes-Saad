@@ -176,6 +176,10 @@ export default function OrdersPage({
             (sum, item) => sum + Number(item.unit_cost_snapshot ?? 0) * item.quantity,
             0
           );
+          const isOpenCredit = order.payment_status === "credit" || order.payment_status === "partial";
+          const orderTotal = Number(order.total);
+          const creditBalance = Math.max(0, Number(order.credit_amount ?? 0));
+          const paidAmount = Math.max(0, orderTotal - creditBalance);
           return (
             <div className="table-row transaction-row" key={order.id}>
               <div className="profile-cell" aria-readonly="true">
@@ -183,6 +187,11 @@ export default function OrdersPage({
                 <span>{order.order_items.map((item) =>
                   `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`
                 ).join(" · ") || order.customers?.phone || "Sin detalle"}</span>
+                {isOpenCredit && (
+                  <div className="order-credit-summary">
+                    Abonado: <strong>{money(paidAmount)}</strong> de {money(orderTotal)} · Saldo: <strong>{money(creditBalance)}</strong>
+                  </div>
+                )}
               </div>
               <span className="cell-center">{new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}</span>
               <strong className="cell-center">{order.payment_status === "paid" ? money(Number(order.total)) : "—"}</strong>
