@@ -12,9 +12,9 @@ Primer artefacto del proyecto Perfumes SAAD.
 - Control visual de stock/agotado.
 - Carrito/pedido.
 - Generación de pedido y apertura de WhatsApp con los productos y total.
-- Vista administrativa demo.
-- Métricas iniciales de inventario.
-- Alta de producto demo.
+- Panel administrativo con dashboard, productos, pedidos, clientes, cartera, gastos y reportes.
+- Cartera / Crédito con abonos y bloqueo de clientes.
+- Reportes diario y semanal por correo y WhatsApp.
 - Esqueleto de Supabase.
 - Esquema SQL inicial.
 
@@ -111,13 +111,19 @@ En el CSV o Excel de productos, `gender` acepta `Hombre`, `Hombres`, `Masculino`
 
 En **Clientes**, también puedes importar contactos desde CSV o Excel `.xlsx`. Usa `full_name` como columna obligatoria y, opcionalmente, `phone`, `email` y `city` (se aceptan los encabezados equivalentes en español mostrados en el panel). Cada cliente debe tener correo o teléfono. Los registros existentes con el mismo correo o teléfono se omiten para evitar duplicados; la importación no crea cuentas ni cambia permisos.
 
-Los pedidos antiguos pueden no tener costo histórico. El panel los señala y deja su utilidad incompleta en lugar de inventar costos. La utilidad neta mostrada para ventas pagadas se calcula como total cobrado menos el costo de los productos y el costo de domicilio asumido por la tienda; no incluye comisiones ni otros gastos.
+Los pedidos antiguos pueden no tener costo histórico. El panel los señala y deja su utilidad incompleta en lugar de inventar costos. La utilidad cobrada se calcula con las ventas pagadas y los abonos de fiados que siguen abiertos, menos el costo de los productos, el domicilio asumido por la tienda y los gastos del periodo; no incluye comisiones ni otros gastos.
 
 El número de WhatsApp de pedidos se configura en `VITE_WHATSAPP_NUMBER`, en formato internacional, sin `+` ni espacios. El reporte semanal usa `WHATSAPP_NUMBERS`; si no se define, se envía a `3102318786` (Colombia, prefijo `57` aplicado automáticamente).
 
+### Cartera / Crédito y abonos
+
+En **Cartera / Crédito** se registran los abonos de los pedidos vendidos a fiado. Un abono es dinero que ya entró: en el dashboard suma a **Ventas cobradas** y a la utilidad; en el reporte semanal aparece como **Abonos de fiado** y se suma al **Total cobrado** y a la utilidad. Mientras el pedido siga abierto, el costo de sus productos se mantiene restado; los abonos van compensando ese costo y, cuando lo superan, empiezan a dejar utilidad. Cuando el pedido queda pagado, el abono final no se cuenta dos veces: el pedido completo se reconoce como venta pagada. Los abonos se pueden editar o eliminar desde la cartera y esos cambios recalculan las métricas.
+
 ### Reportes y gastos recurrentes
 
-El dashboard ofrece un reporte diario para la fecha elegida y conserva el reporte semanal de la última semana completa. Ambos ejecutan `weekly-report`, que solo permite el acceso a administradores, e incluyen un enlace de WhatsApp; también intentan enviar el reporte por correo. En **Gastos**, marca un gasto como recurrente para crear su primer vencimiento semanal, mensual o anual. Los pagos próximos y vencidos aparecen en el panel. Al registrar un pago, se guarda el gasto en el historial y se programa el siguiente vencimiento. `expense-reminders` envía un correo a las 8:00 a. m. hora de Colombia el día del vencimiento y vuelve a avisar diariamente mientras siga pendiente.
+El dashboard ofrece un reporte diario para la fecha elegida y conserva el reporte semanal de la última semana completa. Ambos ejecutan `weekly-report`, que solo permite el acceso a administradores, e incluyen un enlace de WhatsApp; también intentan enviar el reporte por correo. El reporte semanal separa las ventas pagadas de los abonos de fiado: muestra **Abonos de fiado** y **Total cobrado**, y la utilidad incluye esos abonos. La RPC `weekly_sales_report` devuelve `current_week.credit_collected`, `current_week.cash_collected`, `previous_week.credit_collected`, `previous_week.cash_collected` y `credit.week_collected_open`; `current_week.sales` sigue siendo solo ventas pagadas.
+
+En **Gastos**, marca un gasto como recurrente para crear su primer vencimiento semanal, mensual o anual. Los pagos próximos y vencidos aparecen en el panel. Al registrar un pago, se guarda el gasto en el historial y se programa el siguiente vencimiento. `expense-reminders` envía un correo a las 8:00 a. m. hora de Colombia el día del vencimiento y vuelve a avisar diariamente mientras siga pendiente.
 
 Ambos envíos por correo usan el Apps Script configurado en `GOOGLE_APPS_SCRIPT_URL` y `GOOGLE_APPS_SCRIPT_SECRET` dentro de **Supabase → Edge Functions → Secrets**. La URL es la implementación `/exec`; el secreto debe coincidir con la propiedad de secuencia de comandos `REPORT_SHARED_SECRET`. Apps Script lee el destinatario de `REPORT_RECIPIENT_EMAIL`. `weekly-report` y `expense-reminders` envían el JSON `{ secret, subject, html }` a `doPost`. No guardes el secreto en el frontend, `.env` de Vite ni Git. Configura también, si hace falta, `WHATSAPP_NUMBERS`; su valor predeterminado es `3102318786`, y a los celulares colombianos de 10 dígitos se les aplica el prefijo `57`. Para desplegar `weekly-report` y `expense-reminders` automáticamente con cada push a `main`, configura `SUPABASE_ACCESS_TOKEN` (token de acceso de Supabase con alcance limitado al proyecto) y `SUPABASE_PROJECT_ID` (referencia del proyecto) en **GitHub → Settings → Secrets and variables → Actions**. Los cron de reportes y recordatorios dependen además de que `app.settings.supabase_url` y `app.settings.supabase_service_role_key` estén configurados en la base de datos; el enlace de WhatsApp requiere que un administrador lo abra.
 
