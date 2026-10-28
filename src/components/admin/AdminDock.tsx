@@ -134,74 +134,78 @@ sections: readonly DockSection[];
               </button>
             </div>
 
-            {GROUPS.map((group) => {
-              const items = group.ids
-                .map((id) => rest.find((s) => s.id === id))
-                .filter((s): s is DockSection => Boolean(s));
-              if (items.length === 0) return null;
-              return (
-                <section key={group.title} className="admin-navsheet-group">
-                  <h3>{group.title}</h3>
-                  <div className="admin-navsheet-grid">
-                    {items.map((section) => {
-                      const Icon = ICONS[section.id];
-                      if (section.external) {
+            {/* El pie con la cuenta queda fijo; solo scrollean las secciones.
+                En un telefono chico "Cerrar sesion" quedaba debajo del pliegue. */}
+            <div className="admin-navsheet-scroll">
+              {GROUPS.map((group) => {
+                const items = group.ids
+                  .map((id) => rest.find((s) => s.id === id))
+                  .filter((s): s is DockSection => Boolean(s));
+                if (items.length === 0) return null;
+                return (
+                  <section key={group.title} className="admin-navsheet-group">
+                    <h3>{group.title}</h3>
+                    <div className="admin-navsheet-grid">
+                      {items.map((section) => {
+                        const Icon = ICONS[section.id];
+                        if (section.external) {
+                          return (
+                            <a
+                              key={section.id}
+                              className="admin-navsheet-tile"
+                              href="/crm/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={closeSheet}
+                            >
+                              <span className="admin-navdock-icon">{Icon ? <Icon size={19} /> : section.icon}</span>
+                              <span>{section.title}</span>
+                            </a>
+                          );
+                        }
                         return (
                           <a
                             key={section.id}
-                            className="admin-navsheet-tile"
-                            href="/crm/"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={closeSheet}
+                            className={`admin-navsheet-tile${current === section.id ? " is-active" : ""}`}
+                            href={pathFor(section.id)}
+                            aria-current={current === section.id ? "page" : undefined}
+                            onClick={(event) => {
+                              followInternalLink(event, section.id);
+                              closeSheet();
+                            }}
                           >
                             <span className="admin-navdock-icon">{Icon ? <Icon size={19} /> : section.icon}</span>
                             <span>{section.title}</span>
                           </a>
                         );
-                      }
-                      return (
-                        <a
-                          key={section.id}
-                          className={`admin-navsheet-tile${current === section.id ? " is-active" : ""}`}
-                          href={pathFor(section.id)}
-                          aria-current={current === section.id ? "page" : undefined}
-                          onClick={(event) => {
-                            followInternalLink(event, section.id);
-                            closeSheet();
-                          }}
-                        >
-                          <span className="admin-navdock-icon">{Icon ? <Icon size={19} /> : section.icon}</span>
-                          <span>{section.title}</span>
-                        </a>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            })}
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
 
-            {/* Catálogo: es la tienda pública, no una sección del panel. Va
-                aparte de los grupos porque no es administración, es salir a
-                ver lo que el cliente ve. */}
-            <section className="admin-navsheet-group">
-              <h3>Tienda</h3>
-              <div className="admin-navsheet-grid">
-                <a
-                  className="admin-navsheet-tile"
-                  href="/"
-                  onClick={(event) => {
-                    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                    event.preventDefault();
-                    closeSheet();
-                    onGoToStore();
-                  }}
-                >
-                  <span className="admin-navdock-icon"><Store size={19} /></span>
-                  <span>Ver catálogo</span>
-                </a>
-              </div>
-            </section>
+              {/* Catálogo: es la tienda pública, no una sección del panel. Va
+                  aparte de los grupos porque no es administración, es salir a
+                  ver lo que el cliente ve. */}
+              <section className="admin-navsheet-group">
+                <h3>Tienda</h3>
+                <div className="admin-navsheet-grid">
+                  <a
+                    className="admin-navsheet-tile"
+                    href="/"
+                    onClick={(event) => {
+                      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                      event.preventDefault();
+                      closeSheet();
+                      onGoToStore();
+                    }}
+                  >
+                    <span className="admin-navdock-icon"><Store size={19} /></span>
+                    <span>Ver catálogo</span>
+                  </a>
+                </div>
+              </section>
+            </div>
 
             <section className="admin-navsheet-group admin-navsheet-account">
               <h3>Cuenta</h3>

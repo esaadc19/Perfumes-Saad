@@ -1,9 +1,12 @@
+import { useEffect, useState } from "react";
 import { Check, Package, Pencil, Search, Trash2 } from "lucide-react";
 import AdminButton from "../../components/admin/AdminButton";
 import { money } from "../../lib/format";
 import type { Product, ProductVariant } from "../../services/products";
 import type { Promotion } from "../../services/promotions";
 import type { ProductPriceFilterState, ProductStockFilter } from "./types";
+
+const PRODUCT_BATCH_SIZE = 12;
 
 interface ProductsPageProps {
   visibleProducts: Product[];
@@ -81,6 +84,24 @@ export default function ProductsPage({
   productActionError,
 }: ProductsPageProps) {
   const initialLoading = loading && visibleProducts.length === 0;
+  const [visibleLimit, setVisibleLimit] = useState(PRODUCT_BATCH_SIZE);
+  const displayedProducts = visibleProducts.slice(0, visibleLimit);
+  const remainingProducts = visibleProducts.length - displayedProducts.length;
+
+  // Al cambiar la busqueda o un filtro volvemos al primer lote: el usuario
+  // esta mirando un conjunto nuevo, no la posicion anterior.
+  useEffect(() => {
+    setVisibleLimit(PRODUCT_BATCH_SIZE);
+  }, [
+    productSearch,
+    showArchivedProducts,
+    productStockFilter,
+    productPriceFilter.costMin,
+    productPriceFilter.costMax,
+    productPriceFilter.priceMin,
+    productPriceFilter.priceMax,
+  ]);
+
   return (
     <>
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -174,7 +195,7 @@ export default function ProductsPage({
           <div className="table-row product-row header">
             <span>Producto</span><span>Presentación y costo unitario</span><span className="cell-center">Stock total</span><span className="cell-center">Disponibilidad</span><span className="cell-center">Acciones</span>
           </div>
-          {visibleProducts.map((product) => {
+          {displayedProducts.map((product) => {
             const stock = product.variants.reduce((s, v) => s + v.stock, 0);
             const available = !product.archived && product.active !== false && stock > 0;
             return (
@@ -321,6 +342,19 @@ export default function ProductsPage({
             </p>
           )}
         </div>
+        {remainingProducts > 0 && (
+          <div className="products-load-more">
+            <span>Mostrando {displayedProducts.length} de {visibleProducts.length} productos</span>
+            <AdminButton
+              tone="secondary"
+              compact
+              type="button"
+              onClick={() => setVisibleLimit((current) => current + PRODUCT_BATCH_SIZE)}
+            >
+              Mostrar {Math.min(PRODUCT_BATCH_SIZE, remainingProducts)} más
+            </AdminButton>
+          </div>
+        )}
         {productActionFeedback && <p className="import-feedback" role="status">{productActionFeedback}</p>}
         {productActionError && <p className="form-error" role="alert">{productActionError}</p>}
       </section>

@@ -3016,18 +3016,22 @@ function Admin({
                   tabIndex={-1}
                 />
                 <AdminButton
+                  className="product-import-action"
                   tone="secondary"
                   compact
                   type="button"
                   onClick={() => productImportInput.current?.click()}
                   disabled={importingProducts}
+                  aria-label={importingProducts ? "Importando productos" : "Importar archivo"}
+                  title="Importar archivo"
                 >
                   <Upload size={16} /> {importingProducts ? "Importando..." : "Importar archivo"}
                 </AdminButton>
                 <a
-                  className="secondary template-download"
+                  className="secondary template-download product-template-action"
                   href="/plantilla-importacion-productos.csv"
                   download="plantilla-importacion-productos.csv"
+                  aria-label="Descargar plantilla CSV para importar productos"
                   title="Descargar plantilla CSV para importar productos"
                 >
                   <Download size={16} /> Plantilla CSV
