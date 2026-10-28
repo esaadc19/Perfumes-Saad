@@ -32,11 +32,8 @@ export default function ProfilesPage({
 }: ProfilesPageProps) {
   return (
     <section className="admin-card">
-      <div className="card-title">
-        <div>
-          <h2>Cuentas y permisos</h2>
-          <span>Asigna acceso administrativo únicamente a cuentas registradas.</span>
-        </div>
+      <div className="card-title customer-toolbar">
+        <p className="customer-toolbar-note">Asigna acceso administrativo únicamente a cuentas registradas.</p>
         <label className="admin-search">
           <Search size={16} />
           <input

@@ -33,11 +33,8 @@ export default function CustomersPage({
 }: CustomersPageProps) {
   return (
     <section className="admin-card">
-      <div className="card-title">
-        <div>
-          <h2>Clientes y pedidos</h2>
-          <span>Consulta compras y actualiza los datos de contacto.</span>
-        </div>
+      <div className="card-title customer-toolbar">
+        <p className="customer-toolbar-note">Consulta compras y actualiza los datos de contacto.</p>
         <label className="admin-search">
           <Search size={16} />
           <input

@@ -100,24 +100,27 @@ export default function DashboardPage({
       {/* El panel completo vive en la seccion Reportes. Acá quedan solo las
           dos acciones rapidas, sin formulario de fechas: el dashboard
           es para mirar, no para configurar. */}
-      <div className="report-actions">
-        <AdminButton
-          tone="secondary"
-          compact
-          type="button"
-          onClick={onGenerateReport}
-          disabled={reportLoading}
-        >
-          <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Generar reporte semanal"}
-        </AdminButton>
-        <AdminButton
-          tone="secondary"
-          compact
-          type="button"
-          onClick={() => onSectionChange("reports")}
-        >
-          <CalendarDays size={16} /> Reportes por periodo
-        </AdminButton>
+      <div className="report-actions report-actions--dashboard">
+        <span className="report-actions-label">Reportes</span>
+        <div className="report-actions-buttons">
+          <AdminButton
+            tone="secondary"
+            compact
+            type="button"
+            onClick={onGenerateReport}
+            disabled={reportLoading}
+          >
+            <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Generar reporte semanal"}
+          </AdminButton>
+          <AdminButton
+            tone="secondary"
+            compact
+            type="button"
+            onClick={() => onSectionChange("reports")}
+          >
+            <CalendarDays size={16} /> Reportes por periodo
+          </AdminButton>
+        </div>
       </div>
       {reportError && <p className="form-error" role="alert">{reportError}</p>}
       {reportResult && (
@@ -174,6 +177,43 @@ export default function DashboardPage({
           </button>
         </div>
       </div>
+      {/* La lectura principal va primero: ventas cobradas, utilidad y margen.
+          El detalle operativo (cartera, inventario, clientes) queda debajo. */}
+      <MetricGroup
+        title="Ventas"
+        hint="Solo lo cobrado, incluidos los abonos. Lo vendido a fiado se resta por su costo mientras siga abierto."
+        icon={<BarChart3 />}
+        wide
+      >
+        <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} numericValue={Number(metrics.sales_revenue)} format="money" icon={<ReceiptText />} hint="Incluye los abonos de fiados que siguen abiertos." delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
+        {/* Sin costo completo no hay numero que contar: la tarjeta dice
+            "Incompleta" y el conteo se queda quieto. */}
+        <Metric
+          title="Utilidad neta"
+          value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
+          numericValue={metrics.missing_cost_items > 0 ? undefined : Number(metrics.sales_profit)}
+          format="money"
+          icon={<TrendingUp />}
+          warning={metrics.sales_profit < 0}
+          emphasis
+          delta={metrics.period_days ? { current: Number(metrics.sales_profit), previous: Number(metrics.previous.sales_profit) } : undefined}
+        />
+        <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} numericValue={Number(metrics.net_margin_percent)} format="percent" icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
+        <Metric title="Ventas completadas" value={String(metrics.completed_sales)} numericValue={metrics.completed_sales} icon={<ShoppingBag />} />
+        <Metric title="Ticket promedio" value={money(avgTicket)} numericValue={avgTicket} format="money" icon={<Calculator />} hint="Venta cobrada promedio." />
+        <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} numericValue={Number(metrics.sales_cost)} format="money" icon={<Package />} />
+        <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} numericValue={Number(metrics.sales_delivery_cost)} format="money" icon={<Truck />} />
+        <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} numericValue={Number(metrics.total_expenses)} format="money" icon={<Wallet />} />
+        <Metric
+          title="Costo del fiado por cobrar"
+          value={money(Number(metrics.credit_cost_pending))}
+          numericValue={Number(metrics.credit_cost_pending)}
+          format="money"
+          icon={<Lock />}
+          hint="Costo de las ventas a fiado que siguen abiertas; ya lo pagaste al proveedor. Los abonos ya suman a la utilidad."
+        />
+      </MetricGroup>
+
       <div className="metric-groups">
         <MetricGroup
           title="Cartera"
@@ -210,7 +250,7 @@ export default function DashboardPage({
         >
           <Metric title="Productos activos" value={String(products.filter((product) => !product.archived).length)} numericValue={products.filter((product) => !product.archived).length} icon={<Package />} />
           <Metric title="Unidades en stock" value={String(totalStock)} numericValue={totalStock} icon={<ShoppingBag />} />
-          <Metric title="Presentaciones agotadas" value={String(soldOut)} numericValue={soldOut} icon={<X />} onClick={() => onDashboardDetailChange("sold-out")} />
+          <Metric title="Presentaciones agotadas" value={String(soldOut)} numericValue={soldOut} icon={<X />} onClick={soldOut > 0 ? () => onDashboardDetailChange("sold-out") : undefined} />
         </MetricGroup>
 
         <MetricGroup
@@ -219,49 +259,11 @@ export default function DashboardPage({
           icon={<Users />}
         >
           <Metric title="Clientes registrados" value={String(metrics.customer_count)} numericValue={metrics.customer_count} icon={<Users />} />
-          <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<AlertTriangle />} onClick={() => onSectionChange("credit")} />
+          <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<AlertTriangle />} onClick={metrics.credit_customers_with_overdue > 0 ? () => onSectionChange("credit") : undefined} />
           <Metric title="Pedidos registrados" value={String(metrics.total_orders)} numericValue={metrics.total_orders} icon={<ReceiptText />} />
         </MetricGroup>
       </div>
 
-      <MetricGroup
-        title="Ventas"
-        hint="Solo lo cobrado, incluidos los abonos. Lo vendido a fiado se resta por su costo mientras siga abierto."
-        icon={<BarChart3 />}
-        wide
-      >
-        {/* "Ventas completadas" abre el grupo: es la respuesta corta a
-            "cuanto vendi", y de entrada da el contexto de las cifras
-            que siguen abajo. Sin delta porque cuenta pedidos, no
-            montos, y compararlo contra el periodo anterior mislead. */}
-        <Metric title="Ventas completadas" value={String(metrics.completed_sales)} numericValue={metrics.completed_sales} icon={<ShoppingBag />} />
-        <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} numericValue={Number(metrics.sales_revenue)} format="money" icon={<ReceiptText />} hint="Incluye los abonos de fiados que siguen abiertos." delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
-        <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} numericValue={Number(metrics.sales_cost)} format="money" icon={<Package />} />
-        <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} numericValue={Number(metrics.sales_delivery_cost)} format="money" icon={<Truck />} />
-        <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} numericValue={Number(metrics.total_expenses)} format="money" icon={<Wallet />} />
-        <Metric
-          title="Costo del fiado por cobrar"
-          value={money(Number(metrics.credit_cost_pending))}
-          numericValue={Number(metrics.credit_cost_pending)}
-          format="money"
-          icon={<Lock />}
-          hint="Costo de las ventas a fiado que siguen abiertas; ya lo pagaste al proveedor. Los abonos ya suman a la utilidad."
-        />
-        {/* Sin costo completo no hay numero que contar: la tarjeta dice
-            "Incompleta" y el conteo se queda quieto. */}
-        <Metric
-          title="Utilidad neta"
-          value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
-          numericValue={metrics.missing_cost_items > 0 ? undefined : Number(metrics.sales_profit)}
-          format="money"
-          icon={<TrendingUp />}
-          warning={metrics.sales_profit < 0}
-          emphasis
-          delta={metrics.period_days ? { current: Number(metrics.sales_profit), previous: Number(metrics.previous.sales_profit) } : undefined}
-        />
-        <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} numericValue={Number(metrics.net_margin_percent)} format="percent" icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
-        <Metric title="Ticket promedio" value={money(avgTicket)} numericValue={avgTicket} format="money" icon={<Calculator />} hint="Venta cobrada promedio." />
-      </MetricGroup>
       <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
         <Charts orders={orders} products={metrics.top_products} />
       </Suspense>

@@ -7,6 +7,7 @@ import type { ProductPriceFilterState, ProductStockFilter } from "./types";
 
 interface ProductsPageProps {
   visibleProducts: Product[];
+  loading: boolean;
   promotions: Promotion[];
   archivedProductsCount: number;
   showArchivedProducts: boolean;
@@ -44,6 +45,7 @@ interface ProductsPageProps {
 
 export default function ProductsPage({
   visibleProducts,
+  loading,
   promotions,
   archivedProductsCount,
   showArchivedProducts,
@@ -78,21 +80,18 @@ export default function ProductsPage({
   productActionFeedback,
   productActionError,
 }: ProductsPageProps) {
+  const initialLoading = loading && visibleProducts.length === 0;
   return (
     <>
       {error && <p className="form-error" role="alert">{error}</p>}
       {importFeedback && <p className="import-feedback" role="status">{importFeedback}</p>}
       {importError && <p className="form-error" role="alert">{importError}</p>}
-      <p className="customer-import-hint">
+      <p className="customer-import-hint products-import-hint">
         Descarga la plantilla y luego importa ese archivo desde aquí. No importes este CSV directamente en la tabla
         <code> products</code> de Supabase: la tienda también crea las presentaciones en <code>product_variants</code>.
       </p>
       <section className="admin-card">
-        <div className="card-title">
-          <div>
-            <h2>{showArchivedProducts ? "Productos archivados" : "Productos"}</h2>
-            <span>Gestiona disponibilidad, costos y stock. Para importar, usa una fila por presentación y repite marca, nombre y SKU del producto para agrupar variantes.</span>
-          </div>
+        <div className="card-title product-toolbar">
           <div className="product-list-tools">
             <button
               className="secondary archived-products-toggle"
@@ -161,10 +160,19 @@ export default function ProductsPage({
             Estos productos se quitaron de la tienda, pero se conservan porque tienen pedidos o movimientos de inventario asociados.
           </p>
         )}
+        {initialLoading && (
+          <div className="section-loading" role="status">
+            <span className="loading-spinner" aria-hidden="true" />
+            <div>
+              <strong>Cargando productos…</strong>
+              <span>Estamos reuniendo el catálogo, las presentaciones y el stock.</span>
+            </div>
+          </div>
+        )}
 
-        <div className="admin-table">
+        <div className="admin-table" hidden={initialLoading}>
           <div className="table-row product-row header">
-            <span>Producto</span><span>SKU</span><span>Categoría</span><span>Presentación y costo unitario</span><span className="cell-center">Stock</span><span className="cell-center">Estado</span><span className="cell-center">Acciones</span>
+            <span>Producto</span><span>Presentación y costo unitario</span><span className="cell-center">Stock total</span><span className="cell-center">Disponibilidad</span><span className="cell-center">Acciones</span>
           </div>
           {visibleProducts.map((product) => {
             const stock = product.variants.reduce((s, v) => s + v.stock, 0);
@@ -173,21 +181,20 @@ export default function ProductsPage({
               <div className="table-row product-row" key={product.id}>
                 <div className="product-cell">
                   <img src={product.image} alt="" loading="lazy" decoding="async" />
-                  <div>
+                  <div className="product-cell-copy">
                     <b>{product.brand}</b>
                     <span>{product.name}</span>
+                    <span className="product-cell-meta">
+                      {product.sku
+                        ? <code title={product.sku}>{product.sku}</code>
+                        : <em className="sku-missing">Sin SKU</em>}
+                      <span className="product-meta-sep" aria-hidden="true">·</span>
+                      <span>{product.category}</span>
+                      {product.promotion_id && (
+                        <small>{promotions.find((promotion) => promotion.id === product.promotion_id)?.name ?? "Promoción no disponible"}</small>
+                      )}
+                    </span>
                   </div>
-                </div>
-                <div className="product-sku-cell">
-                  {product.sku
-                    ? <code title={product.sku}>{product.sku}</code>
-                    : <span className="sku-missing">Sin SKU</span>}
-                </div>
-                <div className="product-category-cell">
-                  <span>{product.category}</span>
-                  {product.promotion_id && (
-                    <small>{promotions.find((promotion) => promotion.id === product.promotion_id)?.name ?? "Promoción no disponible"}</small>
-                  )}
                 </div>
                 <div className="variant-cost-list">
                   {product.variants.map((variant) => (
@@ -267,21 +274,23 @@ export default function ProductsPage({
                   ))}
                 </div>
                 <span className="cell-center">{stock}</span>
-                {product.archived ? (
-                  <span className="status sold archived-status">Archivado</span>
-                ) : (
-                  <button
-                    className={available ? "status available" : "status sold"}
-                    disabled={updatingProductId === product.id}
-                    onClick={() => onProductActiveChange(product)}
-                  >
-                    {updatingProductId === product.id
-                      ? "Guardando..."
-                      : product.active === false
-                        ? <>Oculto · mostrar</>
-                        : available ? <><Check size={13}/> Disponible · ocultar</> : <>Agotado · ocultar</>}
-                  </button>
-                )}
+                <div className="product-status-cell">
+                  {product.archived ? (
+                    <span className="status sold archived-status">Archivado</span>
+                  ) : (
+                    <button
+                      className={available ? "status available" : "status sold"}
+                      disabled={updatingProductId === product.id}
+                      onClick={() => onProductActiveChange(product)}
+                    >
+                      {updatingProductId === product.id
+                        ? "Guardando..."
+                        : product.active === false
+                          ? <>Oculto · mostrar</>
+                          : available ? <><Check size={13}/> Disponible · ocultar</> : <>Agotado · ocultar</>}
+                    </button>
+                  )}
+                </div>
                 {product.archived ? (
                   <span className="archived-history-note">Se conserva por su historial de ventas o inventario.</span>
                 ) : (

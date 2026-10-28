@@ -308,7 +308,9 @@ export function SalesTrendChart({ orders }: { orders: AdminOrder[] }) {
           </div>
           {sales.missingPaymentDates > 0 && (
             <p className="chart-data-note" role="status">
-              {sales.missingPaymentDates} pedido(s) pagado(s) sin fecha de pago no aparecen en este gráfico.
+              {sales.missingPaymentDates === 1
+                ? "1 pedido pagado sin fecha de pago no aparece en este gráfico."
+                : `${sales.missingPaymentDates} pedidos pagados sin fecha de pago no aparecen en este gráfico.`}
             </p>
           )}
         </>

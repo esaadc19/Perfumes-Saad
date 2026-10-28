@@ -27,11 +27,8 @@ export default function PromotionsPage({
     <>
       {feedback && <p className="import-feedback" role="status">{feedback}</p>}
       <section className="admin-card">
-        <div className="card-title">
-          <div>
-            <h2>Promociones y ofertas</h2>
-            <span>Elige las presentaciones que participan según su margen. La oferta se repite por cada paquete completo.</span>
-          </div>
+        <div className="card-title promotion-toolbar">
+          <p className="page-intro">Elige las presentaciones que participan según su margen. La oferta se repite por cada paquete completo.</p>
           <AdminButton type="button" onClick={onNew}><Plus size={17}/> Nueva promoción</AdminButton>
         </div>
         {promotions.length === 0 ? (

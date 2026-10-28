@@ -9,6 +9,7 @@ import {
   Search,
   Trash2,
   TrendingUp,
+  Truck,
   UserCheck,
 } from "lucide-react";
 import type { AdminOrder } from "../../services/admin";
@@ -102,6 +103,7 @@ export default function OrdersPage({
   );
   const deliveryCost = completedOrders.reduce((sum, order) => sum + Number(order.delivery_cost ?? 0), 0);
   const netProfit = missingCostItems > 0 ? null : revenue - productCost - deliveryCost;
+  const initialLoading = loading && orders.length === 0;
   const normalizeOrderStatus = (status: string): OrderStatus =>
     status === "confirmed" || status === "cancelled" ? status : "pending_confirmation";
   const normalizePaymentStatus = (status: string): PaymentStatus =>
@@ -109,11 +111,8 @@ export default function OrdersPage({
 
   return (
     <section className="admin-card">
-      <div className="card-title">
-        <div>
-          <h2>Pedidos y transacciones</h2>
-          <span>El costo del domicilio se resta de la ganancia cuando completas la venta.</span>
-        </div>
+      <div className="card-title order-toolbar">
+        <p className="table-note">El costo del domicilio se resta de la ganancia cuando completas la venta.</p>
         <label className="admin-search">
           <Search size={16} />
           <input
@@ -124,10 +123,20 @@ export default function OrdersPage({
           />
         </label>
       </div>
+      {initialLoading && (
+        <div className="section-loading" role="status">
+          <span className="loading-spinner" aria-hidden="true" />
+          <div>
+            <strong>Cargando pedidos…</strong>
+            <span>Estamos reuniendo las transacciones y sus totales.</span>
+          </div>
+        </div>
+      )}
+      <div className="transaction-content" hidden={initialLoading}>
       <div className="metrics transaction-metrics">
         <Metric title="Total vendido" value={money(revenue)} numericValue={revenue} format="money" icon={<TrendingUp />} />
         <Metric title="Costo de productos" value={money(productCost)} numericValue={productCost} format="money" icon={<ReceiptText />} />
-        <Metric title="Domicilios pagados" value={money(deliveryCost)} numericValue={deliveryCost} format="money" icon={<AlertTriangle />} />
+        <Metric title="Domicilios pagados" value={money(deliveryCost)} numericValue={deliveryCost} format="money" icon={<Truck />} />
         <Metric
           title="Utilidad neta"
           value={netProfit === null ? "Incompleta" : money(netProfit)}
@@ -165,10 +174,8 @@ export default function OrdersPage({
       )}
       <div className="admin-table">
         <div className="table-row transaction-row header">
-          <span>Pedido / Cliente</span><span className="cell-center">Fecha del pedido</span><span className="cell-center">Vendido</span>
-          <span className="cell-center">Costo productos</span><span className="cell-center">Domicilio</span><span className="cell-center">Utilidad neta</span>
-          <span className="cell-center">Asesor</span>
-          <span className="cell-center">Estado del pedido</span><span className="cell-center">Pago</span><span className="cell-center">Acciones</span>
+          <span>Pedido / Cliente</span><span className="cell-center">Vendido</span><span className="cell-center">Costos</span>
+          <span className="cell-center">Utilidad neta</span><span className="cell-center">Estado</span><span className="cell-center">Acciones</span>
         </div>
         {paginatedOrders.map((order) => {
           const hasMissingCost = order.order_items.some((item) => item.unit_cost_snapshot === null);
@@ -178,6 +185,7 @@ export default function OrdersPage({
           );
           const isOpenCredit = order.payment_status === "credit" || order.payment_status === "partial";
           const orderTotal = Number(order.total);
+          const deliveryCost = Number(order.delivery_cost ?? 0);
           const creditBalance = Math.max(0, Number(order.credit_amount ?? 0));
           const paidAmount = Math.max(0, orderTotal - creditBalance);
           return (
@@ -187,67 +195,86 @@ export default function OrdersPage({
                 <span>{order.order_items.map((item) =>
                   `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`
                 ).join(" · ") || order.customers?.phone || "Sin detalle"}</span>
+                <span className="order-meta">
+                  {new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}
+                  {" · "}
+                  {order.sales_advisor_name || "Sin asesor"}
+                </span>
                 {isOpenCredit && (
                   <div className="order-credit-summary">
                     Abonado: <strong>{money(paidAmount)}</strong> de {money(orderTotal)} · Saldo: <strong>{money(creditBalance)}</strong>
                   </div>
                 )}
               </div>
-              <span className="cell-center">{new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}</span>
-              <strong className="cell-center">{order.payment_status === "paid" ? money(Number(order.total)) : "—"}</strong>
-              <span className="cell-center">{order.payment_status !== "paid" ? "—" : hasMissingCost ? "Falta costo" : money(orderProductCost)}</span>
-              <span className="cell-center">{money(Number(order.delivery_cost ?? 0))}</span>
+              <strong className="cell-center">{order.payment_status === "paid" ? money(orderTotal) : "—"}</strong>
+              <div className="order-cost-cell cell-center">
+                <span>
+                  Producto{" "}
+                  <strong>
+                    {order.payment_status !== "paid"
+                      ? "—"
+                      : hasMissingCost
+                        ? "Falta costo"
+                        : money(orderProductCost)}
+                  </strong>
+                </span>
+                <small>Domicilio <strong>{money(deliveryCost)}</strong></small>
+              </div>
               <span className="cell-center">{order.payment_status !== "paid" ? "—" : hasMissingCost
                 ? "Incompleta"
-                : money(Number(order.total) - orderProductCost - Number(order.delivery_cost ?? 0))}</span>
-              <span className="advisor-cell cell-center">{order.sales_advisor_name || "—"}</span>
-              <label className="mobile-select-cell">
-                <select
-                  aria-label={`Estado del pedido ${order.id.slice(0, 8)}`}
-                  value={normalizeOrderStatus(order.status)}
-                  disabled={savingOrderId === order.id || order.payment_status === "paid"}
-                  title={order.payment_status === "paid"
-                    ? "La venta completada debe reembolsarse antes de editar el pedido."
-                    : "Cambiar el estado no impide completar la venta."}
-                  onChange={(event) => onStatusChange(
-                    order,
-                    event.target.value as OrderStatus,
-                    normalizePaymentStatus(order.payment_status)
-                  )}
-                >
-                  <option value="pending_confirmation">Por confirmar</option>
-                  <option value="confirmed">Confirmado</option>
-                  <option value="cancelled">Cancelado</option>
-                </select>
-              </label>
-              <label className="mobile-select-cell">
-                <select
-                  aria-label={`Pago del pedido ${order.id.slice(0, 8)}`}
-                  value={normalizePaymentStatus(order.payment_status)}
-                  disabled={savingOrderId === order.id}
-                  onChange={(event) => onStatusChange(
-                    order,
-                    normalizeOrderStatus(order.status),
-                    event.target.value as PaymentStatus
-                  )}
-                >
-                  {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
-                  {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
-                  {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
-                  {order.payment_status !== "paid" && order.payment_status !== "refunded" && order.payment_status !== "credit" && order.payment_status !== "partial" && (
-                    <>
-                      <option value="credit">Crédito</option>
-                      <option value="partial">Pago parcial</option>
-                    </>
-                  )}
-                  {(order.payment_status === "credit" || order.payment_status === "partial") && (
-                    <>
-                      <option value="partial">Pago parcial</option>
-                      <option value="paid">Marcar pagado</option>
-                    </>
-                  )}
-                </select>
-              </label>
+                : money(orderTotal - orderProductCost - deliveryCost)}</span>
+              <div className="order-status-cell">
+                <label className="order-status-select">
+                  <span>Pedido</span>
+                  <select
+                    aria-label={`Estado del pedido ${order.id.slice(0, 8)}`}
+                    value={normalizeOrderStatus(order.status)}
+                    disabled={savingOrderId === order.id || order.payment_status === "paid"}
+                    title={order.payment_status === "paid"
+                      ? "La venta completada debe reembolsarse antes de editar el pedido."
+                      : "Cambiar el estado no impide completar la venta."}
+                    onChange={(event) => onStatusChange(
+                      order,
+                      event.target.value as OrderStatus,
+                      normalizePaymentStatus(order.payment_status)
+                    )}
+                  >
+                    <option value="pending_confirmation">Por confirmar</option>
+                    <option value="confirmed">Confirmado</option>
+                    <option value="cancelled">Cancelado</option>
+                  </select>
+                </label>
+                <label className="order-status-select">
+                  <span>Pago</span>
+                  <select
+                    aria-label={`Pago del pedido ${order.id.slice(0, 8)}`}
+                    value={normalizePaymentStatus(order.payment_status)}
+                    disabled={savingOrderId === order.id}
+                    onChange={(event) => onStatusChange(
+                      order,
+                      normalizeOrderStatus(order.status),
+                      event.target.value as PaymentStatus
+                    )}
+                  >
+                    {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
+                    {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
+                    {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
+                    {order.payment_status !== "paid" && order.payment_status !== "refunded" && order.payment_status !== "credit" && order.payment_status !== "partial" && (
+                      <>
+                        <option value="credit">Crédito</option>
+                        <option value="partial">Pago parcial</option>
+                      </>
+                    )}
+                    {(order.payment_status === "credit" || order.payment_status === "partial") && (
+                      <>
+                        {order.payment_status === "credit" && <option value="credit">Crédito</option>}
+                        <option value="partial">Pago parcial</option>
+                        <option value="paid">Marcar pagado</option>
+                      </>
+                    )}
+                  </select>
+                </label>
+              </div>
               <div className="order-actions">
                 <AdminButton
                   tone="secondary"
@@ -315,6 +342,7 @@ export default function OrdersPage({
         label="Paginación de pedidos"
         onPageChange={setPage}
       />
+      </div>
     </section>
   );
 }

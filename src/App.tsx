@@ -267,6 +267,7 @@ function App() {
   const [showAccount, setShowAccount] = useState(false);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
+  const [adminInventoryLoading, setAdminInventoryLoading] = useState(false);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(DEFAULT_STORE_SETTINGS);
   const [storeSettingsError, setStoreSettingsError] = useState<string | null>(null);
@@ -565,12 +566,19 @@ function App() {
     if (puedeVerProductos) pendientes.push(getAdminProducts().then((data) => { if (active) setProducts(data); }));
     if (puedeVerPromociones) pendientes.push(getPromotions(true).then((loaded) => { if (active) setPromotions(loaded); }));
 
-    if (pendientes.length === 0) return;
+    if (pendientes.length === 0) {
+      setAdminInventoryLoading(false);
+      return;
+    }
 
+    setAdminInventoryLoading(true);
     void Promise.all(pendientes)
       .catch((loadError: unknown) => {
         console.error("No se pudo cargar el inventario administrativo:", loadError);
         if (active) setAdminError("No se pudieron cargar los datos del panel. Revisa la conexión.");
+      })
+      .finally(() => {
+        if (active) setAdminInventoryLoading(false);
       });
     return () => {
       active = false;
@@ -1582,6 +1590,7 @@ function App() {
           section={adminSection}
           onSectionChange={navigateAdminSection}
           products={products}
+          adminInventoryLoading={adminInventoryLoading}
           storeSettings={storeSettings}
           storeSettingsError={storeSettingsError}
           onStoreSettingsSaved={(settings) => {
@@ -1747,6 +1756,7 @@ function Admin({
   section: requestedSection,
   onSectionChange,
   products,
+  adminInventoryLoading,
   storeSettings,
   storeSettingsError,
   onStoreSettingsSaved,
@@ -1777,6 +1787,7 @@ function Admin({
   section: AdminSection;
   onSectionChange: (section: AdminSection) => void;
   products: Product[];
+  adminInventoryLoading: boolean;
   storeSettings: StoreSettings;
   storeSettingsError: string | null;
   onStoreSettingsSaved: (settings: StoreSettings) => void;
@@ -2978,6 +2989,10 @@ function Admin({
             <ArrowLeft size={18} />
             <span className="admin-nav-item-label">Volver a la tienda</span>
           </button>
+          <button className="admin-store-button admin-signout-button" onClick={onSignOut} title="Cerrar sesión">
+            <LogOut size={18} />
+            <span className="admin-nav-item-label">Cerrar sesión</span>
+          </button>
         </div>
       </aside>
 
@@ -3044,18 +3059,6 @@ function Admin({
               </>
             )}
             {section === "transactions" && <AdminButton type="button" onClick={() => setOrderEditor({ order: null })}><Plus size={17}/> Nuevo pedido</AdminButton>}
-            <AdminButton
-              className="admin-utility-action"
-              tone="secondary"
-              compact
-              type="button"
-              onClick={onSignOut}
-              aria-label="Cerrar sesión"
-              title="Cerrar sesión"
-            >
-              <LogOut size={16} />
-              <span className="admin-utility-label">Cerrar sesión</span>
-            </AdminButton>
             {section !== "products" && (
               <AdminButton
                 className="admin-utility-action"
@@ -3084,6 +3087,7 @@ function Admin({
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
           onGoToStore={onBack}
+          onSignOut={onSignOut}
         />
 
         <nav className="admin-section-tabs" aria-label="Secciones de administración">
@@ -3116,6 +3120,16 @@ function Admin({
             )
           )}
         </nav>
+
+        {section === "overview" && !metrics && (
+          <div className="dashboard-loading" role="status" aria-live="polite">
+            <span className="loading-spinner" aria-hidden="true" />
+            <div>
+              <strong>Cargando tu dashboard…</strong>
+              <span>Estamos reuniendo ventas, cartera e inventario.</span>
+            </div>
+          </div>
+        )}
 
         {section === "overview" && metrics && (
           <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando dashboard…</span></div>}>
@@ -3272,6 +3286,7 @@ function Admin({
           <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando productos…</span></div>}>
             <ProductsPage
               visibleProducts={visibleProducts}
+              loading={adminInventoryLoading}
               promotions={promotions}
               archivedProductsCount={archivedProductsCount}
               showArchivedProducts={showArchivedProducts}
@@ -3385,7 +3400,7 @@ function Admin({
           <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando pedidos…</span></div>}>
           <OrdersPage
             orders={orders}
-            loading={sectionLoading}
+            loading={sectionLoading || !permissionsLoaded}
             search={search}
             showPendingOnly={showPendingOrdersOnly}
             onSearchChange={setSearch}

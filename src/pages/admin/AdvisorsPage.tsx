@@ -33,12 +33,7 @@ export default function AdvisorsPage({
 }: AdvisorsPageProps) {
   return (
     <section className="admin-card">
-      <div className="card-title">
-        <div>
-          <h2>Asesores de venta</h2>
-          <span>Registra quién atendió cada pedido. Solo los asesores activos aparecen al crear o editar un pedido.</span>
-        </div>
-      </div>
+      <p className="page-intro">Registra quién atendió cada pedido. Solo los asesores activos aparecen al crear o editar un pedido.</p>
       <form className="advisor-form" onSubmit={onSubmit}>
         <div className="advisor-form-grid">
           <label className="auth-label">

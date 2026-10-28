@@ -107,12 +107,7 @@ export default function SettingsPage({
 
   return (
     <section className="admin-card store-settings-page">
-      <div className="card-title">
-        <div>
-          <h2>Configuración de la tienda</h2>
-          <span>Actualiza la identidad, el contacto y los mensajes visibles para tus clientes.</span>
-        </div>
-      </div>
+      <p className="settings-intro">Actualiza la identidad, el contacto y los mensajes visibles para tus clientes.</p>
       {loadError && <p className="profile-notice" role="status">{loadError}</p>}
       <form className="store-settings-form" onSubmit={(event) => void save(event)}>
         {/* Identidad */}

@@ -17,6 +17,7 @@ import {
   Tag,
   ExternalLink,
   Store,
+  LogOut,
   type LucideIcon,
 } from "lucide-react";
 
@@ -71,6 +72,7 @@ export default function AdminDock({
   current,
   onSelect,
   onGoToStore,
+  onSignOut,
 }: {
   // `sections` en App es un array readonly, asi que se acepta como tal.
 sections: readonly DockSection[];
@@ -78,6 +80,8 @@ sections: readonly DockSection[];
   onSelect: (id: string) => void;
   /** Vuelve a la tienda pública, para revisar el catálogo desde el panel. */
   onGoToStore: () => void;
+  /** Cierra la sesión desde la hoja "Más". */
+  onSignOut: () => void;
 }) {
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -197,6 +201,21 @@ sections: readonly DockSection[];
                   <span>Ver catálogo</span>
                 </a>
               </div>
+            </section>
+
+            <section className="admin-navsheet-group admin-navsheet-account">
+              <h3>Cuenta</h3>
+              <button
+                type="button"
+                className="admin-navsheet-account-button"
+                onClick={() => {
+                  closeSheet();
+                  onSignOut();
+                }}
+              >
+                <LogOut size={18} />
+                <span>Cerrar sesión</span>
+              </button>
             </section>
           </div>
         </>

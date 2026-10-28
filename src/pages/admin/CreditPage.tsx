@@ -182,12 +182,7 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
 
   return (
     <section className="admin-card">
-      <div className="card-title">
-        <div>
-          <h2>Cartera / Crédito</h2>
-          <span>Pedidos vendidos a crédito y seguimiento de abonos.</span>
-        </div>
-      </div>
+      <p className="credit-intro">Pedidos vendidos a crédito y seguimiento de abonos.</p>
 
       <div className="credit-summary">
         <div className="summary-card">

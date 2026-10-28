@@ -52,12 +52,7 @@ export default function ExpensesPage({
 }: ExpensesPageProps) {
   return (
     <section className="admin-card">
-      <div className="card-title">
-        <div>
-          <h2>Gastos</h2>
-          <span>Registra gastos, programa recordatorios y consulta los pagos incluidos en reportes diarios y semanales.</span>
-        </div>
-      </div>
+      <p className="page-intro">Registra gastos, programa recordatorios y consulta los pagos incluidos en reportes diarios y semanales.</p>
       <form className="expense-form" onSubmit={onSubmit}>
         <label>Nombre
           <input value={form.name} onChange={(event) => onFormChange({ ...form, name: event.target.value })} placeholder="Ej. Alquiler local" required />

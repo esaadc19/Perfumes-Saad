@@ -38,6 +38,11 @@ export default function CountUp({
   const spanRef = useRef<HTMLSpanElement | null>(null);
   /** El valor que se está mostrando ahora, para poder redirigir el vuelo. */
   const shownRef = useRef(shown);
+  /** El último valor recibido: el observer se crea una vez y no debe
+      quedarse con el 0 inicial si los datos llegan antes de que la tarjeta
+      entre en pantalla. */
+  const targetRef = useRef(target);
+  targetRef.current = target;
   const frameRef = useRef(0);
   const startedRef = useRef(false);
 
@@ -73,7 +78,7 @@ export default function CountUp({
     const node = spanRef.current;
     if (!node || typeof IntersectionObserver !== "function") {
       startedRef.current = true;
-      animate(0, target);
+      animate(0, targetRef.current);
       return;
     }
     const observer = new IntersectionObserver(
@@ -81,7 +86,7 @@ export default function CountUp({
         if (!entries.some((entry) => entry.isIntersecting)) return;
         startedRef.current = true;
         observer.disconnect();
-        animate(0, target);
+        animate(0, targetRef.current);
       },
       { threshold: 0.4 },
     );
