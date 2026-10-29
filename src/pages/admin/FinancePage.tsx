@@ -22,6 +22,11 @@ import AdminButton from "../../components/admin/AdminButton";
 import Delta from "../../components/admin/Delta";
 import EmptyState from "../../components/admin/EmptyState";
 import { formatBogotaDate, money } from "../../lib/format";
+import {
+  getOrderFinancialBreakdown,
+  isDateInPeriod,
+  toBogotaDateStr,
+} from "../../lib/order-finance";
 import type { AdminSection } from "../../lib/admin-routes";
 import type { AdminDashboardMetrics, AdminOrder } from "../../services/admin";
 import type { CreditOrderSummary } from "../../services/credits";
@@ -41,35 +46,10 @@ interface FinancePageProps {
 type IncomeFilter = "all" | "paid_orders" | "credit_abonos";
 type ExpenseFilter = "all" | "operating" | "product_cost" | "credit_cost";
 
-const BOGOTA_ISO_DATE = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/Bogota",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function toBogotaDate(isoTimestamp: string | null | undefined): string {
-  if (!isoTimestamp) return "";
-  const parsed = new Date(isoTimestamp);
-  if (Number.isNaN(parsed.getTime())) return isoTimestamp.slice(0, 10);
-  return BOGOTA_ISO_DATE.format(parsed);
-}
-
-function inPeriod(
-  dateStr: string,
-  from: string | null | undefined,
-  to: string | null | undefined
-): boolean {
-  if (!from || !to) return true;
-  if (!dateStr) return false;
-  return dateStr >= from && dateStr <= to;
-}
-
 export default function FinancePage({
   metrics,
   orders,
   expenses,
-  creditOrders,
   loading,
   metricsPeriod,
   onMetricsPeriodChange,
@@ -87,72 +67,47 @@ export default function FinancePage({
   const paidOrdersInPeriod = useMemo(() => {
     return orders.filter((order) => {
       if (order.payment_status !== "paid") return false;
-      const paidDate = toBogotaDate(order.paid_at ?? order.created_at);
-      return inPeriod(paidDate, periodFrom, periodTo);
+      const paidDate = toBogotaDateStr(order.paid_at ?? order.created_at);
+      return isDateInPeriod(paidDate, periodFrom, periodTo);
     });
   }, [orders, periodFrom, periodTo]);
 
-  // 2. Abonos recibidos en el periodo de creditos que siguen abiertos
-  const creditAbonosInPeriod = useMemo(() => {
-    const items: Array<{
-      id: string;
-      orderId: string;
-      orderCode: string;
-      customerName: string;
-      amount: number;
-      paidAt: string;
-      dateStr: string;
-      method: string;
-      note: string | null;
-    }> = [];
-
-    for (const creditOrder of creditOrders) {
-      if (creditOrder.status !== "credit" && creditOrder.status !== "partial") continue;
-      for (const payment of creditOrder.payments) {
-        const dateStr = toBogotaDate(payment.paid_at);
-        if (inPeriod(dateStr, periodFrom, periodTo)) {
-          items.push({
-            id: payment.id,
-            orderId: creditOrder.order_id,
-            orderCode: creditOrder.order_code,
-            customerName: creditOrder.customer_name || "Cliente",
-            amount: Number(payment.amount),
-            paidAt: payment.paid_at,
-            dateStr,
-            method: payment.method,
-            note: payment.note,
-          });
-        }
-      }
-    }
-
-    return items.sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime());
-  }, [creditOrders, periodFrom, periodTo]);
-
-  // 3. Pedidos a credito abiertos creados en el periodo (cuyo costo ya salio de bolsillo)
+  // 2. Pedidos a credito abiertos en el periodo
   const openCreditOrdersInPeriod = useMemo(() => {
     return orders.filter((order) => {
       if (order.payment_status !== "credit" && order.payment_status !== "partial") return false;
-      const createdDate = toBogotaDate(order.created_at);
-      return inPeriod(createdDate, periodFrom, periodTo);
+      const createdDate = toBogotaDateStr(order.created_at);
+      return isDateInPeriod(createdDate, periodFrom, periodTo);
     });
   }, [orders, periodFrom, periodTo]);
 
-  // 4. Gastos operativos registrados en el periodo
+  // Pedidos a credito con abonos > 0 en el periodo
+  const creditOrdersWithAbonosInPeriod = useMemo(() => {
+    return openCreditOrdersInPeriod.filter((order) => {
+      const b = getOrderFinancialBreakdown(order);
+      return b.collectedRevenue > 0;
+    });
+  }, [openCreditOrdersInPeriod]);
+
+  // 3. Gastos operativos registrados en el periodo
   const expensesInPeriod = useMemo(() => {
     return expenses.filter((expense) =>
-      inPeriod(expense.expense_date, periodFrom, periodTo)
+      isDateInPeriod(expense.expense_date, periodFrom, periodTo)
     );
   }, [expenses, periodFrom, periodTo]);
 
-  // Totales de ingresos desglosados
+  // Totales desglosados con la regla progresiva (abono -> cubre costo hasta tope -> utilidad)
   const paidOrdersTotal = useMemo(
     () => paidOrdersInPeriod.reduce((sum, o) => sum + Number(o.total), 0),
     [paidOrdersInPeriod]
   );
   const abonosTotal = useMemo(
-    () => creditAbonosInPeriod.reduce((sum, a) => sum + a.amount, 0),
-    [creditAbonosInPeriod]
+    () =>
+      creditOrdersWithAbonosInPeriod.reduce(
+        (sum, o) => sum + getOrderFinancialBreakdown(o).collectedRevenue,
+        0
+      ),
+    [creditOrdersWithAbonosInPeriod]
   );
 
   const totalRevenue = metrics ? Number(metrics.sales_revenue) : paidOrdersTotal + abonosTotal;
@@ -163,10 +118,14 @@ export default function FinancePage({
     ? Number(metrics.total_expenses)
     : expensesInPeriod.reduce((sum, e) => sum + Number(e.amount), 0);
 
-  const totalOutflows = salesCost + deliveryCost + creditCostPending + operatingExpenses;
+  const totalOutflows = salesCost + deliveryCost + operatingExpenses;
   const grossProfit = totalRevenue - salesCost - deliveryCost;
-  const netProfit = metrics ? Number(metrics.sales_profit) : grossProfit - creditCostPending - operatingExpenses;
-  const netMargin = metrics ? Number(metrics.net_margin_percent) : totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 1000) / 10 : 0;
+  const netProfit = metrics ? Number(metrics.sales_profit) : grossProfit - operatingExpenses;
+  const netMargin = metrics
+    ? Number(metrics.net_margin_percent)
+    : totalRevenue > 0
+      ? Math.round((netProfit / totalRevenue) * 1000) / 10
+      : 0;
 
   // Resumen de gastos operativos por categoria
   const expensesByCategory = useMemo(() => {
@@ -181,7 +140,7 @@ export default function FinancePage({
     return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
   }, [expensesInPeriod]);
 
-  // Filas combinadas de ingresos
+  // Filas combinadas de ingresos (cada pedido con su costo cubierto y utilidad desbloqueada)
   const incomeRows = useMemo(() => {
     const rows: Array<{
       id: string;
@@ -192,66 +151,64 @@ export default function FinancePage({
       subtitle: string;
       advisor: string | null;
       revenue: number;
-      cost: number;
-      delivery: number;
+      orderTotal: number;
+      coveredCost: number;
+      fullCost: number;
       profit: number | null;
       hasMissingCost: boolean;
     }> = [];
 
     if (incomeFilter === "all" || incomeFilter === "paid_orders") {
       for (const order of paidOrdersInPeriod) {
+        const b = getOrderFinancialBreakdown(order);
         const customerName = order.customers?.full_name?.trim() || "Cliente";
         const orderCode = `#${order.id.slice(0, 8).toUpperCase()}`;
         const itemsSummary = order.order_items
           .map((item) => `${item.product_name_snapshot} ${item.size_ml}ml ×${item.quantity}`)
           .join(", ");
-        const hasMissingCost = order.order_items.some((item) => item.unit_cost_snapshot === null);
-        const itemCost = order.order_items.reduce(
-          (sum, item) => sum + (item.unit_cost_snapshot ?? 0) * item.quantity,
-          0
-        );
-        const deliv = Number(order.delivery_cost ?? 0);
-        const rev = Number(order.total);
         const timestamp = order.paid_at ?? order.created_at;
 
         rows.push({
           id: `order-${order.id}`,
           type: "paid_order",
-          dateStr: toBogotaDate(timestamp),
+          dateStr: toBogotaDateStr(timestamp),
           sortTime: new Date(timestamp).getTime(),
           title: `${orderCode} · ${customerName}`,
           subtitle: itemsSummary || "Sin productos detallados",
           advisor: order.sales_advisor_name ?? null,
-          revenue: rev,
-          cost: itemCost,
-          delivery: deliv,
-          profit: hasMissingCost ? null : rev - itemCost - deliv,
-          hasMissingCost,
+          revenue: b.collectedRevenue,
+          orderTotal: b.orderTotal,
+          coveredCost: b.coveredCost,
+          fullCost: b.fullCost,
+          profit: b.realizedProfit,
+          hasMissingCost: b.hasMissingCost,
         });
       }
     }
 
     if (incomeFilter === "all" || incomeFilter === "credit_abonos") {
-      for (const abono of creditAbonosInPeriod) {
-        const methodLabel =
-          abono.method === "transferencia"
-            ? "Transferencia"
-            : abono.method === "efectivo"
-              ? "Efectivo"
-              : "Otro";
+      for (const order of creditOrdersWithAbonosInPeriod) {
+        const b = getOrderFinancialBreakdown(order);
+        const customerName = order.customers?.full_name?.trim() || "Cliente";
+        const orderCode = `#${order.id.slice(0, 8).toUpperCase()}`;
+        const itemsSummary = order.order_items
+          .map((item) => `${item.product_name_snapshot} ${item.size_ml}ml ×${item.quantity}`)
+          .join(", ");
+
         rows.push({
-          id: `abono-${abono.id}`,
+          id: `credit-order-${order.id}`,
           type: "credit_abono",
-          dateStr: abono.dateStr,
-          sortTime: new Date(abono.paidAt).getTime(),
-          title: `#${abono.orderCode} · ${abono.customerName}`,
-          subtitle: `Abono a crédito (${methodLabel})${abono.note ? ` · ${abono.note}` : ""}`,
-          advisor: null,
-          revenue: abono.amount,
-          cost: 0,
-          delivery: 0,
-          profit: abono.amount,
-          hasMissingCost: false,
+          dateStr: toBogotaDateStr(order.created_at),
+          sortTime: new Date(order.created_at).getTime(),
+          title: `${orderCode} · ${customerName}`,
+          subtitle: `${itemsSummary} · Abonado ${money(b.collectedRevenue)} de ${money(b.orderTotal)} (Saldo: ${money(b.creditBalance)})`,
+          advisor: order.sales_advisor_name ?? null,
+          revenue: b.collectedRevenue,
+          orderTotal: b.orderTotal,
+          coveredCost: b.coveredCost,
+          fullCost: b.fullCost,
+          profit: b.realizedProfit,
+          hasMissingCost: b.hasMissingCost,
         });
       }
     }
@@ -267,7 +224,7 @@ export default function FinancePage({
       : rows;
 
     return filtered.sort((a, b) => b.sortTime - a.sortTime);
-  }, [paidOrdersInPeriod, creditAbonosInPeriod, incomeFilter, incomeSearch]);
+  }, [paidOrdersInPeriod, creditOrdersWithAbonosInPeriod, incomeFilter, incomeSearch]);
 
   // Filas combinadas de egresos
   const expenseRows = useMemo(() => {
@@ -303,13 +260,8 @@ export default function FinancePage({
 
     if (expenseFilter === "all" || expenseFilter === "product_cost") {
       for (const order of paidOrdersInPeriod) {
-        const itemCost = order.order_items.reduce(
-          (sum, item) => sum + (item.unit_cost_snapshot ?? 0) * item.quantity,
-          0
-        );
-        const deliv = Number(order.delivery_cost ?? 0);
-        const total = itemCost + deliv;
-        if (total <= 0) continue;
+        const b = getOrderFinancialBreakdown(order);
+        if (b.coveredCost <= 0) continue;
 
         const customerName = order.customers?.full_name?.trim() || "Cliente";
         const orderCode = `#${order.id.slice(0, 8).toUpperCase()}`;
@@ -321,27 +273,22 @@ export default function FinancePage({
         rows.push({
           id: `cost-paid-${order.id}`,
           type: "product_cost",
-          dateStr: toBogotaDate(timestamp),
+          dateStr: toBogotaDateStr(timestamp),
           sortTime: new Date(timestamp).getTime(),
           badge: "Costo venta pagada",
           title: `${orderCode} · ${customerName}`,
           subtitle: itemsSummary || "Costo de mercancía y domicilio",
-          productCost: itemCost,
-          deliveryCost: deliv,
-          totalOutflow: total,
+          productCost: b.coveredProductCost,
+          deliveryCost: b.coveredDeliveryCost,
+          totalOutflow: b.coveredCost,
         });
       }
     }
 
     if (expenseFilter === "all" || expenseFilter === "credit_cost") {
       for (const order of openCreditOrdersInPeriod) {
-        const itemCost = order.order_items.reduce(
-          (sum, item) => sum + (item.unit_cost_snapshot ?? 0) * item.quantity,
-          0
-        );
-        const deliv = Number(order.delivery_cost ?? 0);
-        const total = itemCost + deliv;
-        if (total <= 0) continue;
+        const b = getOrderFinancialBreakdown(order);
+        if (b.fullCost <= 0) continue;
 
         const customerName = order.customers?.full_name?.trim() || "Cliente";
         const orderCode = `#${order.id.slice(0, 8).toUpperCase()}`;
@@ -352,14 +299,14 @@ export default function FinancePage({
         rows.push({
           id: `cost-credit-${order.id}`,
           type: "credit_cost",
-          dateStr: toBogotaDate(order.created_at),
+          dateStr: toBogotaDateStr(order.created_at),
           sortTime: new Date(order.created_at).getTime(),
-          badge: "Invertido en fiado",
+          badge: b.coveredCost >= b.fullCost ? "Costo fiado cubierto" : "Costo en fiado",
           title: `${orderCode} · ${customerName}`,
-          subtitle: itemsSummary || "Costo de mercancía y domicilio en crédito abierto",
-          productCost: itemCost,
-          deliveryCost: deliv,
-          totalOutflow: total,
+          subtitle: `${itemsSummary} · Cubierto por abonos: ${money(b.coveredCost)} de ${money(b.fullCost)}`,
+          productCost: b.coveredProductCost,
+          deliveryCost: b.coveredDeliveryCost,
+          totalOutflow: b.coveredCost,
         });
       }
     }
@@ -455,7 +402,7 @@ export default function FinancePage({
               <strong>{money(paidOrdersTotal)}</strong>
             </div>
             <div>
-              <span>Abonos de fiados ({creditAbonosInPeriod.length})</span>
+              <span>Abonos de créditos ({creditOrdersWithAbonosInPeriod.length})</span>
               <strong>{money(abonosTotal)}</strong>
             </div>
           </div>
@@ -466,17 +413,17 @@ export default function FinancePage({
             <span className="finance-kpi-icon">
               <ArrowDownRight size={18} />
             </span>
-            <span className="finance-kpi-label">Total Egresos y Costos</span>
+            <span className="finance-kpi-label">Total Costos y Egresos</span>
           </div>
           <strong className="finance-kpi-value">{money(totalOutflows)}</strong>
           <div className="finance-kpi-Sublist">
             <div>
-              <span>Costo mercancía + domicilios</span>
-              <strong>{money(salesCost + deliveryCost)}</strong>
+              <span>Costo de productos cubierto</span>
+              <strong>{money(salesCost)}</strong>
             </div>
             <div>
-              <span>Invertido en fiados abiertos</span>
-              <strong>{money(creditCostPending)}</strong>
+              <span>Costo de domicilios cubierto</span>
+              <strong>{money(deliveryCost)}</strong>
             </div>
             <div>
               <span>Gastos operativos ({expensesInPeriod.length})</span>
@@ -511,7 +458,7 @@ export default function FinancePage({
               <strong>{netMargin}%</strong>
             </div>
             <div>
-              <span>Utilidad bruta (antes de gastos)</span>
+              <span>Utilidad bruta (ventas - costos)</span>
               <strong>{money(grossProfit)}</strong>
             </div>
           </div>
@@ -523,7 +470,9 @@ export default function FinancePage({
         <div className="card-title">
           <div>
             <h2>Resumen Financiero (Estado de Resultados)</h2>
-            <span>Desglose exacto de cómo se calcula tu utilidad neta en este período</span>
+            <span>
+              Cada abono suma al valor vendido, cubre primero el costo del pedido hasta su tope y el excedente pasa a tu utilidad
+            </span>
           </div>
           <BarChart3 size={18} />
         </div>
@@ -534,8 +483,8 @@ export default function FinancePage({
               <div className="finance-line-info">
                 <ReceiptText size={16} />
                 <div>
-                  <strong>(+) Ventas pagadas de contado</strong>
-                  <small>{paidOrdersInPeriod.length} pedidos completados y pagados</small>
+                  <strong>(+) Ventas completadas y pagadas</strong>
+                  <small>{paidOrdersInPeriod.length} pedidos pagados al 100%</small>
                 </div>
               </div>
               <span className="finance-line-amount positive">+{money(paidOrdersTotal)}</span>
@@ -545,8 +494,8 @@ export default function FinancePage({
               <div className="finance-line-info">
                 <CreditCard size={16} />
                 <div>
-                  <strong>(+) Abonos recibidos de cartera</strong>
-                  <small>{creditAbonosInPeriod.length} abonos cobrados de créditos abiertos</small>
+                  <strong>(+) Abonos recibidos en pedidos a crédito</strong>
+                  <small>{creditOrdersWithAbonosInPeriod.length} pedidos a crédito con abonos recibidos</small>
                 </div>
               </div>
               <span className="finance-line-amount positive">+{money(abonosTotal)}</span>
@@ -556,8 +505,8 @@ export default function FinancePage({
               <div className="finance-line-info">
                 <DollarSign size={16} />
                 <div>
-                  <strong>(=) Total Ingresos Cobrados</strong>
-                  <small>Dinero efectivamente recibido en caja</small>
+                  <strong>(=) Total Ingresos Cobrados (Valor vendido)</strong>
+                  <small>Dinero efectivamente recibido por ventas y abonos</small>
                 </div>
               </div>
               <span className="finance-line-amount">{money(totalRevenue)}</span>
@@ -567,8 +516,8 @@ export default function FinancePage({
               <div className="finance-line-info">
                 <Package size={16} />
                 <div>
-                  <strong>(-) Costo de productos (ventas pagadas)</strong>
-                  <small>Costo de adquisición de los perfumes ya pagados</small>
+                  <strong>(-) Costo de productos cubierto</strong>
+                  <small>Costo de ventas pagadas + costo cubierto por abonos (hasta el tope de cada pedido)</small>
                 </div>
               </div>
               <span className="finance-line-amount negative">-{money(salesCost)}</span>
@@ -578,8 +527,8 @@ export default function FinancePage({
               <div className="finance-line-info">
                 <Truck size={16} />
                 <div>
-                  <strong>(-) Costo de domicilios (ventas pagadas)</strong>
-                  <small>Envíos asumidos por la tienda en ventas pagadas</small>
+                  <strong>(-) Costo de domicilios cubierto</strong>
+                  <small>Envíos asumidos por la tienda en las ventas cobradas</small>
                 </div>
               </div>
               <span className="finance-line-amount negative">-{money(deliveryCost)}</span>
@@ -590,21 +539,10 @@ export default function FinancePage({
                 <Percent size={16} />
                 <div>
                   <strong>(=) Utilidad Bruta de Ventas</strong>
-                  <small>Ganancia directa antes de gastos operativos y fiados</small>
+                  <small>Ganancia de los pedidos una vez recuperado su costo</small>
                 </div>
               </div>
               <span className="finance-line-amount">{money(grossProfit)}</span>
-            </div>
-
-            <div className="finance-line finance-line--negative">
-              <div className="finance-line-info">
-                <Lock size={16} />
-                <div>
-                  <strong>(-) Costo invertido en fiados abiertos</strong>
-                  <small>Mercancía y domicilio de créditos pendientes de cobro ({openCreditOrdersInPeriod.length} pedidos)</small>
-                </div>
-              </div>
-              <span className="finance-line-amount negative">-{money(creditCostPending)}</span>
             </div>
 
             <div className="finance-line finance-line--negative">
@@ -637,7 +575,7 @@ export default function FinancePage({
             <div className="finance-side-box">
               <h3>Capital pendiente en Cartera</h3>
               <p className="finance-side-hint">
-                Dinero que está en la calle en ventas a crédito y se sumará a tu utilidad a medida que te abonen.
+                En las ventas a crédito, los primeros abonos recuperan el costo del producto y a partir de ese tope todo abono adicional es utilidad pura.
               </p>
               <div className="finance-side-rows">
                 <div>
@@ -645,7 +583,14 @@ export default function FinancePage({
                   <strong>{money(Number(metrics?.credit_outstanding_balance ?? 0))}</strong>
                 </div>
                 <div>
-                  <span>Utilidad proyectada en cartera</span>
+                  <span>
+                    <Lock size={12} style={{ verticalAlign: "-1px", marginRight: 4 }} />
+                    Costo aún por recuperar en fiados
+                  </span>
+                  <strong>{money(creditCostPending)}</strong>
+                </div>
+                <div>
+                  <span>Utilidad por entrar (en cartera)</span>
                   <strong className="profit-good">{money(Number(metrics?.locked_credit_profit ?? 0))}</strong>
                 </div>
                 <div>
@@ -668,7 +613,7 @@ export default function FinancePage({
                   type="button"
                   onClick={() => onSectionChange("credit")}
                 >
-                  Ver cartera y abonos
+                  Ver cartera y registrar abonos
                 </AdminButton>
               </div>
             </div>
@@ -719,7 +664,7 @@ export default function FinancePage({
         <div className="card-title">
           <div>
             <h2>Detalle de Ingresos ({incomeRows.length})</h2>
-            <span>Todas las entradas de dinero del período por ventas pagadas y abonos de clientes</span>
+            <span>Entradas por ventas pagadas y abonos (mostrando cuánto cubrió de costo y cuánto dejó de utilidad)</span>
           </div>
           <TrendingUp size={18} />
         </div>
@@ -731,7 +676,7 @@ export default function FinancePage({
               className={incomeFilter === "all" ? "selected" : ""}
               onClick={() => setIncomeFilter("all")}
             >
-              Todos ({paidOrdersInPeriod.length + creditAbonosInPeriod.length})
+              Todos ({paidOrdersInPeriod.length + creditOrdersWithAbonosInPeriod.length})
             </button>
             <button
               type="button"
@@ -745,7 +690,7 @@ export default function FinancePage({
               className={incomeFilter === "credit_abonos" ? "selected" : ""}
               onClick={() => setIncomeFilter("credit_abonos")}
             >
-              Abonos de crédito ({creditAbonosInPeriod.length})
+              Pedidos con abonos ({creditOrdersWithAbonosInPeriod.length})
             </button>
           </div>
 
@@ -773,8 +718,8 @@ export default function FinancePage({
               <span>Fecha</span>
               <span>Tipo</span>
               <span>Cliente / Detalle</span>
-              <span>Costo + Envío</span>
-              <span>Ingreso</span>
+              <span>Costo Cubierto</span>
+              <span>Vendido (Cobrado)</span>
               <span>Utilidad</span>
             </div>
             {incomeRows.map((row) => (
@@ -786,7 +731,7 @@ export default function FinancePage({
                       row.type === "paid_order" ? "finance-badge--sale" : "finance-badge--abono"
                     }`}
                   >
-                    {row.type === "paid_order" ? "Venta pagada" : "Abono crédito"}
+                    {row.type === "paid_order" ? "Venta pagada" : "Con abono"}
                   </span>
                 </span>
                 <div className="finance-row-main">
@@ -795,16 +740,28 @@ export default function FinancePage({
                   {row.advisor && <small>Asesor: {row.advisor}</small>}
                 </div>
                 <span className="finance-num">
-                  {row.type === "credit_abono" ? "—" : money(row.cost + row.delivery)}
+                  {money(row.coveredCost)}
+                  {row.type === "credit_abono" && row.coveredCost < row.fullCost && (
+                    <small style={{ display: "block", color: "var(--muted)", fontSize: "10px" }}>
+                      de {money(row.fullCost)}
+                    </small>
+                  )}
                 </span>
-                <span className="finance-num profit-good">+{money(row.revenue)}</span>
+                <span className="finance-num profit-good">
+                  +{money(row.revenue)}
+                  {row.type === "credit_abono" && (
+                    <small style={{ display: "block", color: "var(--muted)", fontSize: "10px", fontWeight: 400 }}>
+                      de {money(row.orderTotal)}
+                    </small>
+                  )}
+                </span>
                 <span
                   className={`finance-num ${
                     row.profit === null
                       ? "profit-unknown"
-                      : row.profit >= 0
+                      : row.profit > 0
                         ? "profit-good"
-                        : "profit-loss"
+                        : ""
                   }`}
                 >
                   {row.profit === null ? "Sin costo" : money(row.profit)}
@@ -820,7 +777,7 @@ export default function FinancePage({
         <div className="card-title">
           <div>
             <h2>Detalle de Egresos y Costos ({expenseRows.length})</h2>
-            <span>Salidas de dinero por gastos operativos, costo de productos vendidos, domicilios y créditos abiertos</span>
+            <span>Gastos operativos registrados y costos cubiertos de productos y domicilios</span>
           </div>
           <Wallet size={18} />
         </div>
@@ -883,7 +840,7 @@ export default function FinancePage({
               <span>Concepto / Detalle</span>
               <span>Costo Prod.</span>
               <span>Domicilio</span>
-              <span>Salida Total</span>
+              <span>Costo / Salida</span>
             </div>
             {expenseRows.map((row) => (
               <div className="table-row finance-expense-row" key={row.id}>

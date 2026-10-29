@@ -10,9 +10,9 @@ import {
   Trash2,
   TrendingUp,
   Truck,
-  UserCheck,
 } from "lucide-react";
 import type { AdminOrder, SalesAdvisor } from "../../services/admin";
+import { getOrderFinancialBreakdown } from "../../lib/order-finance";
 import Metric from "../../components/admin/Metric";
 import Pagination from "../../components/admin/Pagination";
 import AdminButton from "../../components/admin/AdminButton";
@@ -86,24 +86,25 @@ export default function OrdersPage({
     currentPage * PAGE_SIZE
   );
   const completedOrders = orders.filter((order) => order.payment_status === "paid");
-  const revenue = completedOrders.reduce((sum, order) => sum + Number(order.total), 0);
-  const missingCostItems = completedOrders.reduce(
-    (sum, order) => sum + order.order_items.reduce(
-      (itemSum, item) => itemSum + (item.unit_cost_snapshot === null ? item.quantity : 0),
+  const breakdowns = orders.map(getOrderFinancialBreakdown);
+  const activeSales = breakdowns.filter((b) => b.isActiveSale);
+  const revenue = activeSales.reduce((sum, b) => sum + b.collectedRevenue, 0);
+  const missingCostItems = orders
+    .filter((order) => {
+      const b = getOrderFinancialBreakdown(order);
+      return b.isActiveSale;
+    })
+    .reduce(
+      (sum, order) =>
+        sum +
+        order.order_items.reduce(
+          (itemSum, item) => itemSum + (item.unit_cost_snapshot === null ? item.quantity : 0),
+          0
+        ),
       0
-    ),
-    0
-  );
-  const productCost = completedOrders.reduce(
-    (sum, order) => sum + order.order_items.reduce(
-      (itemSum, item) => itemSum + (item.unit_cost_snapshot === null
-        ? 0
-        : Number(item.unit_cost_snapshot) * item.quantity),
-      0
-    ),
-    0
-  );
-  const deliveryCost = completedOrders.reduce((sum, order) => sum + Number(order.delivery_cost ?? 0), 0);
+    );
+  const productCost = activeSales.reduce((sum, b) => sum + b.coveredProductCost, 0);
+  const deliveryCost = activeSales.reduce((sum, b) => sum + b.coveredDeliveryCost, 0);
   const netProfit = missingCostItems > 0 ? null : revenue - productCost - deliveryCost;
   const initialLoading = loading && orders.length === 0;
   const normalizeOrderStatus = (status: string): OrderStatus =>
@@ -114,7 +115,7 @@ export default function OrdersPage({
   return (
     <section className="admin-card">
       <div className="card-title order-toolbar">
-        <p className="table-note">El costo del domicilio se resta de la ganancia cuando completas la venta.</p>
+        <p className="table-note">Cada abono suma al valor vendido, cubre primero el costo hasta su tope y el excedente suma a tu utilidad.</p>
         <label className="admin-search">
           <Search size={16} />
           <input
@@ -180,16 +181,8 @@ export default function OrdersPage({
           <span className="cell-center">Utilidad neta</span><span className="cell-center">Estado</span><span className="cell-center">Acciones</span>
         </div>
         {paginatedOrders.map((order) => {
-          const hasMissingCost = order.order_items.some((item) => item.unit_cost_snapshot === null);
-          const orderProductCost = order.order_items.reduce(
-            (sum, item) => sum + Number(item.unit_cost_snapshot ?? 0) * item.quantity,
-            0
-          );
-          const isOpenCredit = order.payment_status === "credit" || order.payment_status === "partial";
-          const orderTotal = Number(order.total);
-          const deliveryCost = Number(order.delivery_cost ?? 0);
-          const creditBalance = Math.max(0, Number(order.credit_amount ?? 0));
-          const paidAmount = Math.max(0, orderTotal - creditBalance);
+          const b = getOrderFinancialBreakdown(order);
+          const showNumbers = b.isPaid || b.isOpenCredit;
           return (
             <div className="table-row transaction-row" key={order.id}>
               <div className="profile-cell" aria-readonly="true">
@@ -202,29 +195,51 @@ export default function OrdersPage({
                   {" · "}
                   {order.sales_advisor_name || salesAdvisors.find((a) => a.id === order.sales_advisor_id)?.full_name || "Sin asesor"}
                 </span>
-                {isOpenCredit && (
+                {b.isOpenCredit && (
                   <div className="order-credit-summary">
-                    Abonado: <strong>{money(paidAmount)}</strong> de {money(orderTotal)} · Saldo: <strong>{money(creditBalance)}</strong>
+                    Abonado: <strong>{money(b.collectedRevenue)}</strong> de {money(b.orderTotal)} · Saldo: <strong>{money(b.creditBalance)}</strong>
                   </div>
                 )}
               </div>
-              <strong className="cell-center">{order.payment_status === "paid" ? money(orderTotal) : "—"}</strong>
+              <div className="order-cost-cell cell-center">
+                <strong>{showNumbers ? money(b.collectedRevenue) : "—"}</strong>
+                {b.isOpenCredit && (
+                  <small>Total pedido: {money(b.orderTotal)}</small>
+                )}
+              </div>
               <div className="order-cost-cell cell-center">
                 <span>
                   Producto{" "}
                   <strong>
-                    {order.payment_status !== "paid"
+                    {!showNumbers
                       ? "—"
-                      : hasMissingCost
+                      : b.hasMissingCost
                         ? "Falta costo"
-                        : money(orderProductCost)}
+                        : money(b.coveredProductCost)}
                   </strong>
+                  {b.isOpenCredit && !b.hasMissingCost && (
+                    <small style={{ display: "block", color: "var(--muted)" }}>
+                      de {money(b.fullProductCost)}
+                    </small>
+                  )}
                 </span>
-                <small>Domicilio <strong>{money(deliveryCost)}</strong></small>
+                <small>
+                  Domicilio{" "}
+                  <strong>
+                    {showNumbers ? money(b.coveredDeliveryCost) : money(b.fullDeliveryCost)}
+                  </strong>
+                  {b.isOpenCredit && b.fullDeliveryCost > 0 && b.coveredDeliveryCost < b.fullDeliveryCost && (
+                    <span> de {money(b.fullDeliveryCost)}</span>
+                  )}
+                </small>
               </div>
-              <span className="cell-center">{order.payment_status !== "paid" ? "—" : hasMissingCost
-                ? "Incompleta"
-                : money(orderTotal - orderProductCost - deliveryCost)}</span>
+              <span className="cell-center">
+                {!showNumbers
+                  ? "—"
+                  : b.hasMissingCost || b.realizedProfit === null
+                    ? "Incompleta"
+                    : money(b.realizedProfit)}
+              </span>
               <div className="order-status-cell">
                 <label className="order-status-select">
                   <span>Pedido</span>

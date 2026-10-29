@@ -182,7 +182,7 @@ export default function DashboardPage({
           El detalle operativo (cartera, inventario, clientes) queda debajo. */}
       <MetricGroup
         title="Ventas"
-        hint="Solo lo cobrado, incluidos los abonos. Lo vendido a fiado se resta por su costo mientras siga abierto."
+        hint="Cada abono suma al valor vendido, cubre primero el costo del pedido hasta su tope y el excedente suma a tu utilidad."
         icon={<BarChart3 />}
         wide
       >
@@ -212,7 +212,7 @@ export default function DashboardPage({
           numericValue={Number(metrics.credit_cost_pending)}
           format="money"
           icon={<Lock />}
-          hint="Costo de las ventas a fiado que siguen abiertas; ya lo pagaste al proveedor. Los abonos ya suman a la utilidad."
+          hint="Parte del costo de ventas a fiado que aún falta por recuperar con próximos abonos."
         />
       </MetricGroup>
 

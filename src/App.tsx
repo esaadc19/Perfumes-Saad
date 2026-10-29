@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { Session, User as AuthUser } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import { getBogotaDate, money } from "./lib/format";
+import { applyProgressiveMetrics } from "./lib/order-finance";
 import {
   getAdminSectionFromPath,
   pushAdminPath,
@@ -2209,7 +2210,7 @@ function Admin({
             getSalesAdvisors(),
           ]);
           if (active) {
-            setMetrics(metricsResult);
+            setMetrics(applyProgressiveMetrics(metricsResult, ordersResult));
             const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
             const enrichedOrders = ordersResult.map((order) => ({
               ...order,
@@ -2226,7 +2227,7 @@ function Admin({
             getCreditOrders().catch(() => []),
           ]);
           if (active) {
-            setMetrics(metricsResult);
+            setMetrics(applyProgressiveMetrics(metricsResult, ordersResult));
             const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
             const enrichedOrders = ordersResult.map((order) => ({
               ...order,
