@@ -2096,22 +2096,22 @@ function Admin({
     return activeVariants.length > 0 && activeVariants.every((variant) => variant.stock <= 0);
   }).length;
   const sections = [
-    { id: "overview", title: "Dashboard", icon: <LayoutDashboard size={17} /> },
-    { id: "finance", title: "Utilidad", icon: <TrendingUp size={17} /> },
-    { id: "products", title: "Productos", icon: <Package size={17} /> },
-    { id: "promotions", title: "Promociones", icon: <Tag size={17} /> },
-    { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
-    { id: "collect", title: "Cobrar", icon: <MessageCircle size={17} /> },
-    { id: "credit", title: "Cartera", icon: <DollarSign size={17} /> },
-    { id: "customers", title: "Clientes", icon: <Users size={17} /> },
+    { id: "overview", title: "Dashboard", group: "GENERAL", icon: <LayoutDashboard size={18} /> },
+    { id: "finance", title: "Utilidad", group: "GENERAL", icon: <TrendingUp size={18} />, hiddenInSidebar: true },
+    { id: "transactions", title: "Pedidos", group: "VENTAS", icon: <ReceiptText size={18} /> },
+    { id: "collect", title: "Cobrar", group: "VENTAS", icon: <MessageCircle size={18} /> },
+    { id: "credit", title: "Cartera", group: "VENTAS", icon: <DollarSign size={18} /> },
+    { id: "customers", title: "Clientes", group: "VENTAS", icon: <Users size={18} /> },
     // El CRM es una app aparte servida en `/crm`, no una sección de este panel:
     // se abre en otra pestaña en vez de renderizarse dentro del admin.
-    { id: "crm", title: "CRM", icon: <KanbanSquare size={17} />, external: true },
-    { id: "expenses", title: "Gastos", icon: <Wallet size={17} /> },
-    { id: "advisors", title: "Asesores", icon: <UserCheck size={17} /> },
-    { id: "reports", title: "Reportes", icon: <BarChart3 size={17} /> },
-    { id: "profiles", title: "Perfiles", icon: <ShieldCheck size={17} /> },
-    { id: "settings", title: "Configuración", icon: <Settings size={17} /> },
+    { id: "crm", title: "CRM", group: "VENTAS", icon: <KanbanSquare size={18} />, external: true },
+    { id: "products", title: "Productos", group: "INVENTARIO", icon: <Package size={18} /> },
+    { id: "promotions", title: "Promociones", group: "INVENTARIO", icon: <Tag size={18} /> },
+    { id: "expenses", title: "Gastos", group: "INVENTARIO", icon: <Wallet size={18} /> },
+    { id: "advisors", title: "Asesores", group: "ADMINISTRACIÓN", icon: <UserCheck size={18} /> },
+    { id: "reports", title: "Reportes", group: "ADMINISTRACIÓN", icon: <BarChart3 size={18} /> },
+    { id: "profiles", title: "Perfiles", group: "ADMINISTRACIÓN", icon: <ShieldCheck size={18} /> },
+    { id: "settings", title: "Configuración", group: "ADMINISTRACIÓN", icon: <Settings size={18} /> },
   ] as const;
 
   // OJO: esta lista tiene que coincidir con la tabla `admin_sections` de
@@ -2968,59 +2968,56 @@ function Admin({
   }
 
   return (
-    <div className={`admin-layout${sidebarCollapsed ? " is-collapsed" : ""}`}>
+    <div className="admin-layout">
       <aside className="admin-sidebar">
         <div className="admin-sidebar-header">
           <button className="admin-brand-mark" onClick={onBack} aria-label={storeSettings.store_name}>
             S
           </button>
           <span className="admin-sidebar-title">{storeSettings.store_name}</span>
-          <button
-            type="button"
-            className="sidebar-collapse"
-            onClick={() => setSidebarCollapsed((current) => !current)}
-            aria-label={sidebarCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
-          >
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          </button>
         </div>
         <nav className="admin-navigation">
-          {visibleSections.map((item) =>
-            "external" in item ? (
-              <a
-                key={item.id}
-                className="admin-nav-item"
-                href="/crm/"
-                target="_blank"
-                rel="noopener noreferrer"
-                data-tooltip={item.title}
-                title={sidebarCollapsed ? item.title : undefined}
-              >
-                {item.icon}
-                <span className="admin-nav-item-label">{item.title}</span>
-              </a>
-            ) : (
-              <a
-                key={item.id}
-                className={`admin-nav-item${section === item.id ? " active" : ""}`}
-                href={ADMIN_SECTION_PATHS[item.id]}
-                onClick={(event) => {
-                  if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                  event.preventDefault();
-                  setSection(item.id);
-                  setSearch("");
-                }}
-                data-tooltip={item.title}
-                title={sidebarCollapsed ? item.title : undefined}
-                aria-current={section === item.id ? "page" : undefined}
-              >
-                {item.icon}
-                <span className="admin-nav-item-label">{item.title}</span>
-              </a>
-            )
-          )}
+          {(["GENERAL", "VENTAS", "INVENTARIO", "ADMINISTRACIÓN"] as const).map((groupName) => {
+            const groupItems = visibleSections.filter(
+              (item) => item.group === groupName && !("hiddenInSidebar" in item && item.hiddenInSidebar)
+            );
+            if (groupItems.length === 0) return null;
+            return (
+              <div key={groupName} className="admin-nav-group">
+                <span className="admin-nav-group-label">{groupName}</span>
+                {groupItems.map((item) =>
+                  "external" in item ? (
+                    <a
+                      key={item.id}
+                      className="admin-nav-item"
+                      href="/crm/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {item.icon}
+                      <span className="admin-nav-item-label">{item.title}</span>
+                    </a>
+                  ) : (
+                    <a
+                      key={item.id}
+                      className={`admin-nav-item${(section === item.id || (section === "finance" && item.id === "overview")) ? " active" : ""}`}
+                      href={ADMIN_SECTION_PATHS[item.id]}
+                      onClick={(event) => {
+                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                        event.preventDefault();
+                        setSection(item.id);
+                        setSearch("");
+                      }}
+                      aria-current={section === item.id ? "page" : undefined}
+                    >
+                      {item.icon}
+                      <span className="admin-nav-item-label">{item.title}</span>
+                    </a>
+                  )
+                )}
+              </div>
+            );
+          })}
         </nav>
         <div className="admin-sidebar-footer">
           <button className="admin-store-button" onClick={onBack} title="Volver a la tienda">

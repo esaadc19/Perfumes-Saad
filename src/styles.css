@@ -2945,8 +2945,8 @@ footer a { color: #111; }
 /* SIDEBAR */
 
 .admin-sidebar {
-  width: 252px;
-  min-width: 252px;
+  width: 248px;
+  min-width: 248px;
   height: 100vh;
   background: #1a2e22;
   display: flex;
@@ -2966,15 +2966,15 @@ footer a { color: #111; }
   align-items: center;
 }
 
-/* Cabecera fija: el logo y el botón de retraer nunca se desplazan */
+/* Cabecera fija: el logo nunca se desplaza */
 .admin-sidebar-header {
   position: sticky;
   top: 0;
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
+  gap: 12px;
+  margin-bottom: 24px;
   min-height: 40px;
   flex: 0 0 auto;
 }
@@ -2991,7 +2991,8 @@ footer a { color: #111; }
   min-width: 0;
   color: #f5f0e8;
   font-family: 'Playfair Display', serif;
-  font-size: 15px;
+  font-size: 16px;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3021,9 +3022,10 @@ footer a { color: #111; }
 }
 
 .admin-brand-mark {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 10px;
   background: #c9a96e;
   color: #1a2e22;
   display: flex;
@@ -3053,10 +3055,8 @@ footer a { color: #111; }
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: calc(100% + 14px);
-  margin-left: -14px;
-  padding-left: 14px;
+  gap: 18px;
+  width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
@@ -3070,19 +3070,36 @@ footer a { color: #111; }
   background: rgba(245, 240, 232, .24);
 }
 
+.admin-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.admin-nav-group-label {
+  padding: 0 12px 5px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(245, 240, 232, 0.46);
+  user-select: none;
+}
+
 .admin-nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 44px;
+  min-height: 40px;
   padding: 0 12px;
   border: 0;
   background: transparent;
   border-radius: 10px;
-  color: rgba(245,240,232,.7);
+  color: rgba(245, 240, 232, 0.88);
   cursor: pointer;
-  transition: all .2s ease;
+  transition: background .18s ease, color .18s ease;
   position: relative;
   text-align: left;
   /* También se usa en un <a> (acceso al CRM), no solo en <button>. */
@@ -3093,7 +3110,8 @@ footer a { color: #111; }
   white-space: nowrap;
   overflow: hidden;
   font-family: "DM Sans", sans-serif;
-  font-size: 13px;
+  font-size: 13.5px;
+  font-weight: 400;
 }
 
 /* Colapsado: centering de iconos y ocultar etiquetas */
@@ -3111,18 +3129,18 @@ footer a { color: #111; }
 }
 
 .admin-nav-item svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   flex: 0 0 auto;
   stroke: currentColor;
   fill: none;
-  stroke-width: 2;
+  stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .admin-nav-item:hover {
-  background: rgba(245,240,232,.12);
+  background: rgba(245, 240, 232, 0.1);
   color: #f5f0e8;
 }
 
@@ -3131,16 +3149,8 @@ footer a { color: #111; }
   color: #1a2e22;
 }
 
-.admin-nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: -14px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 24px;
-  background: #c9a96e;
-  border-radius: 0 3px 3px 0;
+.admin-nav-item.active .admin-nav-item-label {
+  font-weight: 500;
 }
 
 /* Tooltip: solo cuando el menú está colapsado */
