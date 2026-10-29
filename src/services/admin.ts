@@ -313,12 +313,19 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
     console.error("No se pudieron cargar los pedidos:", error);
     throw error;
   }
-  return (data ?? []).map((order) => ({
-    ...order,
-    sales_advisor_name: (order.sales_advisors as { full_name: string }[] | null)?.[0]?.full_name ?? null,
-    customers: Array.isArray(order.customers) ? order.customers[0] ?? null : order.customers,
-    order_items: order.order_items ?? [],
-  })) as AdminOrder[];
+  return (data ?? []).map((order) => {
+    // PostgREST devuelve las relaciones muchos-a-uno como objeto, no como
+    // arreglo. El código anterior solo leía `[0]`, así que el nombre del
+    // asesor quedaba en null y la lista mostraba "Sin asesor".
+    const rawAdvisor = (order as { sales_advisors?: unknown; sales_advisor?: unknown }).sales_advisors ?? (order as { sales_advisors?: unknown; sales_advisor?: unknown }).sales_advisor;
+    const advisor = rawAdvisor as { full_name: string } | { full_name: string }[] | null;
+    return {
+      ...order,
+      sales_advisor_name: (Array.isArray(advisor) ? advisor[0]?.full_name : advisor?.full_name) ?? null,
+      customers: Array.isArray(order.customers) ? order.customers[0] ?? null : order.customers,
+      order_items: order.order_items ?? [],
+    };
+  }) as AdminOrder[];
 }
 
 export async function getSalesAdvisors(): Promise<SalesAdvisor[]> {

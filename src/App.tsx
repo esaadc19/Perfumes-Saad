@@ -2197,13 +2197,19 @@ function Admin({
       setSectionError(null);
       try {
         if (section === "overview") {
-          const [metricsResult, ordersResult] = await Promise.all([
+          const [metricsResult, ordersResult, advisorsResult] = await Promise.all([
             getAdminDashboardMetrics(metricsPeriod),
             getAdminOrders(),
+            getSalesAdvisors(),
           ]);
           if (active) {
             setMetrics(metricsResult);
-            setOrders(ordersResult);
+            const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
+            const enrichedOrders = ordersResult.map((order) => ({
+              ...order,
+              sales_advisor_name: order.sales_advisor_name || (order.sales_advisor_id ? advisorMap.get(order.sales_advisor_id) ?? null : null),
+            }));
+            setOrders(enrichedOrders);
           }
         } else if (section === "transactions") {
           const [ordersResult, customersResult, advisorsResult] = await Promise.all([
@@ -2212,7 +2218,12 @@ function Admin({
             getSalesAdvisors(),
           ]);
           if (active) {
-            setOrders(ordersResult);
+            const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
+            const enrichedOrders = ordersResult.map((order) => ({
+              ...order,
+              sales_advisor_name: order.sales_advisor_name || (order.sales_advisor_id ? advisorMap.get(order.sales_advisor_id) ?? null : null),
+            }));
+            setOrders(enrichedOrders);
             setCustomers(customersResult);
             setSalesAdvisors(advisorsResult);
           }
@@ -3404,6 +3415,7 @@ function Admin({
           <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando pedidos…</span></div>}>
           <OrdersPage
             orders={orders}
+            salesAdvisors={salesAdvisors}
             loading={sectionLoading || !permissionsLoaded}
             search={search}
             showPendingOnly={showPendingOrdersOnly}

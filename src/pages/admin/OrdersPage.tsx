@@ -12,7 +12,7 @@ import {
   Truck,
   UserCheck,
 } from "lucide-react";
-import type { AdminOrder } from "../../services/admin";
+import type { AdminOrder, SalesAdvisor } from "../../services/admin";
 import Metric from "../../components/admin/Metric";
 import Pagination from "../../components/admin/Pagination";
 import AdminButton from "../../components/admin/AdminButton";
@@ -40,6 +40,7 @@ export default function OrdersPage({
   onEditOrder,
   onDeleteOrder,
   onStatusChange,
+  salesAdvisors = [],
 }: {
   orders: AdminOrder[];
   loading: boolean;
@@ -51,6 +52,7 @@ export default function OrdersPage({
   onEditOrder: (order: AdminOrder) => void;
   onDeleteOrder: (order: AdminOrder) => void;
   onStatusChange: (order: AdminOrder, status: OrderStatus, paymentStatus: PaymentStatus) => void;
+  salesAdvisors?: SalesAdvisor[];
 }) {
   const [filter, setFilter] = useState<"all" | PaymentStatus>(showPendingOnly ? "pending" : "all");
   const [page, setPage] = useState(1);
@@ -198,7 +200,7 @@ export default function OrdersPage({
                 <span className="order-meta">
                   {new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}
                   {" · "}
-                  {order.sales_advisor_name || "Sin asesor"}
+                  {order.sales_advisor_name || salesAdvisors.find((a) => a.id === order.sales_advisor_id)?.full_name || "Sin asesor"}
                 </span>
                 {isOpenCredit && (
                   <div className="order-credit-summary">
