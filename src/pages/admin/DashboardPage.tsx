@@ -96,6 +96,7 @@ export default function DashboardPage({
         metrics={metrics}
         orders={orders}
         onOpenOrders={canOpenOrders ? () => onSectionChange("transactions") : undefined}
+        onOpenFinance={() => onSectionChange("finance")}
       />
       {/* El panel completo vive en la seccion Reportes. Acá quedan solo las
           dos acciones rapidas, sin formulario de fechas: el dashboard
@@ -197,6 +198,7 @@ export default function DashboardPage({
           warning={metrics.sales_profit < 0}
           emphasis
           delta={metrics.period_days ? { current: Number(metrics.sales_profit), previous: Number(metrics.previous.sales_profit) } : undefined}
+          onClick={() => onSectionChange("finance")}
         />
         <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} numericValue={Number(metrics.net_margin_percent)} format="percent" icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
         <Metric title="Ventas completadas" value={String(metrics.completed_sales)} numericValue={metrics.completed_sales} icon={<ShoppingBag />} />

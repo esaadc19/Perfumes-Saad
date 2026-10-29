@@ -18,6 +18,10 @@
       "headers": [{ "key": "Cache-Control", "value": "no-store, max-age=0" }]
     },
     {
+      "source": "/utilidad",
+      "headers": [{ "key": "Cache-Control", "value": "no-store, max-age=0" }]
+    },
+    {
       "source": "/productos",
       "headers": [{ "key": "Cache-Control", "value": "no-store, max-age=0" }]
     },
@@ -80,6 +84,7 @@
   ],
   "rewrites": [
     { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/utilidad", "destination": "/index.html" },
     { "source": "/productos", "destination": "/index.html" },
     { "source": "/promociones", "destination": "/index.html" },
     { "source": "/pedidos", "destination": "/index.html" },
@@ -92,6 +97,7 @@
     { "source": "/perfiles", "destination": "/index.html" },
     { "source": "/configuracion", "destination": "/index.html" },
     { "source": "/dashboard/", "destination": "/index.html" },
+    { "source": "/utilidad/", "destination": "/index.html" },
     { "source": "/productos/", "destination": "/index.html" },
     { "source": "/promociones/", "destination": "/index.html" },
     { "source": "/pedidos/", "destination": "/index.html" },

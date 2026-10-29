@@ -7,6 +7,7 @@
  */
 export const ADMIN_SECTIONS = [
   "overview",
+  "finance",
   "products",
   "promotions",
   "transactions",
@@ -24,6 +25,7 @@ export type AdminSection = (typeof ADMIN_SECTIONS)[number];
 
 export const ADMIN_SECTION_PATHS: Record<AdminSection, string> = {
   overview: "/dashboard",
+  finance: "/utilidad",
   products: "/productos",
   promotions: "/promociones",
   transactions: "/pedidos",
@@ -39,6 +41,7 @@ export const ADMIN_SECTION_PATHS: Record<AdminSection, string> = {
 
 export const ADMIN_SECTION_TITLES: Record<AdminSection, string> = {
   overview: "Dashboard",
+  finance: "Utilidad y Finanzas",
   products: "Productos",
   promotions: "Promociones",
   transactions: "Pedidos",

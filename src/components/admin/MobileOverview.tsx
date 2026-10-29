@@ -46,11 +46,14 @@ export default function MobileOverview({
   metrics,
   orders,
   onOpenOrders,
+  onOpenFinance,
 }: {
   metrics: AdminDashboardMetrics;
   orders: AdminOrder[];
   /** Sin permiso de pedidos el bloque queda informativo, sin enlaces. */
   onOpenOrders?: () => void;
+  /** Abre la pagina de detalle financiero al tocar Utilidad neta. */
+  onOpenFinance?: () => void;
 }) {
   const cards = [
     {
@@ -58,24 +61,28 @@ export default function MobileOverview({
       value: money(Number(metrics.sales_revenue)),
       tone: "sales",
       icon: <ReceiptText size={15} />,
+      onClick: undefined,
     },
     {
       label: "Utilidad neta",
       value: metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit)),
       tone: "profit",
       icon: <TrendingUp size={15} />,
+      onClick: onOpenFinance,
     },
     {
       label: "Pedidos",
       value: String(metrics.total_orders),
       tone: "orders",
       icon: <ShoppingBag size={15} />,
+      onClick: undefined,
     },
     {
       label: "Clientes",
       value: String(metrics.customer_count),
       tone: "customers",
       icon: <Users size={15} />,
+      onClick: undefined,
     },
   ];
   const recentOrders = orders.slice(0, 4);
@@ -83,18 +90,34 @@ export default function MobileOverview({
   return (
     <>
       <section className="mobile-summary" aria-label="Resumen del periodo">
-        {cards.map((card) => (
-          <article
-            key={card.label}
-            className={`mobile-summary-card mobile-summary-card--${card.tone}`}
-          >
-            <span className="mobile-summary-label">
-              <span className="mobile-summary-icon" aria-hidden="true">{card.icon}</span>
-              {card.label}
-            </span>
-            <strong className="mobile-summary-value">{card.value}</strong>
-          </article>
-        ))}
+        {cards.map((card) =>
+          card.onClick ? (
+            <button
+              key={card.label}
+              type="button"
+              className={`mobile-summary-card mobile-summary-card--${card.tone} mobile-summary-card--action`}
+              onClick={card.onClick}
+            >
+              <span className="mobile-summary-label">
+                <span className="mobile-summary-icon" aria-hidden="true">{card.icon}</span>
+                {card.label}
+              </span>
+              <strong className="mobile-summary-value">{card.value}</strong>
+              <small className="mobile-summary-hint">Ver ingresos y egresos →</small>
+            </button>
+          ) : (
+            <article
+              key={card.label}
+              className={`mobile-summary-card mobile-summary-card--${card.tone}`}
+            >
+              <span className="mobile-summary-label">
+                <span className="mobile-summary-icon" aria-hidden="true">{card.icon}</span>
+                {card.label}
+              </span>
+              <strong className="mobile-summary-value">{card.value}</strong>
+            </article>
+          )
+        )}
       </section>
 
       <section className="mobile-orders" aria-labelledby="mobile-recent-orders-title">

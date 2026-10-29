@@ -68,7 +68,9 @@ import {
   type SalesAdvisor,
 } from "./services/admin";
 import {
+  getCreditOrders,
   getWasteSummary,
+  type CreditOrderSummary,
   type WasteRow,
 } from "./services/credits";
 import {
@@ -119,6 +121,7 @@ const CustomersPage = lazy(() => import("./pages/admin/CustomersPage"));
 const ProfilesPage = lazy(() => import("./pages/admin/ProfilesPage"));
 const ReportsPage = lazy(() => import("./pages/admin/ReportsPage"));
 const ProductsPage = lazy(() => import("./pages/admin/ProductsPage"));
+const FinancePage = lazy(() => import("./pages/admin/FinancePage"));
 import {
   DEFAULT_STORE_SETTINGS,
   getStoreSettings,
@@ -147,6 +150,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Tag,
+  TrendingUp,
   Trash2,
   Wallet,
   Upload,
@@ -1877,6 +1881,7 @@ function Admin({
   const [profilePage, setProfilePage] = useState(1);
   const [expensePage, setExpensePage] = useState(1);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [creditOrders, setCreditOrders] = useState<CreditOrderSummary[]>([]);
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
   const [expenseForm, setExpenseForm] = useState({
     name: "",
@@ -2091,6 +2096,7 @@ function Admin({
   }).length;
   const sections = [
     { id: "overview", title: "Dashboard", icon: <LayoutDashboard size={17} /> },
+    { id: "finance", title: "Utilidad", icon: <TrendingUp size={17} /> },
     { id: "products", title: "Productos", icon: <Package size={17} /> },
     { id: "promotions", title: "Promociones", icon: <Tag size={17} /> },
     { id: "transactions", title: "Pedidos", icon: <ReceiptText size={17} /> },
@@ -2117,7 +2123,7 @@ function Admin({
   // instante y luego se llene.
   const visibleSections = allowedSections === null
     ? sections
-    : sections.filter((item) => allowedSections.includes(item.id));
+    : sections.filter((item) => allowedSections.includes(item.id) || (item.id === "finance" && allowedSections.includes("overview")));
 
   // La seccion activa nunca puede ser una que la cuenta no puede ver.
   // Si le quitan el permiso mientras la tiene abierta, cae a la primera
@@ -2131,13 +2137,13 @@ function Admin({
   // mostrando una pagina que la cuenta tiene bloqueada.
   useEffect(() => {
     if (!permissionsLoaded || allowedSections === null) return;
-    if (allowedSections.includes(requestedSection)) return;
+    if (allowedSections.includes(requestedSection) || (requestedSection === "finance" && allowedSections.includes("overview"))) return;
     const fallback = ADMIN_SECTIONS.find((id) => allowedSections.includes(id));
     if (fallback) onSectionChange(fallback);
   }, [permissionsLoaded, allowedSections, requestedSection, onSectionChange]);
 
   const setSection = (next: AdminSection) => {
-    if (allowedSections !== null && !allowedSections.includes(next)) return;
+    if (allowedSections !== null && !allowedSections.includes(next) && !(next === "finance" && allowedSections.includes("overview"))) return;
     onSectionChange(next);
   };
 
@@ -2210,6 +2216,26 @@ function Admin({
               sales_advisor_name: order.sales_advisor_name || (order.sales_advisor_id ? advisorMap.get(order.sales_advisor_id) ?? null : null),
             }));
             setOrders(enrichedOrders);
+          }
+        } else if (section === "finance") {
+          const [metricsResult, ordersResult, advisorsResult, expenseResult, creditOrdersResult] = await Promise.all([
+            getAdminDashboardMetrics(metricsPeriod),
+            getAdminOrders(),
+            getSalesAdvisors(),
+            getExpenses(),
+            getCreditOrders().catch(() => []),
+          ]);
+          if (active) {
+            setMetrics(metricsResult);
+            const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
+            const enrichedOrders = ordersResult.map((order) => ({
+              ...order,
+              sales_advisor_name: order.sales_advisor_name || (order.sales_advisor_id ? advisorMap.get(order.sales_advisor_id) ?? null : null),
+            }));
+            setOrders(enrichedOrders);
+            setSalesAdvisors(advisorsResult);
+            setExpenses(expenseResult);
+            setCreditOrders(creditOrdersResult);
           }
         } else if (section === "transactions") {
           const [ordersResult, customersResult, advisorsResult] = await Promise.all([
@@ -3177,6 +3203,21 @@ function Admin({
           </Suspense>
         )}
 
+        {section === "finance" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando utilidad y resumen financiero…</span></div>}>
+            <FinancePage
+              metrics={metrics}
+              orders={orders}
+              expenses={expenses}
+              creditOrders={creditOrders}
+              loading={sectionLoading}
+              metricsPeriod={metricsPeriod}
+              onMetricsPeriodChange={setMetricsPeriod}
+              onSectionChange={setSection}
+            />
+          </Suspense>
+        )}
+
         {section === "collect" && (
           <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando quién debe…</span></div>}>
             <CollectPage sectionRevision={sectionRevision} />
@@ -3261,7 +3302,7 @@ function Admin({
               onSaved={onStoreSettingsSaved}
               profiles={profiles}
               permissions={sectionPermissions}
-              sections={sections.map((item) => ({ id: item.id, title: item.title }))}
+              sections={sections.filter((item) => item.id !== "finance").map((item) => ({ id: item.id, title: item.title }))}
               currentUserId={currentUserId}
               onPermissionsChanged={() => setSectionRevision((current) => current + 1)}
             />

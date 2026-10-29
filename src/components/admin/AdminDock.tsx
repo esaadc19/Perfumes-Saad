@@ -18,6 +18,7 @@ import {
   ExternalLink,
   Store,
   LogOut,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 
@@ -41,13 +42,14 @@ interface Group {
 }
 
 const GROUPS: Group[] = [
-  { title: "Ventas", ids: ["credit", "reports"] },
+  { title: "Ventas", ids: ["finance", "credit", "reports"] },
   { title: "Negocio", ids: ["promotions", "expenses"] },
   { title: "Personas", ids: ["customers", "advisors", "profiles"] },
   { title: "Sistema", ids: ["crm", "settings"] },
 ];
 
 const ICONS: Record<string, LucideIcon> = {
+  finance: TrendingUp,
   credit: DollarSign,
   reports: BarChart3,
   promotions: Tag,
