@@ -164,8 +164,19 @@ export default function FinancePage({
   const reconcileCandidates = useMemo((): ReconcileCandidate[] => {
     const list: ReconcileCandidate[] = [];
 
-    // Ventas pagadas de contado
+    // Conjunto de IDs de pedidos que fueron a crédito y ya tienen sus pagos detallados en abonos
+    const creditOrderIdsWithPayments = new Set<string>();
+    for (const co of creditOrders) {
+      if (co.payments && co.payments.length > 0) {
+        creditOrderIdsWithPayments.add(co.order_id);
+      }
+    }
+
+    // Ventas pagadas de contado (excluyendo pedidos a crédito cuyos pagos ya se registran por sus abonos)
     for (const order of paidOrdersInPeriod) {
+      if (creditOrderIdsWithPayments.has(order.id)) {
+        continue;
+      }
       list.push({
         type: "order",
         id: order.id,
