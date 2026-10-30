@@ -30,6 +30,7 @@ import type { WasteRow } from "../../services/credits";
 import type { Product } from "../../services/products";
 import type { ReportResult } from "./types";
 
+import DecantsSection from "../../components/admin/DecantsSection";
 const Charts = lazy(() => import("../../components/admin/Charts"));
 const ProfitabilityTable = lazy(() => import("../../components/admin/ProfitabilityTable"));
 
@@ -269,6 +270,9 @@ export default function DashboardPage({
       <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
         <Charts orders={orders} products={metrics.top_products} />
       </Suspense>
+
+      {/* SECCIÓN DE DECANTS (10 ML) Y COMPARATIVO DE CHARTS */}
+      <DecantsSection orders={orders} />
 
       {/* Rentabilidad por producto: no dice cuanto se vendio, sino que
           perfume deja mas utilidad. Se abre a pedido porque la consulta

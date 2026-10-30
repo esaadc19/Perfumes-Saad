@@ -5387,3 +5387,485 @@ footer a { color: #111; }
 .order-filter-reset:hover {
   color: #1a2e22;
 }
+
+
+/* ==========================================================================
+   DECANTS (10 ML) SECTION & DUAL CHARTS
+   ========================================================================== */
+.decants-section {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid rgba(44, 36, 32, 0.08);
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+  margin-top: 24px;
+}
+
+.decants-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.decants-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(200, 167, 109, 0.15);
+  color: #8b6222;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+
+.decants-summary-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: #11231a;
+  color: #f5f0e8;
+  padding: 8px 16px;
+  border-radius: 10px;
+}
+
+.decants-summary-pill strong {
+  font-size: 20px;
+  font-weight: 700;
+  color: #deb97b;
+  line-height: 1.1;
+}
+
+.decants-summary-pill span {
+  font-size: 11px;
+  color: rgba(245, 240, 232, 0.7);
+}
+
+/* 3 Highlight Cards */
+.decants-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.decant-highlight-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: #faf8f5;
+  border: 1px solid rgba(44, 36, 32, 0.07);
+  border-radius: 12px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.decant-highlight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+.decant-highlight-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.decant-icon--flame {
+  background: #fff4ed;
+  color: #ea580c;
+}
+
+.decant-icon--profit {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.decant-icon--customer {
+  background: #fefce8;
+  color: #ca8a04;
+}
+
+.decant-highlight-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.decant-highlight-subtitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: #8b6f5c;
+  margin-bottom: 2px;
+}
+
+.decant-highlight-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a2e22;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.decant-highlight-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.decant-profit-amount {
+  color: #059669;
+  font-weight: 700;
+}
+
+.decant-empty-hint {
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* Metrics Bar */
+.decants-metrics-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f7f6f2;
+  border-radius: 10px;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.decant-metric-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.decant-metric-stat span {
+  font-size: 11px;
+  color: #8b6f5c;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.decant-metric-stat strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: #11231a;
+}
+
+.decant-metric-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(44, 36, 32, 0.1);
+}
+
+/* Dual Charts */
+.decants-charts-dual {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 900px) {
+  .decants-charts-dual {
+    grid-template-columns: 1fr;
+  }
+}
+
+.decants-chart-panel {
+  border: 1px solid rgba(44, 36, 32, 0.08);
+  border-radius: 12px;
+  padding: 18px 20px;
+  background: #fafaf8;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.decants-chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.decants-chart-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #11231a;
+  margin: 0;
+}
+
+.decants-chart-header span {
+  font-size: 11.5px;
+  color: #8b6f5c;
+}
+
+.decant-chart-badge {
+  background: rgba(26, 46, 34, 0.08);
+  color: #1a2e22;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.decant-chart-badge--gold {
+  background: rgba(200, 167, 109, 0.2);
+  color: #7d5718;
+}
+
+.decant-bars-list {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.decant-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.decant-bar-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+}
+
+.decant-bar-name {
+  font-weight: 600;
+  color: #2c2420;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 65%;
+}
+
+.decant-bar-name--gold {
+  color: #80581a;
+}
+
+.decant-bar-figures {
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.decant-bar-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(44, 36, 32, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.decant-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.decant-fill--normal {
+  background: #11231a;
+}
+
+.decant-fill--decant {
+  background: linear-gradient(90deg, #c8a76d, #e5c388);
+}
+
+/* Subtable Section */
+.decants-subtable-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px solid rgba(44, 36, 32, 0.08);
+  padding-top: 18px;
+}
+
+.decants-subtable-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.decants-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1efea;
+  padding: 4px;
+  border-radius: 9px;
+}
+
+.decants-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 7px 13px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: "DM Sans", sans-serif;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.decants-tab-btn:hover {
+  color: #11231a;
+}
+
+.decants-tab-btn.active {
+  background: #ffffff;
+  color: #11231a;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.decants-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid rgba(44, 36, 32, 0.14);
+  border-radius: 8px;
+  padding: 6px 12px;
+  width: 250px;
+  color: #8b6f5c;
+}
+
+.decants-search-box input {
+  border: 0;
+  outline: 0;
+  font-size: 13px;
+  font-family: "DM Sans", sans-serif;
+  width: 100%;
+}
+
+.decants-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid rgba(44, 36, 32, 0.07);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.decants-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.decants-table th {
+  background: #faf8f5;
+  color: #8b6f5c;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(44, 36, 32, 0.08);
+}
+
+.decants-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(44, 36, 32, 0.05);
+  color: #2c2420;
+}
+
+.decants-table tr:hover td {
+  background: rgba(200, 167, 109, 0.04);
+}
+
+.decants-cell-sub {
+  font-size: 11.5px;
+  color: #888;
+  margin-top: 2px;
+}
+
+.decants-order-items-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.decant-item-tag {
+  display: inline-block;
+  background: rgba(200, 167, 109, 0.15);
+  color: #694b1a;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.decant-status-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.decant-status-badge.is-paid {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.decant-status-badge.is-partial {
+  background: #fff7ed;
+  color: #ea580c;
+}
+
+.decant-rank-badge {
+  display: inline-block;
+  background: #f1efea;
+  color: #666;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 6px;
+}
+
+.decant-rank-first {
+  background: #fefce8;
+  color: #a16207;
+}
+
+.decant-margin-pill {
+  display: inline-block;
+  background: #ecfdf5;
+  color: #047857;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
