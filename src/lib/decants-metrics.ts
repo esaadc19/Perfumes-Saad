@@ -1,5 +1,6 @@
 import type { AdminOrder } from "../services/admin";
 import { isDateInPeriod, toBogotaDateStr } from "./order-finance";
+import { getBogotaDate } from "./format";
 
 export interface DecantProductStats {
   name: string;
@@ -77,7 +78,22 @@ export interface DecantsAnalysis {
 }
 
 /**
+ * Calcula el rango de fechas en hora de Colombia (Bogotá) según los días seleccionados.
+ */
+export function getPeriodRange(days: 7 | 30 | 90 | null): { from: string | null; to: string | null } {
+  if (days === null) return { from: null, to: null };
+  const todayStr = getBogotaDate();
+  const [y, m, d] = todayStr.split("-").map(Number);
+  const todayUtc = Date.UTC(y, m - 1, d);
+  const fromUtc = todayUtc - (days - 1) * 24 * 60 * 60 * 1000;
+  const fromDate = new Date(fromUtc);
+  const fromStr = `${fromDate.getUTCFullYear()}-${String(fromDate.getUTCMonth() + 1).padStart(2, "0")}-${String(fromDate.getUTCDate()).padStart(2, "0")}`;
+  return { from: fromStr, to: todayStr };
+}
+
+/**
  * Calcula las métricas, rankings y comparaciones de Decants (10ml) vs Productos Normales.
+ * Filtra estrictamente por la fecha de CREACIÓN del pedido (`order.created_at`).
  */
 export function getDecantsAnalysis(
   orders: AdminOrder[],
@@ -114,15 +130,17 @@ export function getDecantsAnalysis(
   const normalOrderIds = new Set<string>();
 
   for (const order of orders) {
-    // Si se especifica periodo, filtrar por fecha de pago o creacion
-    const dateStr = toBogotaDateStr(order.paid_at || order.created_at);
+    // Ignorar pedidos cancelados
+    if (order.status === "cancelled") {
+      continue;
+    }
+
+    // Filtrar estrictamente por fecha de CREACIÓN del pedido en hora de Colombia
+    const dateStr = toBogotaDateStr(order.created_at);
     if (period && !isDateInPeriod(dateStr, period.from, period.to)) {
       continue;
     }
 
-    const isPaid = order.payment_status === "paid";
-    // Solo sumamos ingresos realizados en ventas pagadas (o abonos parciales)
-    // Para rankings de movimiento y cliente tomamos pedidos válidos
     const customerName =
       order.customers?.full_name?.trim() || "Cliente casual";
     const customerKey =
@@ -146,11 +164,9 @@ export function getDecantsAnalysis(
 
       if (isDecant) {
         decantOrderIds.add(order.id);
-        if (isPaid) {
-          decantsTotalUnits += units;
-          decantsTotalRevenue += revenue;
-          decantsTotalCost += cost;
-        }
+        decantsTotalUnits += units;
+        decantsTotalRevenue += revenue;
+        decantsTotalCost += cost;
 
         orderDecantUnits += units;
         orderDecantRevenue += revenue;
@@ -210,11 +226,9 @@ export function getDecantsAnalysis(
       } else {
         // Producto normal (>10ml)
         normalOrderIds.add(order.id);
-        if (isPaid) {
-          normalTotalUnits += units;
-          normalTotalRevenue += revenue;
-          normalTotalCost += cost;
-        }
+        normalTotalUnits += units;
+        normalTotalRevenue += revenue;
+        normalTotalCost += cost;
 
         const existing = normalMap.get(item.product_name_snapshot);
         if (existing) {
@@ -314,7 +328,7 @@ export function getDecantsAnalysis(
       ? Math.round((normalTotalProfit / normalTotalRevenue) * 100)
       : 0;
 
-  // Ordenar lista de pedidos de decants por fecha más reciente
+  // Ordenar lista de pedidos de decants por fecha de creación más reciente
   decantOrdersList.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
 
   return {

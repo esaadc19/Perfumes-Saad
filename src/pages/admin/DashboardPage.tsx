@@ -32,6 +32,7 @@ import type { Product } from "../../services/products";
 import type { ReportResult } from "./types";
 
 import DecantsSection from "../../components/admin/DecantsSection";
+import { getPeriodRange } from "../../lib/decants-metrics";
 const Charts = lazy(() => import("../../components/admin/Charts"));
 const ProfitabilityTable = lazy(() => import("../../components/admin/ProfitabilityTable"));
 
@@ -91,16 +92,8 @@ export default function DashboardPage({
   onGenerateReport,
 }: DashboardPageProps) {
   const activePeriod = useMemo(() => {
-    if (metricsPeriod === null) return { from: null, to: null };
-    if (metrics.period_from && metrics.period_to) {
-      return { from: metrics.period_from, to: metrics.period_to };
-    }
-    const now = new Date();
-    const toStr = toBogotaDateStr(now.toISOString());
-    const pastMs = now.getTime() - (metricsPeriod - 1) * 24 * 60 * 60 * 1000;
-    const fromStr = toBogotaDateStr(new Date(pastMs).toISOString());
-    return { from: fromStr, to: toStr };
-  }, [metricsPeriod, metrics.period_from, metrics.period_to]);
+    return getPeriodRange(metricsPeriod);
+  }, [metricsPeriod]);
 
   return (
     <div className="overview-flow">

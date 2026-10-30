@@ -19,7 +19,6 @@ import {
   X,
 } from "lucide-react";
 import AdminButton from "../../components/admin/AdminButton";
-import DecantsSection from "../../components/admin/DecantsSection";
 import Delta from "../../components/admin/Delta";
 import EmptyState from "../../components/admin/EmptyState";
 import { formatBogotaDate, money } from "../../lib/format";
@@ -61,7 +60,7 @@ interface FinancePageProps {
   onSectionChange: (section: AdminSection) => void;
 }
 
-type TabView = "pnl" | "reconciliation" | "decants";
+type TabView = "pnl" | "reconciliation";
 type IncomeFilter = "all" | "paid_orders" | "credit_abonos";
 type ExpenseFilter = "all" | "operating" | "product_cost" | "credit_cost";
 
@@ -536,13 +535,7 @@ export default function FinancePage({
         >
           Conciliación y Cuadre de Cuentas
         </button>
-        <button
-          type="button"
-          className={`finance-subnav-btn${activeTab === "decants" ? " active" : ""}`}
-          onClick={() => setActiveTab("decants")}
-        >
-          Sección de Decants (10 ml)
-        </button>
+
       </div>
 
       {/* Cabecera con regreso rápido y selector de período */}
@@ -920,15 +913,6 @@ export default function FinancePage({
       {/* ========================================================
           VISTA 2: ESTADO DE RESULTADOS Y UTILIDAD (P&L)
          ======================================================== */}
-      {activeTab === "decants" && (
-        <div style={{ marginTop: 24 }}>
-          <DecantsSection
-            orders={orders}
-            period={{ from: periodFrom, to: periodTo }}
-            titleSuffix="en Utilidad y Finanzas"
-          />
-        </div>
-      )}
 
       {activeTab === "pnl" && (
         <>
