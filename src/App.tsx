@@ -145,6 +145,9 @@ import {
   RefreshCw,
   Search,
   ReceiptText,
+  CreditCard,
+  Shield,
+  SunMedium,
   Settings,
   ShieldCheck,
   ShoppingBag,
@@ -2098,7 +2101,18 @@ function Admin({
   const sections = [
     { id: "overview", title: "Dashboard", group: "GENERAL", icon: <LayoutDashboard size={18} /> },
     { id: "finance", title: "Utilidad", group: "GENERAL", icon: <TrendingUp size={18} />, hiddenInSidebar: true },
-    { id: "transactions", title: "Pedidos", group: "VENTAS", icon: <ReceiptText size={18} /> },
+    {
+      id: "transactions",
+      title: "Pedidos",
+      group: "VENTAS",
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+          <line x1="9" y1="8" x2="15" y2="8" />
+          <line x1="9" y1="12" x2="15" y2="12" />
+        </svg>
+      ),
+    },
     { id: "collect", title: "Cobrar", group: "VENTAS", icon: <MessageCircle size={18} /> },
     { id: "credit", title: "Cartera", group: "VENTAS", icon: <DollarSign size={18} /> },
     { id: "customers", title: "Clientes", group: "VENTAS", icon: <Users size={18} /> },
@@ -2107,11 +2121,11 @@ function Admin({
     { id: "crm", title: "CRM", group: "VENTAS", icon: <KanbanSquare size={18} />, external: true },
     { id: "products", title: "Productos", group: "INVENTARIO", icon: <Package size={18} /> },
     { id: "promotions", title: "Promociones", group: "INVENTARIO", icon: <Tag size={18} /> },
-    { id: "expenses", title: "Gastos", group: "INVENTARIO", icon: <Wallet size={18} /> },
+    { id: "expenses", title: "Gastos", group: "INVENTARIO", icon: <CreditCard size={18} /> },
     { id: "advisors", title: "Asesores", group: "ADMINISTRACIÓN", icon: <UserCheck size={18} /> },
     { id: "reports", title: "Reportes", group: "ADMINISTRACIÓN", icon: <BarChart3 size={18} /> },
-    { id: "profiles", title: "Perfiles", group: "ADMINISTRACIÓN", icon: <ShieldCheck size={18} /> },
-    { id: "settings", title: "Configuración", group: "ADMINISTRACIÓN", icon: <Settings size={18} /> },
+    { id: "profiles", title: "Perfiles", group: "ADMINISTRACIÓN", icon: <Shield size={18} /> },
+    { id: "settings", title: "Configuración", group: "ADMINISTRACIÓN", icon: <SunMedium size={18} /> },
   ] as const;
 
   // OJO: esta lista tiene que coincidir con la tabla `admin_sections` de

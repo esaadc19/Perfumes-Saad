@@ -684,7 +684,7 @@ footer { border-top: 1px solid var(--border); padding: 28px 5%; display: flex; g
 footer a { color: #111; }
 
 .admin-layout { height: 100vh; min-height: 100vh; display: flex; background: #faf9f7; font-family: "DM Sans", sans-serif; overflow: hidden; }
-.admin-sidebar { width: 72px; min-width: 72px; height: 100vh; background: #1a2e22; display: flex; flex-direction: column; align-items: center; padding: 24px 12px; flex-shrink: 0; }
+.admin-sidebar { width: 72px; min-width: 72px; height: 100vh; background: #11231a; display: flex; flex-direction: column; align-items: center; padding: 24px 12px; flex-shrink: 0; }
 .sidebar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 42px; margin-bottom: 30px; }
 .admin-logo { border: 0; background: transparent; color: white; text-align: left; font: 600 25px "Playfair Display", serif; white-space: nowrap; }
 .admin-logo span { color: #c48a7c; }
@@ -2945,16 +2945,17 @@ footer a { color: #111; }
 /* SIDEBAR */
 
 .admin-sidebar {
-  width: 248px;
-  min-width: 248px;
+  width: 252px;
+  min-width: 252px;
   height: 100vh;
-  background: #1a2e22;
+  background: #11231a;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 20px 14px;
+  padding: 24px 14px 20px 14px;
   flex-shrink: 0;
   overflow: hidden;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
   transition: width .22s ease, min-width .22s ease, padding .22s ease;
 }
 
@@ -2973,9 +2974,10 @@ footer a { color: #111; }
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 24px;
-  min-height: 40px;
+  gap: 14px;
+  margin-bottom: 26px;
+  min-height: 48px;
+  padding: 0 4px;
   flex: 0 0 auto;
 }
 
@@ -2989,10 +2991,11 @@ footer a { color: #111; }
 .admin-sidebar-title {
   flex: 1;
   min-width: 0;
-  color: #f5f0e8;
-  font-family: 'Playfair Display', serif;
-  font-size: 16px;
-  font-weight: 500;
+  color: #d8b77d;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3022,26 +3025,26 @@ footer a { color: #111; }
 }
 
 .admin-brand-mark {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   border: 0;
-  border-radius: 10px;
-  background: #c9a96e;
-  color: #1a2e22;
+  border-radius: 12px;
+  background: #c8a76d;
+  color: #11231a;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  font-weight: 600;
-  font-family: 'Playfair Display', serif;
-  transition: all .2s ease;
+  font-size: 21px;
+  font-weight: 700;
+  font-family: 'Playfair Display', Georgia, serif;
+  transition: transform .2s ease, filter .2s ease;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .admin-brand-mark:hover {
-  background: #f5f0e8;
-  color: #1a2e22;
-  transform: scale(1.05);
+  transform: scale(1.03);
+  filter: brightness(1.06);
 }
 
 .admin-close-button {
@@ -3055,51 +3058,52 @@ footer a { color: #111; }
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 20px;
   width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: rgba(245, 240, 232, .24) transparent;
+  scrollbar-color: rgba(200, 167, 109, 0.2) transparent;
+  padding-right: 2px;
 }
 
 .admin-navigation::-webkit-scrollbar { width: 4px; }
 .admin-navigation::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: rgba(245, 240, 232, .24);
+  background: rgba(200, 167, 109, 0.2);
 }
 
 .admin-nav-group {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .admin-nav-group-label {
-  padding: 0 12px 5px;
-  font-family: "DM Sans", sans-serif;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  padding: 0 12px 6px 12px;
+  font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(245, 240, 232, 0.46);
+  color: #639386;
   user-select: none;
 }
 
 .admin-nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 13px;
   width: 100%;
-  min-height: 40px;
+  min-height: 42px;
   padding: 0 12px;
   border: 0;
   background: transparent;
-  border-radius: 10px;
-  color: rgba(245, 240, 232, 0.88);
+  border-radius: 11px;
+  color: #dce3df;
   cursor: pointer;
-  transition: background .18s ease, color .18s ease;
+  transition: background .16s ease, color .16s ease;
   position: relative;
   text-align: left;
   /* También se usa en un <a> (acceso al CRM), no solo en <button>. */
@@ -3109,9 +3113,10 @@ footer a { color: #111; }
 .admin-nav-item-label {
   white-space: nowrap;
   overflow: hidden;
-  font-family: "DM Sans", sans-serif;
-  font-size: 13.5px;
+  font-family: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
   font-weight: 400;
+  color: inherit;
 }
 
 /* Colapsado: centering de iconos y ocultar etiquetas */
@@ -3134,23 +3139,28 @@ footer a { color: #111; }
   flex: 0 0 auto;
   stroke: currentColor;
   fill: none;
-  stroke-width: 1.75;
+  stroke-width: 1.85;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
 .admin-nav-item:hover {
-  background: rgba(245, 240, 232, 0.1);
-  color: #f5f0e8;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
 }
 
 .admin-nav-item.active {
-  background: #c9a96e;
-  color: #1a2e22;
+  background: #c8a76d;
+  color: #121e16;
 }
 
 .admin-nav-item.active .admin-nav-item-label {
-  font-weight: 500;
+  font-weight: 600;
+  color: #121e16;
+}
+
+.admin-nav-item.active svg {
+  stroke: #121e16;
 }
 
 /* Tooltip: solo cuando el menú está colapsado */
