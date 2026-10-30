@@ -67,6 +67,15 @@ export default function ExpensesPage({
             ))}
           </select>
         </label>
+        <label>Pagado con
+          <select value={form.payment_method || "efectivo"} onChange={(event) => onFormChange({ ...form, payment_method: event.target.value })}>
+            <option value="efectivo">Efectivo (Caja)</option>
+            <option value="nequi_daviplata">Nequi / Daviplata</option>
+            <option value="bancolombia">Bancolombia / Transferencia</option>
+            <option value="datafono">Datafono / Tarjeta</option>
+            <option value="otro">Otro</option>
+          </select>
+        </label>
         <label>{form.recurring ? "Primer vencimiento" : "Fecha"}
           <input type="date" value={form.date} onChange={(event) => onFormChange({ ...form, date: event.target.value })} required />
         </label>

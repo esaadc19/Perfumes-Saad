@@ -5076,3 +5076,242 @@ footer a { color: #111; }
     max-width: 100%;
   }
 }
+
+
+/* =========================================================
+   SUBNAV Y CONCILIACIÓN EN /utilidad
+   ========================================================= */
+
+.finance-subnav {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.finance-subnav-btn {
+  border: 0;
+  background: transparent;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: "DM Sans", sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .18s ease;
+}
+
+.finance-subnav-btn:hover {
+  background: rgba(26, 46, 34, 0.05);
+  color: var(--verde);
+}
+
+.finance-subnav-btn.active {
+  background: var(--verde);
+  color: #fff;
+}
+
+.reconcile-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.reconcile-channels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.reconcile-channel-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+}
+
+.reconcile-channel-head strong {
+  font-size: 15px;
+  font-family: "DM Sans", sans-serif;
+  color: #1a2e22;
+}
+
+.reconcile-channel-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.reconcile-channel-metrics > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.reconcile-expected-row {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-weight: 600;
+}
+
+.reconcile-actual-input label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.reconcile-actual-input input {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a2e22;
+  outline: none;
+  transition: border-color .15s ease;
+}
+
+.reconcile-actual-input input:focus {
+  border-color: var(--verde);
+}
+
+.reconcile-diff-badge {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.reconcile-diff-badge.is-exact {
+  background: #ecfdf5;
+  color: #15803d;
+}
+
+.reconcile-diff-badge.is-short {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.reconcile-diff-badge.is-over {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.reconcile-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: #fafafa;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .16s ease;
+}
+
+.reconcile-toggle-btn:hover {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.reconcile-toggle-btn.is-checked {
+  background: #ecfdf5;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.finance-method-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 12px;
+  color: #2c2420;
+}
+
+.finance-ref-code {
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #334155;
+  word-break: break-all;
+}
+
+.notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ecfdf5;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.notice-banner button {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: #166534;
+  cursor: pointer;
+}
+
+.nequi-match-summary {
+  display: flex;
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+
+.nequi-badge-exact {
+  background: #dcfce7;
+  color: #166534;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nequi-badge-unmatched {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.nequi-results-table {
+  max-height: 380px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.nequi-matched-item strong {
+  display: block;
+  font-size: 12px;
+}
+
+.nequi-matched-item span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}

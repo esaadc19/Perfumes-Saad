@@ -127,6 +127,10 @@ export interface AdminOrder {
   credit_due_date: string | null;
   credit_amount: number;
   credit_limit_snapshot: number | null;
+  payment_method?: string;
+  reconciled?: boolean;
+  reconciled_at?: string | null;
+  transaction_reference?: string | null;
 }
 
 function requireSupabase() {
@@ -307,7 +311,7 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("orders")
-    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, sales_advisor_id, sales_advisors(full_name), customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot), credit_due_date, credit_amount, credit_limit_snapshot")
+    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, sales_advisor_id, sales_advisors(full_name), customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot), credit_due_date, credit_amount, credit_limit_snapshot, payment_method, reconciled, reconciled_at, transaction_reference")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los pedidos:", error);
@@ -617,4 +621,40 @@ export async function setCreditTerms(customerId: string, terms: "quincenal" | "m
     console.error("Error cambiando términos de crédito:", error);
     throw error;
   }
+}
+
+
+export async function togglePaymentReconciliation(
+  targetType: "order" | "credit_payment",
+  targetId: string,
+  reconciled: boolean,
+  method?: string,
+  reference?: string
+): Promise<void> {
+  const client = requireSupabase();
+  const { error } = await client.rpc("admin_toggle_payment_reconciliation", {
+    target_type: targetType,
+    target_id: targetId,
+    new_reconciled: reconciled,
+    new_method: method || null,
+    new_reference: reference || null,
+  });
+  if (error) {
+    console.error("Error actualizando conciliación:", error);
+    throw new Error(error.message);
+  }
+}
+
+export async function batchReconcilePayments(
+  matches: Array<{ id: string; type: "order" | "credit_payment"; method?: string; reference?: string }>
+): Promise<number> {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc("admin_batch_reconcile_payments", {
+    matches,
+  });
+  if (error) {
+    console.error("Error en conciliación por lote:", error);
+    throw new Error(error.message);
+  }
+  return Number(data);
 }

@@ -1,21 +1,43 @@
 import { supabase } from "../lib/supabase";
 
+export type PaymentMethod =
+  | "efectivo"
+  | "nequi_daviplata"
+  | "bancolombia"
+  | "datafono"
+  | "transferencia"
+  | "otro";
+
+export const PAYMENT_METHODS: Array<{ value: PaymentMethod; label: string }> = [
+  { value: "efectivo", label: "Efectivo" },
+  { value: "nequi_daviplata", label: "Nequi / Daviplata" },
+  { value: "bancolombia", label: "Bancolombia" },
+  { value: "datafono", label: "Datafono / Link de pago" },
+  { value: "transferencia", label: "Transferencia bancaria" },
+  { value: "otro", label: "Otro" },
+];
+
+export const CREDIT_METHODS = PAYMENT_METHODS;
+
 export interface CreditPayment {
   id: string;
   customer_id: string;
   order_id: string;
   amount: number;
   paid_at: string;
-  method: "efectivo" | "transferencia" | "otro";
+  method: PaymentMethod;
   note: string | null;
   recorded_by: string | null;
   created_at: string;
+  reconciled?: boolean;
+  reconciled_at?: string | null;
+  transaction_reference?: string | null;
 }
 
 export interface NewCreditPayment {
   order_id: string;
   amount: number;
-  method?: "efectivo" | "transferencia" | "otro";
+  method?: PaymentMethod;
   note?: string | null;
   paid_at?: string;
 }
@@ -79,7 +101,7 @@ export async function getCreditOrders(): Promise<CreditOrderSummary[]> {
   // historico sobrevive sin necesidad de una columna was_credit.
   const { data: allPayments, error: allPaymentsError } = await supabase
     .from("customer_credit_payments")
-    .select("order_id, id, amount, paid_at, method, note, customer_id, recorded_by, created_at")
+    .select("order_id, id, amount, paid_at, method, note, customer_id, recorded_by, created_at, reconciled, reconciled_at, transaction_reference")
     .order("paid_at", { ascending: true });
 
   if (allPaymentsError) {
@@ -420,11 +442,7 @@ export async function getWasteSummary(daysBack = 30): Promise<WasteRow[]> {
   return (data ?? []) as WasteRow[];
 }
 
-export const CREDIT_METHODS = [
-  { value: "efectivo" as const, label: "Efectivo" },
-  { value: "transferencia" as const, label: "Transferencia" },
-  { value: "otro" as const, label: "Otro" },
-];
+// CREDIT_METHODS se define arriba reutilizando PAYMENT_METHODS
 
 /** Cliente con al menos un pedido a credito sin saldar. */
 export interface CustomerToCollect {

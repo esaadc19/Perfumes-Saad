@@ -70,7 +70,7 @@ export default function OrderEditorModal({
     deliveryCost: number,
     salesAdvisorId: string | null,
     orderStatus: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled",
-    paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial"
+    paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial", paymentMethod?: string
   ) => void;
 }) {
   const [customerId, setCustomerId] = useState(order?.customer_id ?? "");
@@ -105,6 +105,7 @@ export default function OrderEditorModal({
   const [orderStatus, setOrderStatus] = useState<"pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled">(
     (order?.status as "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled") ?? "pending_confirmation"
   );
+  const [paymentMethod, setPaymentMethod] = useState<string>(order?.payment_method || "efectivo");
   const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid" | "refunded" | "credit" | "partial">(
     (order?.payment_status as "pending" | "paid" | "refunded" | "credit" | "partial") ?? "pending"
   );
@@ -233,7 +234,8 @@ export default function OrderEditorModal({
             parsedDeliveryCost,
             salesAdvisorId || null,
             orderStatus,
-            paymentStatus
+            paymentStatus,
+            paymentMethod
           );
         }}
       >
@@ -544,6 +546,18 @@ export default function OrderEditorModal({
         </label>
 
         <div className="form-grid">
+          {paymentStatus === "paid" && (
+            <label className="auth-label">
+              Medio de pago recibido
+              <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} disabled={saving}>
+                <option value="efectivo">Efectivo (Caja)</option>
+                <option value="nequi_daviplata">Nequi / Daviplata</option>
+                <option value="bancolombia">Bancolombia / Transferencia</option>
+                <option value="datafono">Datafono / Link de pago</option>
+                <option value="otro">Otro</option>
+              </select>
+            </label>
+          )}
           <label className="auth-label">
             Estado del pedido
             <select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value as "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled")} disabled={saving}>

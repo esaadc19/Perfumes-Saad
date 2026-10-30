@@ -6,6 +6,7 @@ export interface Expense {
   amount: number;
   category: string;
   expense_date: string;
+  payment_method?: string;
   created_at: string;
 }
 
@@ -14,6 +15,7 @@ export interface NewExpense {
   amount: number;
   category: string;
   expense_date: string;
+  payment_method?: string;
   recurrence_frequency?: RecurrenceFrequency | null;
 }
 

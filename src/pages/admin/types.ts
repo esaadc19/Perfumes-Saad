@@ -12,6 +12,7 @@ export interface ExpenseFormState {
   amount: string;
   category: string;
   date: string;
+  payment_method?: string;
   recurring: boolean;
   frequency: RecurrenceFrequency;
 }

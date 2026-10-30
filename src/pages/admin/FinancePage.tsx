@@ -1,22 +1,22 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import {
   ArrowDownRight,
   ArrowLeft,
   ArrowUpRight,
-  BarChart3,
   CalendarDays,
-  CreditCard,
+  CheckCircle2,
+  Clock,
   DollarSign,
-  Lock,
+  FileSpreadsheet,
+  HelpCircle,
   Package,
-  Percent,
-  Plus,
-  ReceiptText,
+  RefreshCw,
   Search,
   TrendingDown,
   TrendingUp,
-  Truck,
+  Upload,
   Wallet,
+  X,
 } from "lucide-react";
 import AdminButton from "../../components/admin/AdminButton";
 import Delta from "../../components/admin/Delta";
@@ -27,9 +27,26 @@ import {
   isDateInPeriod,
   toBogotaDateStr,
 } from "../../lib/order-finance";
+import {
+  parseNequiCsv,
+  matchNequiTransactions,
+  type NequiTransaction,
+  type NequiMatchResult,
+  type ReconcileCandidate,
+} from "../../lib/nequi-reconciliation";
 import type { AdminSection } from "../../lib/admin-routes";
-import type { AdminDashboardMetrics, AdminOrder } from "../../services/admin";
-import type { CreditOrderSummary } from "../../services/credits";
+import {
+  togglePaymentReconciliation,
+  batchReconcilePayments,
+  type AdminDashboardMetrics,
+  type AdminOrder,
+} from "../../services/admin";
+import {
+  PAYMENT_METHODS,
+  type CreditOrderSummary,
+  type CreditPayment,
+  type PaymentMethod,
+} from "../../services/credits";
 import type { Expense } from "../../services/expenses";
 
 interface FinancePageProps {
@@ -43,6 +60,7 @@ interface FinancePageProps {
   onSectionChange: (section: AdminSection) => void;
 }
 
+type TabView = "pnl" | "reconciliation";
 type IncomeFilter = "all" | "paid_orders" | "credit_abonos";
 type ExpenseFilter = "all" | "operating" | "product_cost" | "credit_cost";
 
@@ -50,15 +68,31 @@ export default function FinancePage({
   metrics,
   orders,
   expenses,
+  creditOrders,
   loading,
   metricsPeriod,
   onMetricsPeriodChange,
   onSectionChange,
 }: FinancePageProps) {
+  const [activeTab, setActiveTab] = useState<TabView>("pnl");
   const [incomeFilter, setIncomeFilter] = useState<IncomeFilter>("all");
   const [expenseFilter, setExpenseFilter] = useState<ExpenseFilter>("all");
   const [incomeSearch, setIncomeSearch] = useState("");
   const [expenseSearch, setExpenseSearch] = useState("");
+
+  // Estados de conciliación
+  const [reconcileAccountFilter, setReconcileAccountFilter] = useState<string>("all");
+  const [reconcileStatusFilter, setReconcileStatusFilter] = useState<"all" | "pending" | "reconciled">("all");
+  const [reconcileSearch, setReconcileSearch] = useState("");
+  const [actualBalances, setActualBalances] = useState<Record<string, string>>({});
+  const [nequiModalOpen, setNequiModalOpen] = useState(false);
+  const [nequiMatches, setNequiMatches] = useState<NequiMatchResult[]>([]);
+  const [nequiRawCount, setNequiRawCount] = useState(0);
+  const [nequiRawTotal, setNequiRawTotal] = useState(0);
+  const [savingReconciliation, setSavingReconciliation] = useState(false);
+  const [reconcileFeedback, setReconcileFeedback] = useState<string | null>(null);
+
+  const nequiFileInputRef = useRef<HTMLInputElement>(null);
 
   const periodFrom = metrics?.period_from ?? null;
   const periodTo = metrics?.period_to ?? null;
@@ -96,7 +130,7 @@ export default function FinancePage({
     );
   }, [expenses, periodFrom, periodTo]);
 
-  // Totales desglosados con la regla progresiva (abono -> cubre costo hasta tope -> utilidad)
+  // Totales de P&L
   const paidOrdersTotal = useMemo(
     () => paidOrdersInPeriod.reduce((sum, o) => sum + Number(o.total), 0),
     [paidOrdersInPeriod]
@@ -113,7 +147,6 @@ export default function FinancePage({
   const totalRevenue = metrics ? Number(metrics.sales_revenue) : paidOrdersTotal + abonosTotal;
   const salesCost = metrics ? Number(metrics.sales_cost) : 0;
   const deliveryCost = metrics ? Number(metrics.sales_delivery_cost) : 0;
-  const creditCostPending = metrics ? Number(metrics.credit_cost_pending) : 0;
   const operatingExpenses = metrics
     ? Number(metrics.total_expenses)
     : expensesInPeriod.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -127,20 +160,161 @@ export default function FinancePage({
       ? Math.round((netProfit / totalRevenue) * 1000) / 10
       : 0;
 
-  // Resumen de gastos operativos por categoria
-  const expensesByCategory = useMemo(() => {
-    const map = new Map<string, { category: string; amount: number; count: number }>();
-    for (const expense of expensesInPeriod) {
-      const cat = expense.category || "General";
-      const current = map.get(cat) ?? { category: cat, amount: 0, count: 0 };
-      current.amount += Number(expense.amount);
-      current.count += 1;
-      map.set(cat, current);
-    }
-    return Array.from(map.values()).sort((a, b) => b.amount - a.amount);
-  }, [expensesInPeriod]);
+  // Candidatos para conciliación (Ventas de contado + Cada abono de cartera)
+  const reconcileCandidates = useMemo((): ReconcileCandidate[] => {
+    const list: ReconcileCandidate[] = [];
 
-  // Filas combinadas de ingresos (cada pedido con su costo cubierto y utilidad desbloqueada)
+    // Ventas pagadas de contado
+    for (const order of paidOrdersInPeriod) {
+      list.push({
+        type: "order",
+        id: order.id,
+        code: `#${order.id.slice(0, 8).toUpperCase()}`,
+        customerName: order.customers?.full_name?.trim() || "Cliente",
+        amount: Number(order.total),
+        dateStr: toBogotaDateStr(order.paid_at ?? order.created_at),
+        currentMethod: order.payment_method || "efectivo",
+        reconciled: Boolean(order.reconciled),
+        reference: order.transaction_reference,
+      });
+    }
+
+    // Abonos de créditos
+    for (const co of creditOrders) {
+      for (const p of co.payments || []) {
+        const payDate = toBogotaDateStr(p.paid_at);
+        if (isDateInPeriod(payDate, periodFrom, periodTo)) {
+          list.push({
+            type: "credit_payment",
+            id: p.id,
+            code: `Abono #${co.order_code}`,
+            customerName: co.customer_name || "Cliente",
+            amount: Number(p.amount),
+            dateStr: payDate,
+            currentMethod: p.method || "efectivo",
+            reconciled: Boolean(p.reconciled),
+            reference: p.transaction_reference,
+          });
+        }
+      }
+    }
+
+    return list;
+  }, [paidOrdersInPeriod, creditOrders, periodFrom, periodTo]);
+
+  // Cuadre por canal de pago
+  const channelBalances = useMemo(() => {
+    const channels: Array<{
+      key: PaymentMethod;
+      label: string;
+      inflows: number;
+      outflows: number;
+      expected: number;
+    }> = [
+      { key: "efectivo", label: "Efectivo (Caja física)", inflows: 0, outflows: 0, expected: 0 },
+      { key: "nequi_daviplata", label: "Nequi / Daviplata", inflows: 0, outflows: 0, expected: 0 },
+      { key: "bancolombia", label: "Bancolombia / Transferencia", inflows: 0, outflows: 0, expected: 0 },
+      { key: "datafono", label: "Datafono / Link de pago", inflows: 0, outflows: 0, expected: 0 },
+    ];
+
+    for (const item of reconcileCandidates) {
+      const ch = channels.find((c) => c.key === item.currentMethod) ?? channels[0];
+      ch.inflows += item.amount;
+    }
+
+    for (const exp of expensesInPeriod) {
+      const ch = channels.find((c) => c.key === exp.payment_method) ?? channels[0];
+      ch.outflows += Number(exp.amount);
+    }
+
+    for (const ch of channels) {
+      ch.expected = ch.inflows - ch.outflows;
+    }
+
+    return channels;
+  }, [reconcileCandidates, expensesInPeriod]);
+
+  // Manejo de carga de archivo Nequi
+  const handleNequiFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (!content) return;
+
+      const transactions = parseNequiCsv(content);
+      const totalNequi = transactions.reduce((sum, tx) => sum + tx.amount, 0);
+      setNequiRawCount(transactions.length);
+      setNequiRawTotal(totalNequi);
+
+      const { matches } = matchNequiTransactions(transactions, reconcileCandidates);
+      setNequiMatches(matches);
+      setNequiModalOpen(true);
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  };
+
+  // Confirmar lote de Nequi
+  const handleApplyNequiMatches = async () => {
+    const validMatches = nequiMatches.filter((m) => m.matchedCandidate !== null);
+    if (validMatches.length === 0) return;
+
+    setSavingReconciliation(true);
+    try {
+      const batchPayload = validMatches.map((m) => ({
+        id: m.matchedCandidate!.id,
+        type: m.matchedCandidate!.type,
+        method: "nequi_daviplata",
+        reference: m.nequiTx.reference || m.nequiTx.id,
+      }));
+
+      const count = await batchReconcilePayments(batchPayload);
+      setReconcileFeedback(`¡Conciliación completada! Se verificaron ${count} pagos con tu reporte de Nequi.`);
+      setNequiModalOpen(false);
+
+      // Refrescar estado local
+      for (const item of validMatches) {
+        if (item.matchedCandidate) {
+          item.matchedCandidate.reconciled = true;
+          item.matchedCandidate.currentMethod = "nequi_daviplata";
+          item.matchedCandidate.reference = item.nequiTx.reference || item.nequiTx.id;
+        }
+      }
+    } catch (err) {
+      console.error("Error al aplicar conciliación:", err);
+      alert("No se pudo completar la conciliación: " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setSavingReconciliation(false);
+    }
+  };
+
+  // Cambiar conciliado individual
+  const handleToggleReconcile = async (candidate: ReconcileCandidate) => {
+    const nextReconciled = !candidate.reconciled;
+    try {
+      await togglePaymentReconciliation(candidate.type, candidate.id, nextReconciled);
+      candidate.reconciled = nextReconciled;
+      setReconcileFeedback(`Pago ${candidate.code} ${nextReconciled ? "marcado como conciliado" : "desmarcado"}.`);
+    } catch (err) {
+      alert("Error al actualizar: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  // Cambiar método individual
+  const handleChangeCandidateMethod = async (candidate: ReconcileCandidate, newMethod: string) => {
+    try {
+      await togglePaymentReconciliation(candidate.type, candidate.id, candidate.reconciled, newMethod);
+      candidate.currentMethod = newMethod;
+      setReconcileFeedback(`Método de ${candidate.code} cambiado a ${newMethod}.`);
+    } catch (err) {
+      alert("Error al cambiar método: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+  // Filas combinadas de ingresos P&L
   const incomeRows = useMemo(() => {
     const rows: Array<{
       id: string;
@@ -152,10 +326,7 @@ export default function FinancePage({
       advisor: string | null;
       revenue: number;
       orderTotal: number;
-      coveredCost: number;
-      fullCost: number;
       profit: number | null;
-      hasMissingCost: boolean;
     }> = [];
 
     if (incomeFilter === "all" || incomeFilter === "paid_orders") {
@@ -178,10 +349,7 @@ export default function FinancePage({
           advisor: order.sales_advisor_name ?? null,
           revenue: b.collectedRevenue,
           orderTotal: b.orderTotal,
-          coveredCost: b.coveredCost,
-          fullCost: b.fullCost,
           profit: b.realizedProfit,
-          hasMissingCost: b.hasMissingCost,
         });
       }
     }
@@ -201,20 +369,17 @@ export default function FinancePage({
           dateStr: toBogotaDateStr(order.created_at),
           sortTime: new Date(order.created_at).getTime(),
           title: `${orderCode} · ${customerName}`,
-          subtitle: `${itemsSummary} · Abonado ${money(b.collectedRevenue)} de ${money(b.orderTotal)} (Saldo: ${money(b.creditBalance)})`,
+          subtitle: `${itemsSummary} · Abonado ${money(b.collectedRevenue)} de ${money(b.orderTotal)}`,
           advisor: order.sales_advisor_name ?? null,
           revenue: b.collectedRevenue,
           orderTotal: b.orderTotal,
-          coveredCost: b.coveredCost,
-          fullCost: b.fullCost,
           profit: b.realizedProfit,
-          hasMissingCost: b.hasMissingCost,
         });
       }
     }
 
     const q = incomeSearch.trim().toLowerCase();
-    const filtered = q
+    return q
       ? rows.filter(
           (row) =>
             row.title.toLowerCase().includes(q) ||
@@ -222,11 +387,9 @@ export default function FinancePage({
             (row.advisor && row.advisor.toLowerCase().includes(q))
         )
       : rows;
-
-    return filtered.sort((a, b) => b.sortTime - a.sortTime);
   }, [paidOrdersInPeriod, creditOrdersWithAbonosInPeriod, incomeFilter, incomeSearch]);
 
-  // Filas combinadas de egresos
+  // Filas combinadas de egresos P&L
   const expenseRows = useMemo(() => {
     const rows: Array<{
       id: string;
@@ -312,7 +475,7 @@ export default function FinancePage({
     }
 
     const q = expenseSearch.trim().toLowerCase();
-    const filtered = q
+    return q
       ? rows.filter(
           (row) =>
             row.title.toLowerCase().includes(q) ||
@@ -320,9 +483,34 @@ export default function FinancePage({
             row.badge.toLowerCase().includes(q)
         )
       : rows;
-
-    return filtered.sort((a, b) => b.sortTime - a.sortTime);
   }, [expensesInPeriod, paidOrdersInPeriod, openCreditOrdersInPeriod, expenseFilter, expenseSearch]);
+
+  // Filtro de filas para la tabla de conciliación
+  const visibleReconcileCandidates = useMemo(() => {
+    let list = reconcileCandidates;
+
+    if (reconcileAccountFilter !== "all") {
+      list = list.filter((c) => c.currentMethod === reconcileAccountFilter);
+    }
+
+    if (reconcileStatusFilter === "pending") {
+      list = list.filter((c) => !c.reconciled);
+    } else if (reconcileStatusFilter === "reconciled") {
+      list = list.filter((c) => c.reconciled);
+    }
+
+    const q = reconcileSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (c) =>
+          c.code.toLowerCase().includes(q) ||
+          c.customerName.toLowerCase().includes(q) ||
+          (c.reference && c.reference.toLowerCase().includes(q))
+      );
+    }
+
+    return list.sort((a, b) => (a.dateStr < b.dateStr ? 1 : -1));
+  }, [reconcileCandidates, reconcileAccountFilter, reconcileStatusFilter, reconcileSearch]);
 
   const periodRangeText = useMemo(() => {
     if (!periodFrom || !periodTo) return "Todo el historial acumulado";
@@ -331,7 +519,25 @@ export default function FinancePage({
 
   return (
     <div className="finance-page">
-      {/* Cabecera con regreso rapido y selector de periodo */}
+      {/* Selector de sub-sección: P&L vs Conciliación */}
+      <div className="finance-subnav">
+        <button
+          type="button"
+          className={`finance-subnav-btn${activeTab === "pnl" ? " active" : ""}`}
+          onClick={() => setActiveTab("pnl")}
+        >
+          Estado de Resultados y Utilidad
+        </button>
+        <button
+          type="button"
+          className={`finance-subnav-btn${activeTab === "reconciliation" ? " active" : ""}`}
+          onClick={() => setActiveTab("reconciliation")}
+        >
+          Conciliación y Cuadre de Cuentas
+        </button>
+      </div>
+
+      {/* Cabecera con regreso rápido y selector de período */}
       <div className="finance-toolbar">
         <div className="finance-toolbar-left">
           <AdminButton
@@ -373,499 +579,604 @@ export default function FinancePage({
         </div>
       </div>
 
-      {loading && !metrics && (
-        <div className="loading-state" role="status">
-          <span className="loading-spinner" aria-hidden="true" />
-          <span>Calculando resumen financiero, ingresos y egresos…</span>
+      {reconcileFeedback && (
+        <div className="notice-banner" role="status">
+          <CheckCircle2 size={16} />
+          <span>{reconcileFeedback}</span>
+          <button type="button" onClick={() => setReconcileFeedback(null)} aria-label="Cerrar">
+            <X size={14} />
+          </button>
         </div>
       )}
 
-      {/* Tarjetas principales de Resumen Financiero */}
-      <section className="finance-hero-grid" aria-label="Indicadores financieros principales">
-        <article className="finance-kpi-card finance-kpi-card--income">
-          <div className="finance-kpi-head">
-            <span className="finance-kpi-icon">
-              <ArrowUpRight size={18} />
-            </span>
-            <span className="finance-kpi-label">Total Ingresos Cobrados</span>
-          </div>
-          <strong className="finance-kpi-value">{money(totalRevenue)}</strong>
-          {metrics?.period_days && (
-            <Delta
-              current={totalRevenue}
-              previous={Number(metrics.previous.sales_revenue)}
-            />
-          )}
-          <div className="finance-kpi-Sublist">
-            <div>
-              <span>Ventas pagadas ({paidOrdersInPeriod.length})</span>
-              <strong>{money(paidOrdersTotal)}</strong>
-            </div>
-            <div>
-              <span>Abonos de créditos ({creditOrdersWithAbonosInPeriod.length})</span>
-              <strong>{money(abonosTotal)}</strong>
-            </div>
-          </div>
-        </article>
-
-        <article className="finance-kpi-card finance-kpi-card--expense">
-          <div className="finance-kpi-head">
-            <span className="finance-kpi-icon">
-              <ArrowDownRight size={18} />
-            </span>
-            <span className="finance-kpi-label">Total Costos y Egresos</span>
-          </div>
-          <strong className="finance-kpi-value">{money(totalOutflows)}</strong>
-          <div className="finance-kpi-Sublist">
-            <div>
-              <span>Costo de productos cubierto</span>
-              <strong>{money(salesCost)}</strong>
-            </div>
-            <div>
-              <span>Costo de domicilios cubierto</span>
-              <strong>{money(deliveryCost)}</strong>
-            </div>
-            <div>
-              <span>Gastos operativos ({expensesInPeriod.length})</span>
-              <strong>{money(operatingExpenses)}</strong>
-            </div>
-          </div>
-        </article>
-
-        <article
-          className={`finance-kpi-card finance-kpi-card--profit${
-            netProfit < 0 ? " is-negative" : ""
-          }`}
-        >
-          <div className="finance-kpi-head">
-            <span className="finance-kpi-icon">
-              {netProfit < 0 ? <TrendingDown size={18} /> : <TrendingUp size={18} />}
-            </span>
-            <span className="finance-kpi-label">Utilidad Neta Real</span>
-          </div>
-          <strong className="finance-kpi-value">
-            {metrics && metrics.missing_cost_items > 0 ? "Incompleta" : money(netProfit)}
-          </strong>
-          {metrics?.period_days && metrics.missing_cost_items === 0 && (
-            <Delta
-              current={netProfit}
-              previous={Number(metrics.previous.sales_profit)}
-            />
-          )}
-          <div className="finance-kpi-Sublist">
-            <div>
-              <span>Margen neto sobre ingresos</span>
-              <strong>{netMargin}%</strong>
-            </div>
-            <div>
-              <span>Utilidad bruta (ventas - costos)</span>
-              <strong>{money(grossProfit)}</strong>
-            </div>
-          </div>
-        </article>
-      </section>
-
-      {/* Bloque 1: Estado de Resultados / Resumen Financiero paso a paso */}
-      <section className="admin-card finance-statement-card">
-        <div className="card-title">
-          <div>
-            <h2>Resumen Financiero (Estado de Resultados)</h2>
-            <span>
-              Cada abono suma al valor vendido, cubre primero el costo del pedido hasta su tope y el excedente pasa a tu utilidad
-            </span>
-          </div>
-          <BarChart3 size={18} />
+      {loading && !metrics && (
+        <div className="loading-state" role="status">
+          <span className="loading-spinner" aria-hidden="true" />
+          <span>Calculando cifras financieras…</span>
         </div>
+      )}
 
-        <div className="finance-statement-grid">
-          <div className="finance-waterfall">
-            <div className="finance-line finance-line--positive">
-              <div className="finance-line-info">
-                <ReceiptText size={16} />
-                <div>
-                  <strong>(+) Ventas completadas y pagadas</strong>
-                  <small>{paidOrdersInPeriod.length} pedidos pagados al 100%</small>
-                </div>
-              </div>
-              <span className="finance-line-amount positive">+{money(paidOrdersTotal)}</span>
+      {/* ========================================================
+          VISTA 1: CONCILIACIÓN Y CUADRE DE CUENTAS
+         ======================================================== */}
+      {activeTab === "reconciliation" && (
+        <div className="reconciliation-view">
+          {/* Tarjetas de Cuadre por Canal */}
+          <div className="card-title">
+            <div>
+              <h2>Arqueo y Cuadre por Bolsillo</h2>
+              <span>Compara el saldo esperado de tus ventas contra el saldo real en tu cuenta o caja física</span>
             </div>
-
-            <div className="finance-line finance-line--positive">
-              <div className="finance-line-info">
-                <CreditCard size={16} />
-                <div>
-                  <strong>(+) Abonos recibidos en pedidos a crédito</strong>
-                  <small>{creditOrdersWithAbonosInPeriod.length} pedidos a crédito con abonos recibidos</small>
-                </div>
-              </div>
-              <span className="finance-line-amount positive">+{money(abonosTotal)}</span>
-            </div>
-
-            <div className="finance-line finance-line--subtotal">
-              <div className="finance-line-info">
-                <DollarSign size={16} />
-                <div>
-                  <strong>(=) Total Ingresos Cobrados (Valor vendido)</strong>
-                  <small>Dinero efectivamente recibido por ventas y abonos</small>
-                </div>
-              </div>
-              <span className="finance-line-amount">{money(totalRevenue)}</span>
-            </div>
-
-            <div className="finance-line finance-line--negative">
-              <div className="finance-line-info">
-                <Package size={16} />
-                <div>
-                  <strong>(-) Costo de productos cubierto</strong>
-                  <small>Costo de ventas pagadas + costo cubierto por abonos (hasta el tope de cada pedido)</small>
-                </div>
-              </div>
-              <span className="finance-line-amount negative">-{money(salesCost)}</span>
-            </div>
-
-            <div className="finance-line finance-line--negative">
-              <div className="finance-line-info">
-                <Truck size={16} />
-                <div>
-                  <strong>(-) Costo de domicilios cubierto</strong>
-                  <small>Envíos asumidos por la tienda en las ventas cobradas</small>
-                </div>
-              </div>
-              <span className="finance-line-amount negative">-{money(deliveryCost)}</span>
-            </div>
-
-            <div className="finance-line finance-line--subtotal">
-              <div className="finance-line-info">
-                <Percent size={16} />
-                <div>
-                  <strong>(=) Utilidad Bruta de Ventas</strong>
-                  <small>Ganancia de los pedidos una vez recuperado su costo</small>
-                </div>
-              </div>
-              <span className="finance-line-amount">{money(grossProfit)}</span>
-            </div>
-
-            <div className="finance-line finance-line--negative">
-              <div className="finance-line-info">
-                <Wallet size={16} />
-                <div>
-                  <strong>(-) Gastos operativos pagados</strong>
-                  <small>{expensesInPeriod.length} gastos registrados en el período</small>
-                </div>
-              </div>
-              <span className="finance-line-amount negative">-{money(operatingExpenses)}</span>
-            </div>
-
-            <div className={`finance-line finance-line--total${netProfit < 0 ? " is-loss" : ""}`}>
-              <div className="finance-line-info">
-                <TrendingUp size={18} />
-                <div>
-                  <strong>(=) UTILIDAD NETA REAL</strong>
-                  <small>Margen neto del período: {netMargin}%</small>
-                </div>
-              </div>
-              <span className="finance-line-amount">
-                {metrics && metrics.missing_cost_items > 0 ? "Incompleta" : money(netProfit)}
-              </span>
+            <div className="reconcile-actions">
+              <input
+                ref={nequiFileInputRef}
+                type="file"
+                accept=".csv"
+                style={{ display: "none" }}
+                onChange={handleNequiFileUpload}
+              />
+              <AdminButton
+                tone="primary"
+                compact
+                type="button"
+                onClick={() => nequiFileInputRef.current?.click()}
+              >
+                <FileSpreadsheet size={16} /> Importar Reporte Nequi (CSV)
+              </AdminButton>
             </div>
           </div>
 
-          {/* Panel lateral: Cartera por entrar y Gastos por categoría */}
-          <div className="finance-side-panels">
-            <div className="finance-side-box">
-              <h3>Capital pendiente en Cartera</h3>
-              <p className="finance-side-hint">
-                En las ventas a crédito, los primeros abonos recuperan el costo del producto y a partir de ese tope todo abono adicional es utilidad pura.
-              </p>
-              <div className="finance-side-rows">
-                <div>
-                  <span>Saldo total por cobrar (CXC)</span>
-                  <strong>{money(Number(metrics?.credit_outstanding_balance ?? 0))}</strong>
-                </div>
-                <div>
-                  <span>
-                    <Lock size={12} style={{ verticalAlign: "-1px", marginRight: 4 }} />
-                    Costo aún por recuperar en fiados
-                  </span>
-                  <strong>{money(creditCostPending)}</strong>
-                </div>
-                <div>
-                  <span>Utilidad por entrar (en cartera)</span>
-                  <strong className="profit-good">{money(Number(metrics?.locked_credit_profit ?? 0))}</strong>
-                </div>
-                <div>
-                  <span>Cartera vencida</span>
-                  <strong className={Number(metrics?.credit_overdue_balance ?? 0) > 0 ? "profit-loss" : ""}>
-                    {money(Number(metrics?.credit_overdue_balance ?? 0))}
-                  </strong>
-                </div>
-                {Number(metrics?.committed_expenses ?? 0) > 0 && (
-                  <div>
-                    <span>Gastos recurrentes próximos</span>
-                    <strong>{money(Number(metrics?.committed_expenses ?? 0))}</strong>
+          <div className="reconcile-channels-grid">
+            {channelBalances.map((channel) => {
+              const actualInput = actualBalances[channel.key] ?? "";
+              const actualNum = Number(actualInput);
+              const hasActual = actualInput.trim() !== "" && !isNaN(actualNum);
+              const diff = hasActual ? actualNum - channel.expected : null;
+
+              return (
+                <div className="reconcile-channel-card" key={channel.key}>
+                  <div className="reconcile-channel-head">
+                    <strong>{channel.label}</strong>
                   </div>
-                )}
-              </div>
-              <div className="finance-side-actions">
-                <AdminButton
-                  tone="secondary"
-                  compact
-                  type="button"
-                  onClick={() => onSectionChange("credit")}
-                >
-                  Ver cartera y registrar abonos
-                </AdminButton>
+
+                  <div className="reconcile-channel-metrics">
+                    <div>
+                      <span>Ingresos cobrados</span>
+                      <strong className="profit-good">+{money(channel.inflows)}</strong>
+                    </div>
+                    <div>
+                      <span>Gastos pagados</span>
+                      <strong className="profit-loss">-{money(channel.outflows)}</strong>
+                    </div>
+                    <div className="reconcile-expected-row">
+                      <span>Saldo neto esperado</span>
+                      <strong>{money(channel.expected)}</strong>
+                    </div>
+                  </div>
+
+                  <div className="reconcile-actual-input">
+                    <label>
+                      <span>Saldo real en banco / caja</span>
+                      <input
+                        type="number"
+                        placeholder="Escribe lo que tienes"
+                        value={actualInput}
+                        onChange={(e) =>
+                          setActualBalances((prev) => ({ ...prev, [channel.key]: e.target.value }))
+                        }
+                      />
+                    </label>
+                  </div>
+
+                  {diff !== null && (
+                    <div
+                      className={`reconcile-diff-badge ${
+                        diff === 0 ? "is-exact" : diff < 0 ? "is-short" : "is-over"
+                      }`}
+                    >
+                      {diff === 0 ? (
+                        <span>✓ Totalmente cuadrado</span>
+                      ) : diff < 0 ? (
+                        <span>Faltan {money(Math.abs(diff))}</span>
+                      ) : (
+                        <span>Sobran {money(diff)}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Tabla de Punteo de Movimientos */}
+          <section className="admin-card finance-detail-card" style={{ marginTop: "24px" }}>
+            <div className="card-title">
+              <div>
+                <h2>Punteo de Pagos Recibidos ({visibleReconcileCandidates.length})</h2>
+                <span>Verifica cada venta o abono contra tus comprobantes o extractos</span>
               </div>
             </div>
 
-            <div className="finance-side-box">
-              <div className="finance-side-box-head">
-                <h3>Gastos por Categoría</h3>
-                <AdminButton
-                  tone="secondary"
-                  compact
+            <div className="finance-filter-bar">
+              <div className="chart-period-switch" role="group" aria-label="Filtrar por cuenta">
+                <button
                   type="button"
-                  onClick={() => onSectionChange("expenses")}
+                  className={reconcileAccountFilter === "all" ? "selected" : ""}
+                  onClick={() => setReconcileAccountFilter("all")}
                 >
-                  <Plus size={14} /> Nuevo gasto
-                </AdminButton>
+                  Todas las cuentas
+                </button>
+                <button
+                  type="button"
+                  className={reconcileAccountFilter === "nequi_daviplata" ? "selected" : ""}
+                  onClick={() => setReconcileAccountFilter("nequi_daviplata")}
+                >
+                  Nequi / Daviplata
+                </button>
+                <button
+                  type="button"
+                  className={reconcileAccountFilter === "bancolombia" ? "selected" : ""}
+                  onClick={() => setReconcileAccountFilter("bancolombia")}
+                >
+                  Bancolombia
+                </button>
+                <button
+                  type="button"
+                  className={reconcileAccountFilter === "efectivo" ? "selected" : ""}
+                  onClick={() => setReconcileAccountFilter("efectivo")}
+                >
+                  Efectivo
+                </button>
+                <button
+                  type="button"
+                  className={reconcileAccountFilter === "datafono" ? "selected" : ""}
+                  onClick={() => setReconcileAccountFilter("datafono")}
+                >
+                  Datafono
+                </button>
               </div>
-              {expensesByCategory.length === 0 ? (
-                <p className="finance-side-hint">No hay gastos operativos registrados en este período.</p>
-              ) : (
-                <div className="finance-category-list">
-                  {expensesByCategory.map((item) => {
-                    const pct = operatingExpenses > 0 ? Math.round((item.amount / operatingExpenses) * 100) : 0;
-                    return (
-                      <div key={item.category} className="finance-category-item">
-                        <div className="finance-category-top">
-                          <span>
-                            <strong>{item.category}</strong> <small>({item.count})</small>
-                          </span>
-                          <span>
-                            <strong>{money(item.amount)}</strong> <small>{pct}%</small>
-                          </span>
-                        </div>
-                        <div className="finance-category-bar">
-                          <div className="finance-category-fill" style={{ width: `${Math.max(pct, 4)}%` }} />
-                        </div>
+
+              <div className="chart-period-switch" role="group" aria-label="Filtrar por verificación">
+                <button
+                  type="button"
+                  className={reconcileStatusFilter === "all" ? "selected" : ""}
+                  onClick={() => setReconcileStatusFilter("all")}
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  className={reconcileStatusFilter === "pending" ? "selected" : ""}
+                  onClick={() => setReconcileStatusFilter("pending")}
+                >
+                  Sin verificar
+                </button>
+                <button
+                  type="button"
+                  className={reconcileStatusFilter === "reconciled" ? "selected" : ""}
+                  onClick={() => setReconcileStatusFilter("reconciled")}
+                >
+                  Verificados
+                </button>
+              </div>
+
+              <div className="search-box finance-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={reconcileSearch}
+                  onChange={(e) => setReconcileSearch(e.target.value)}
+                  placeholder="Buscar cliente, pedido o referencia…"
+                />
+              </div>
+            </div>
+
+            {visibleReconcileCandidates.length === 0 ? (
+              <EmptyState
+                icon={<Clock size={26} />}
+                title="Sin movimientos"
+                hint="No se encontraron pagos recibidos con los filtros actuales."
+              />
+            ) : (
+              <div className="admin-table finance-table-wrap">
+                <div className="table-row finance-income-row header">
+                  <span>Fecha</span>
+                  <span>Transacción / Cliente</span>
+                  <span>Canal de pago</span>
+                  <span>Referencia / Comprobante</span>
+                  <span className="cell-right">Monto</span>
+                  <span className="cell-center">Estado</span>
+                </div>
+                {visibleReconcileCandidates.map((candidate) => (
+                  <div className="table-row finance-income-row" key={`${candidate.type}-${candidate.id}`}>
+                    <span className="finance-date">{formatBogotaDate(candidate.dateStr)}</span>
+                    <div className="finance-row-main">
+                      <strong>{candidate.code}</strong>
+                      <span>{candidate.customerName}</span>
+                    </div>
+                    <div>
+                      <select
+                        className="finance-method-select"
+                        value={candidate.currentMethod}
+                        onChange={(e) => handleChangeCandidateMethod(candidate, e.target.value)}
+                      >
+                        {PAYMENT_METHODS.map((m) => (
+                          <option key={m.value} value={m.value}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <span>
+                      {candidate.reference ? (
+                        <code className="finance-ref-code">{candidate.reference}</code>
+                      ) : (
+                        <span style={{ color: "var(--muted)", fontSize: "12px" }}>—</span>
+                      )}
+                    </span>
+                    <span className="finance-num profit-good cell-right">
+                      +{money(candidate.amount)}
+                    </span>
+                    <div className="cell-center">
+                      <button
+                        type="button"
+                        className={`reconcile-toggle-btn${candidate.reconciled ? " is-checked" : ""}`}
+                        onClick={() => handleToggleReconcile(candidate)}
+                        title={candidate.reconciled ? "Clic para desmarcar" : "Clic para marcar como verificado"}
+                      >
+                        <CheckCircle2 size={16} />
+                        {candidate.reconciled ? "Verificado" : "Verificar"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Modal de Cruce Nequi */}
+          {nequiModalOpen && (
+            <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setNequiModalOpen(false)}>
+              <div className="add-modal" style={{ maxWidth: "800px", width: "95%" }}>
+                <button className="close" type="button" onClick={() => setNequiModalOpen(false)}>
+                  <X />
+                </button>
+                <p className="eyebrow">CONCILIACIÓN NEQUI</p>
+                <h2>Resultados del Cruce Automático</h2>
+                <p className="credit-modal-info">
+                  Se analizaron <strong>{nequiRawCount} transacciones</strong> de Nequi por un total de{" "}
+                  <strong>{money(nequiRawTotal)}</strong>.
+                </p>
+
+                <div className="nequi-match-summary">
+                  <span className="nequi-badge-exact">
+                    ✓ Coincidencias encontradas:{" "}
+                    {nequiMatches.filter((m) => m.matchedCandidate !== null).length}
+                  </span>
+                  <span className="nequi-badge-unmatched">
+                    Sin pedido en la tienda:{" "}
+                    {nequiMatches.filter((m) => m.matchedCandidate === null).length}
+                  </span>
+                </div>
+
+                <div className="admin-table nequi-results-table">
+                  <div className="table-row header">
+                    <span>Fecha Nequi</span>
+                    <span>Pagador (Nequi)</span>
+                    <span>Monto</span>
+                    <span>Coincidencia en tu tienda</span>
+                    <span>Diagnóstico</span>
+                  </div>
+                  {nequiMatches.map((m, idx) => (
+                    <div className="table-row" key={m.nequiTx.id || idx}>
+                      <span>{m.nequiTx.dateStr}</span>
+                      <strong>{m.nequiTx.payerName || "Sin nombre registrado"}</strong>
+                      <span>{money(m.nequiTx.amount)}</span>
+                      <div>
+                        {m.matchedCandidate ? (
+                          <div className="nequi-matched-item">
+                            <strong>{m.matchedCandidate.code}</strong>
+                            <span>{m.matchedCandidate.customerName}</span>
+                          </div>
+                        ) : (
+                          <span style={{ color: "#d97706" }}>Sin pedido asociado</span>
+                        )}
                       </div>
-                    );
-                  })}
+                      <small style={{ color: m.matchedCandidate ? "#166534" : "#991b1b" }}>
+                        {m.matchReason}
+                      </small>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* Bloque 2: Detalle de Ingresos */}
-      <section className="admin-card finance-detail-card">
-        <div className="card-title">
-          <div>
-            <h2>Detalle de Ingresos ({incomeRows.length})</h2>
-            <span>Entradas por ventas pagadas y abonos (mostrando cuánto cubrió de costo y cuánto dejó de utilidad)</span>
-          </div>
-          <TrendingUp size={18} />
-        </div>
-
-        <div className="finance-filter-bar">
-          <div className="chart-period-switch" role="group" aria-label="Filtrar ingresos">
-            <button
-              type="button"
-              className={incomeFilter === "all" ? "selected" : ""}
-              onClick={() => setIncomeFilter("all")}
-            >
-              Todos ({paidOrdersInPeriod.length + creditOrdersWithAbonosInPeriod.length})
-            </button>
-            <button
-              type="button"
-              className={incomeFilter === "paid_orders" ? "selected" : ""}
-              onClick={() => setIncomeFilter("paid_orders")}
-            >
-              Ventas pagadas ({paidOrdersInPeriod.length})
-            </button>
-            <button
-              type="button"
-              className={incomeFilter === "credit_abonos" ? "selected" : ""}
-              onClick={() => setIncomeFilter("credit_abonos")}
-            >
-              Pedidos con abonos ({creditOrdersWithAbonosInPeriod.length})
-            </button>
-          </div>
-
-          <div className="search-box finance-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              type="search"
-              value={incomeSearch}
-              onChange={(e) => setIncomeSearch(e.target.value)}
-              placeholder="Buscar cliente, pedido, perfume o asesor…"
-              aria-label="Buscar en ingresos"
-            />
-          </div>
-        </div>
-
-        {incomeRows.length === 0 ? (
-          <EmptyState
-            icon={<ReceiptText size={26} />}
-            title="Sin ingresos en este filtro"
-            hint="No se encontraron ventas pagadas ni abonos para el período o búsqueda seleccionada."
-          />
-        ) : (
-          <div className="admin-table finance-table-wrap">
-            <div className="table-row finance-income-row header">
-              <span>Fecha</span>
-              <span>Tipo</span>
-              <span>Cliente / Detalle</span>
-              <span>Costo Cubierto</span>
-              <span>Vendido (Cobrado)</span>
-              <span>Utilidad</span>
-            </div>
-            {incomeRows.map((row) => (
-              <div className="table-row finance-income-row" key={row.id}>
-                <span className="finance-date">{formatBogotaDate(row.dateStr)}</span>
-                <span>
-                  <span
-                    className={`finance-badge ${
-                      row.type === "paid_order" ? "finance-badge--sale" : "finance-badge--abono"
-                    }`}
+                <div className="edit-product-actions">
+                  <AdminButton tone="secondary" type="button" onClick={() => setNequiModalOpen(false)}>
+                    Cancelar
+                  </AdminButton>
+                  <AdminButton
+                    type="button"
+                    disabled={savingReconciliation || nequiMatches.every((m) => !m.matchedCandidate)}
+                    onClick={handleApplyNequiMatches}
                   >
-                    {row.type === "paid_order" ? "Venta pagada" : "Con abono"}
-                  </span>
-                </span>
-                <div className="finance-row-main">
-                  <strong>{row.title}</strong>
-                  <span>{row.subtitle}</span>
-                  {row.advisor && <small>Asesor: {row.advisor}</small>}
+                    {savingReconciliation
+                      ? "Conciliando…"
+                      : `Aprobar y Conciliar (${nequiMatches.filter((m) => m.matchedCandidate).length})`}
+                  </AdminButton>
                 </div>
-                <span className="finance-num">
-                  {money(row.coveredCost)}
-                  {row.type === "credit_abono" && row.coveredCost < row.fullCost && (
-                    <small style={{ display: "block", color: "var(--muted)", fontSize: "10px" }}>
-                      de {money(row.fullCost)}
-                    </small>
-                  )}
-                </span>
-                <span className="finance-num profit-good">
-                  +{money(row.revenue)}
-                  {row.type === "credit_abono" && (
-                    <small style={{ display: "block", color: "var(--muted)", fontSize: "10px", fontWeight: 400 }}>
-                      de {money(row.orderTotal)}
-                    </small>
-                  )}
-                </span>
-                <span
-                  className={`finance-num ${
-                    row.profit === null
-                      ? "profit-unknown"
-                      : row.profit > 0
-                        ? "profit-good"
-                        : ""
-                  }`}
-                >
-                  {row.profit === null ? "Sin costo" : money(row.profit)}
-                </span>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Bloque 3: Detalle de Egresos */}
-      <section className="admin-card finance-detail-card">
-        <div className="card-title">
-          <div>
-            <h2>Detalle de Egresos y Costos ({expenseRows.length})</h2>
-            <span>Gastos operativos registrados y costos cubiertos de productos y domicilios</span>
-          </div>
-          <Wallet size={18} />
-        </div>
-
-        <div className="finance-filter-bar">
-          <div className="chart-period-switch" role="group" aria-label="Filtrar egresos">
-            <button
-              type="button"
-              className={expenseFilter === "all" ? "selected" : ""}
-              onClick={() => setExpenseFilter("all")}
-            >
-              Todos
-            </button>
-            <button
-              type="button"
-              className={expenseFilter === "operating" ? "selected" : ""}
-              onClick={() => setExpenseFilter("operating")}
-            >
-              Gastos operativos ({expensesInPeriod.length})
-            </button>
-            <button
-              type="button"
-              className={expenseFilter === "product_cost" ? "selected" : ""}
-              onClick={() => setExpenseFilter("product_cost")}
-            >
-              Costos ventas pagadas
-            </button>
-            <button
-              type="button"
-              className={expenseFilter === "credit_cost" ? "selected" : ""}
-              onClick={() => setExpenseFilter("credit_cost")}
-            >
-              Costos en fiados ({openCreditOrdersInPeriod.length})
-            </button>
-          </div>
-
-          <div className="search-box finance-search">
-            <Search size={16} aria-hidden="true" />
-            <input
-              type="search"
-              value={expenseSearch}
-              onChange={(e) => setExpenseSearch(e.target.value)}
-              placeholder="Buscar gasto, categoría, pedido o producto…"
-              aria-label="Buscar en egresos"
-            />
-          </div>
-        </div>
-
-        {expenseRows.length === 0 ? (
-          <EmptyState
-            icon={<Wallet size={26} />}
-            title="Sin egresos en este filtro"
-            hint="No se encontraron gastos ni costos para el período o búsqueda seleccionada."
-          />
-        ) : (
-          <div className="admin-table finance-table-wrap">
-            <div className="table-row finance-expense-row header">
-              <span>Fecha</span>
-              <span>Categoría / Tipo</span>
-              <span>Concepto / Detalle</span>
-              <span>Costo Prod.</span>
-              <span>Domicilio</span>
-              <span>Costo / Salida</span>
             </div>
-            {expenseRows.map((row) => (
-              <div className="table-row finance-expense-row" key={row.id}>
-                <span className="finance-date">{formatBogotaDate(row.dateStr)}</span>
-                <span>
-                  <span className={`finance-badge finance-badge--${row.type}`}>
-                    {row.badge}
-                  </span>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================
+          VISTA 2: ESTADO DE RESULTADOS Y UTILIDAD (P&L)
+         ======================================================== */}
+      {activeTab === "pnl" && (
+        <>
+          {/* Tarjetas principales de Resumen Financiero */}
+          <section className="finance-hero-grid" aria-label="Indicadores financieros principales">
+            <article className="finance-kpi-card finance-kpi-card--income">
+              <div className="finance-kpi-head">
+                <span className="finance-kpi-icon">
+                  <ArrowUpRight size={18} />
                 </span>
-                <div className="finance-row-main">
-                  <strong>{row.title}</strong>
-                  <span>{row.subtitle}</span>
-                </div>
-                <span className="finance-num">
-                  {row.type === "operating" ? "—" : money(row.productCost)}
-                </span>
-                <span className="finance-num">
-                  {row.type === "operating" ? "—" : money(row.deliveryCost)}
-                </span>
-                <span className="finance-num profit-loss">-{money(row.totalOutflow)}</span>
+                <span className="finance-kpi-label">Total Ingresos Cobrados</span>
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+              <strong className="finance-kpi-value">{money(totalRevenue)}</strong>
+              {metrics?.period_days && (
+                <Delta
+                  current={totalRevenue}
+                  previous={Number(metrics.previous.sales_revenue)}
+                />
+              )}
+              <div className="finance-kpi-Sublist">
+                <div>
+                  <span>Ventas pagadas ({paidOrdersInPeriod.length})</span>
+                  <strong>{money(paidOrdersTotal)}</strong>
+                </div>
+                <div>
+                  <span>Abonos de créditos ({creditOrdersWithAbonosInPeriod.length})</span>
+                  <strong>{money(abonosTotal)}</strong>
+                </div>
+              </div>
+            </article>
+
+            <article className="finance-kpi-card finance-kpi-card--expense">
+              <div className="finance-kpi-head">
+                <span className="finance-kpi-icon">
+                  <ArrowDownRight size={18} />
+                </span>
+                <span className="finance-kpi-label">Total Costos y Egresos</span>
+              </div>
+              <strong className="finance-kpi-value">{money(totalOutflows)}</strong>
+              <div className="finance-kpi-Sublist">
+                <div>
+                  <span>Costo de productos cubierto</span>
+                  <strong>{money(salesCost)}</strong>
+                </div>
+                <div>
+                  <span>Costo de domicilios cubierto</span>
+                  <strong>{money(deliveryCost)}</strong>
+                </div>
+                <div>
+                  <span>Gastos operativos ({expensesInPeriod.length})</span>
+                  <strong>{money(operatingExpenses)}</strong>
+                </div>
+              </div>
+            </article>
+
+            <article
+              className={`finance-kpi-card finance-kpi-card--profit${
+                netProfit < 0 ? " is-negative" : ""
+              }`}
+            >
+              <div className="finance-kpi-head">
+                <span className="finance-kpi-icon">
+                  {netProfit < 0 ? <TrendingDown size={18} /> : <TrendingUp size={18} />}
+                </span>
+                <span className="finance-kpi-label">Utilidad Neta Real</span>
+              </div>
+              <strong className="finance-kpi-value">
+                {metrics && metrics.missing_cost_items > 0 ? "Incompleta" : money(netProfit)}
+              </strong>
+              {metrics?.period_days && metrics.missing_cost_items === 0 && (
+                <Delta
+                  current={netProfit}
+                  previous={Number(metrics.previous.sales_profit)}
+                />
+              )}
+              <div className="finance-kpi-Sublist">
+                <div>
+                  <span>Margen neto</span>
+                  <strong>{netMargin}%</strong>
+                </div>
+                <div>
+                  <span>Utilidad bruta</span>
+                  <strong>{money(grossProfit)}</strong>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          {/* Bloque 2: Detalle de Ingresos */}
+          <section className="admin-card finance-detail-card">
+            <div className="card-title">
+              <div>
+                <h2>Detalle de Ingresos Cobrados ({incomeRows.length})</h2>
+                <span>Ventas pagadas de contado y abonos de créditos que ya entraron a caja</span>
+              </div>
+              <DollarSign size={18} />
+            </div>
+
+            <div className="finance-filter-bar">
+              <div className="chart-period-switch" role="group" aria-label="Filtrar ingresos">
+                <button
+                  type="button"
+                  className={incomeFilter === "all" ? "selected" : ""}
+                  onClick={() => setIncomeFilter("all")}
+                >
+                  Todos ({paidOrdersInPeriod.length + creditOrdersWithAbonosInPeriod.length})
+                </button>
+                <button
+                  type="button"
+                  className={incomeFilter === "paid_orders" ? "selected" : ""}
+                  onClick={() => setIncomeFilter("paid_orders")}
+                >
+                  Ventas pagadas ({paidOrdersInPeriod.length})
+                </button>
+                <button
+                  type="button"
+                  className={incomeFilter === "credit_abonos" ? "selected" : ""}
+                  onClick={() => setIncomeFilter("credit_abonos")}
+                >
+                  Abonos de créditos ({creditOrdersWithAbonosInPeriod.length})
+                </button>
+              </div>
+
+              <div className="search-box finance-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={incomeSearch}
+                  onChange={(e) => setIncomeSearch(e.target.value)}
+                  placeholder="Buscar cliente, pedido o asesor…"
+                />
+              </div>
+            </div>
+
+            {incomeRows.length === 0 ? (
+              <EmptyState
+                icon={<DollarSign size={26} />}
+                title="Sin ingresos en este filtro"
+                hint="No se encontraron pedidos ni abonos cobrados para el período o búsqueda seleccionada."
+              />
+            ) : (
+              <div className="admin-table finance-table-wrap">
+                <div className="table-row finance-income-row header">
+                  <span>Fecha</span>
+                  <span>Pedido / Cliente</span>
+                  <span>Detalle de productos</span>
+                  <span>Asesor</span>
+                  <span>Ingreso Cobrado</span>
+                  <span>Utilidad</span>
+                </div>
+                {incomeRows.map((row) => (
+                  <div className="table-row finance-income-row" key={row.id}>
+                    <span className="finance-date">{formatBogotaDate(row.dateStr)}</span>
+                    <div className="finance-row-main">
+                      <strong>{row.title}</strong>
+                      <span className="finance-badge-type">
+                        {row.type === "paid_order" ? "Venta de contado" : "Abono de cartera"}
+                      </span>
+                    </div>
+                    <span className="finance-subtitle">{row.subtitle}</span>
+                    <span className="finance-advisor">{row.advisor || "Sin asesor"}</span>
+                    <span className="finance-num profit-good">+{money(row.revenue)}</span>
+                    <span className="finance-num">
+                      {row.profit === null ? "Sin costo" : money(row.profit)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Bloque 3: Detalle de Egresos */}
+          <section className="admin-card finance-detail-card">
+            <div className="card-title">
+              <div>
+                <h2>Detalle de Egresos y Costos ({expenseRows.length})</h2>
+                <span>Gastos operativos registrados y costos cubiertos de productos y domicilios</span>
+              </div>
+              <Wallet size={18} />
+            </div>
+
+            <div className="finance-filter-bar">
+              <div className="chart-period-switch" role="group" aria-label="Filtrar egresos">
+                <button
+                  type="button"
+                  className={expenseFilter === "all" ? "selected" : ""}
+                  onClick={() => setExpenseFilter("all")}
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  className={expenseFilter === "operating" ? "selected" : ""}
+                  onClick={() => setExpenseFilter("operating")}
+                >
+                  Gastos operativos ({expensesInPeriod.length})
+                </button>
+                <button
+                  type="button"
+                  className={expenseFilter === "product_cost" ? "selected" : ""}
+                  onClick={() => setExpenseFilter("product_cost")}
+                >
+                  Costos ventas pagadas
+                </button>
+                <button
+                  type="button"
+                  className={expenseFilter === "credit_cost" ? "selected" : ""}
+                  onClick={() => setExpenseFilter("credit_cost")}
+                >
+                  Costos en fiados ({openCreditOrdersInPeriod.length})
+                </button>
+              </div>
+
+              <div className="search-box finance-search">
+                <Search size={16} aria-hidden="true" />
+                <input
+                  type="search"
+                  value={expenseSearch}
+                  onChange={(e) => setExpenseSearch(e.target.value)}
+                  placeholder="Buscar gasto, categoría, pedido o producto…"
+                />
+              </div>
+            </div>
+
+            {expenseRows.length === 0 ? (
+              <EmptyState
+                icon={<Wallet size={26} />}
+                title="Sin egresos en este filtro"
+                hint="No se encontraron gastos ni costos para el período o búsqueda seleccionada."
+              />
+            ) : (
+              <div className="admin-table finance-table-wrap">
+                <div className="table-row finance-expense-row header">
+                  <span>Fecha</span>
+                  <span>Categoría / Tipo</span>
+                  <span>Concepto / Detalle</span>
+                  <span>Costo Prod.</span>
+                  <span>Domicilio</span>
+                  <span>Costo / Salida</span>
+                </div>
+                {expenseRows.map((row) => (
+                  <div className="table-row finance-expense-row" key={row.id}>
+                    <span className="finance-date">{formatBogotaDate(row.dateStr)}</span>
+                    <span>
+                      <span className={`finance-badge finance-badge--${row.type}`}>
+                        {row.badge}
+                      </span>
+                    </span>
+                    <div className="finance-row-main">
+                      <strong>{row.title}</strong>
+                      <span>{row.subtitle}</span>
+                    </div>
+                    <span className="finance-num">
+                      {row.type === "operating" ? "—" : money(row.productCost)}
+                    </span>
+                    <span className="finance-num">
+                      {row.type === "operating" ? "—" : money(row.deliveryCost)}
+                    </span>
+                    <span className="finance-num profit-loss">-{money(row.totalOutflow)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
     </div>
   );
 }
