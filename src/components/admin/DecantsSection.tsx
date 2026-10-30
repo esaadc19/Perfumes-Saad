@@ -22,16 +22,31 @@ import type { AdminOrder } from "../../services/admin";
 interface DecantsSectionProps {
   orders: AdminOrder[];
   period?: { from: string | null; to: string | null };
+  periodDays?: 7 | 30 | 90 | null;
   titleSuffix?: string;
 }
 
 export default function DecantsSection({
   orders,
   period,
+  periodDays,
   titleSuffix = "",
 }: DecantsSectionProps) {
   const [activeTab, setActiveTab] = useState<"orders" | "products" | "customers">("orders");
   const [search, setSearch] = useState("");
+
+  const periodLabel =
+    periodDays === 7
+      ? "Últimos 7 días"
+      : periodDays === 30
+      ? "Últimos 30 días"
+      : periodDays === 90
+      ? "Últimos 90 días"
+      : periodDays === null
+      ? "Todo el historial"
+      : period?.from && period?.to
+      ? `Del ${period.from} al ${period.to}`
+      : "Todo el historial";
 
   const analysis: DecantsAnalysis = useMemo(
     () => getDecantsAnalysis(orders, period),
@@ -89,7 +104,7 @@ export default function DecantsSection({
         <div>
           <div className="decants-badge">
             <Sparkles size={14} />
-            <span>Perfumería Fraccionada (10 ml)</span>
+            <span>Perfumería Fraccionada (10 ml) · {periodLabel}</span>
           </div>
           <h2 id="decants-section-title">Sección de Decants {titleSuffix}</h2>
           <span>
@@ -217,7 +232,7 @@ export default function DecantsSection({
               <span>Botellas estándar (30ml, 50ml, 100ml)</span>
             </div>
             <div className="decant-chart-badge">
-              <span>Total: {analysis.normalTotalUnits} unds</span>
+              <span>{periodLabel}: {analysis.normalTotalUnits} unds</span>
             </div>
           </div>
           {analysis.topNormalProducts.length === 0 ? (
@@ -254,7 +269,7 @@ export default function DecantsSection({
               <span>Fracciones y muestras solicitadas</span>
             </div>
             <div className="decant-chart-badge decant-chart-badge--gold">
-              <span>Total: {analysis.decantsTotalUnits} unds</span>
+              <span>{periodLabel}: {analysis.decantsTotalUnits} unds</span>
             </div>
           </div>
           {analysis.topMovedDecants.length === 0 ? (

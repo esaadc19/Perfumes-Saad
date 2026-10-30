@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -24,6 +24,7 @@ import Metric from "../../components/admin/Metric";
 import MetricGroup from "../../components/admin/MetricGroup";
 import MobileOverview from "../../components/admin/MobileOverview";
 import { money } from "../../lib/format";
+import { toBogotaDateStr } from "../../lib/order-finance";
 import type { AdminSection } from "../../lib/admin-routes";
 import type { AdminDashboardMetrics, AdminOrder, ProductProfitability } from "../../services/admin";
 import type { WasteRow } from "../../services/credits";
@@ -89,6 +90,18 @@ export default function DashboardPage({
   reportResult,
   onGenerateReport,
 }: DashboardPageProps) {
+  const activePeriod = useMemo(() => {
+    if (metricsPeriod === null) return { from: null, to: null };
+    if (metrics.period_from && metrics.period_to) {
+      return { from: metrics.period_from, to: metrics.period_to };
+    }
+    const now = new Date();
+    const toStr = toBogotaDateStr(now.toISOString());
+    const pastMs = now.getTime() - (metricsPeriod - 1) * 24 * 60 * 60 * 1000;
+    const fromStr = toBogotaDateStr(new Date(pastMs).toISOString());
+    return { from: fromStr, to: toStr };
+  }, [metricsPeriod, metrics.period_from, metrics.period_to]);
+
   return (
     <div className="overview-flow">
       {/* Estructura movil: resumen, ingresos y pedidos recientes. En
@@ -272,7 +285,7 @@ export default function DashboardPage({
       </Suspense>
 
       {/* SECCIÓN DE DECANTS (10 ML) Y COMPARATIVO DE CHARTS */}
-      <DecantsSection orders={orders} />
+      <DecantsSection orders={orders} period={activePeriod} periodDays={metricsPeriod} />
 
       {/* Rentabilidad por producto: no dice cuanto se vendio, sino que
           perfume deja mas utilidad. Se abre a pedido porque la consulta
