@@ -637,7 +637,7 @@ export async function togglePaymentReconciliation(
     target_id: targetId,
     new_reconciled: reconciled,
     new_method: method || null,
-    new_reference: reference || null,
+    new_reference: reference !== undefined ? reference : null,
   });
   if (error) {
     console.error("Error actualizando conciliación:", error);

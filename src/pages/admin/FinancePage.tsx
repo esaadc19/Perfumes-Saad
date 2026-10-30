@@ -295,9 +295,29 @@ export default function FinancePage({
   const handleToggleReconcile = async (candidate: ReconcileCandidate) => {
     const nextReconciled = !candidate.reconciled;
     try {
-      await togglePaymentReconciliation(candidate.type, candidate.id, nextReconciled);
+      await togglePaymentReconciliation(
+        candidate.type,
+        candidate.id,
+        nextReconciled,
+        candidate.currentMethod,
+        candidate.reference ?? undefined
+      );
       candidate.reconciled = nextReconciled;
-      setReconcileFeedback(`Pago ${candidate.code} ${nextReconciled ? "marcado como conciliado" : "desmarcado"}.`);
+      if (candidate.type === "order") {
+        const targetOrder = orders.find((o) => o.id === candidate.id);
+        if (targetOrder) {
+          targetOrder.reconciled = nextReconciled;
+        }
+      } else if (candidate.type === "credit_payment") {
+        for (const co of creditOrders) {
+          const p = co.payments?.find((pay) => pay.id === candidate.id);
+          if (p) {
+            p.reconciled = nextReconciled;
+            break;
+          }
+        }
+      }
+      setReconcileFeedback(`Pago ${candidate.code} ${nextReconciled ? "marcado como verificado" : "desmarcado"}.`);
     } catch (err) {
       alert("Error al actualizar: " + (err instanceof Error ? err.message : String(err)));
     }
@@ -306,13 +326,71 @@ export default function FinancePage({
   // Cambiar método individual
   const handleChangeCandidateMethod = async (candidate: ReconcileCandidate, newMethod: string) => {
     try {
-      await togglePaymentReconciliation(candidate.type, candidate.id, candidate.reconciled, newMethod);
+      await togglePaymentReconciliation(
+        candidate.type,
+        candidate.id,
+        candidate.reconciled,
+        newMethod,
+        candidate.reference ?? undefined
+      );
       candidate.currentMethod = newMethod;
+      if (candidate.type === "order") {
+        const targetOrder = orders.find((o) => o.id === candidate.id);
+        if (targetOrder) {
+          targetOrder.payment_method = newMethod as PaymentMethod;
+        }
+      } else if (candidate.type === "credit_payment") {
+        for (const co of creditOrders) {
+          const p = co.payments?.find((pay) => pay.id === candidate.id);
+          if (p) {
+            p.method = newMethod as PaymentMethod;
+            break;
+          }
+        }
+      }
       setReconcileFeedback(`Método de ${candidate.code} cambiado a ${newMethod}.`);
     } catch (err) {
       alert("Error al cambiar método: " + (err instanceof Error ? err.message : String(err)));
     }
   };
+
+  // Cambiar referencia individual (Bancolombia, Nequi personal, etc.)
+  const handleChangeCandidateReference = async (candidate: ReconcileCandidate, newRef: string) => {
+    const trimmed = newRef.trim();
+    const currentRef = (candidate.reference || "").trim();
+    if (trimmed === currentRef) return;
+
+    try {
+      await togglePaymentReconciliation(
+        candidate.type,
+        candidate.id,
+        candidate.reconciled,
+        candidate.currentMethod,
+        trimmed
+      );
+      candidate.reference = trimmed || null;
+      if (candidate.type === "order") {
+        const targetOrder = orders.find((o) => o.id === candidate.id);
+        if (targetOrder) {
+          targetOrder.transaction_reference = trimmed || null;
+        }
+      } else if (candidate.type === "credit_payment") {
+        for (const co of creditOrders) {
+          const p = co.payments?.find((pay) => pay.id === candidate.id);
+          if (p) {
+            p.transaction_reference = trimmed || null;
+            break;
+          }
+        }
+      }
+      setReconcileFeedback(`Referencia de ${candidate.code} guardada: ${trimmed || "(vacía)"}.`);
+    } catch (err) {
+      console.error("Error al guardar referencia:", err);
+      alert("Error al guardar referencia: " + (err instanceof Error ? err.message : String(err)));
+    }
+  };
+
+
 
   // Filas combinadas de ingresos P&L
   const incomeRows = useMemo(() => {
@@ -780,7 +858,7 @@ export default function FinancePage({
               />
             ) : (
               <div className="admin-table finance-table-wrap">
-                <div className="table-row finance-income-row header">
+                <div className="table-row finance-reconcile-row header">
                   <span>Fecha</span>
                   <span>Transacción / Cliente</span>
                   <span>Canal de pago</span>
@@ -789,7 +867,7 @@ export default function FinancePage({
                   <span className="cell-center">Estado</span>
                 </div>
                 {visibleReconcileCandidates.map((candidate) => (
-                  <div className="table-row finance-income-row" key={`${candidate.type}-${candidate.id}`}>
+                  <div className="table-row finance-reconcile-row" key={`${candidate.type}-${candidate.id}`}>
                     <span className="finance-date">{formatBogotaDate(candidate.dateStr)}</span>
                     <div className="finance-row-main">
                       <strong>{candidate.code}</strong>
@@ -808,13 +886,21 @@ export default function FinancePage({
                         ))}
                       </select>
                     </div>
-                    <span>
-                      {candidate.reference ? (
-                        <code className="finance-ref-code">{candidate.reference}</code>
-                      ) : (
-                        <span style={{ color: "var(--muted)", fontSize: "12px" }}>—</span>
-                      )}
-                    </span>
+                    <div className="finance-ref-input-wrap">
+                      <input
+                        type="text"
+                        className="finance-ref-input"
+                        placeholder="Anotar ref (Nequi, Bancolombia...)"
+                        defaultValue={candidate.reference || ""}
+                        key={`${candidate.type}-${candidate.id}-${candidate.reference || ""}`}
+                        onBlur={(e) => handleChangeCandidateReference(candidate, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            (e.target as HTMLInputElement).blur();
+                          }
+                        }}
+                      />
+                    </div>
                     <span className="finance-num profit-good cell-right">
                       +{money(candidate.amount)}
                     </span>
