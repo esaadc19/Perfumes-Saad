@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -54,8 +54,34 @@ export default function OrdersPage({
   onStatusChange: (order: AdminOrder, status: OrderStatus, paymentStatus: PaymentStatus) => void;
   salesAdvisors?: SalesAdvisor[];
 }) {
-  const [filter, setFilter] = useState<"all" | PaymentStatus>(showPendingOnly ? "pending" : "all");
+  const [filter, setFilter] = useState<string>(showPendingOnly ? "pending" : "all");
+  const [advisorFilter, setAdvisorFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
+
+  const advisorOptions = useMemo(() => {
+    const list: Array<{ id: string; name: string }> = [];
+    const seen = new Set<string>();
+
+    for (const advisor of salesAdvisors) {
+      if (!seen.has(advisor.id)) {
+        seen.add(advisor.id);
+        list.push({ id: advisor.id, name: advisor.full_name });
+      }
+    }
+
+    for (const order of orders) {
+      if (order.sales_advisor_id && !seen.has(order.sales_advisor_id)) {
+        seen.add(order.sales_advisor_id);
+        list.push({
+          id: order.sales_advisor_id,
+          name: order.sales_advisor_name || "Asesor",
+        });
+      }
+    }
+
+    return list.sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [salesAdvisors, orders]);
+
   const query = search.trim().toLowerCase();
   const visibleOrders = orders.filter((order) => {
     const matchesSearch = [
@@ -71,13 +97,21 @@ export default function OrdersPage({
         : filter === "credit"
         ? order.payment_status === "credit"
         : filter === "partial"
-        ? order.payment_status === "partial"
+        ? order.payment_status === "partial" || (order.payment_status === "credit" && getOrderFinancialBreakdown(order).collectedRevenue > 0)
+        : filter === "refunded"
+        ? order.payment_status === "refunded"
+        : filter === "paid"
+        ? order.payment_status === "paid"
         : order.payment_status === filter);
-    return matchesSearch && matchesStatus;
+    const matchesAdvisor = advisorFilter === "all" ||
+      (advisorFilter === "none"
+        ? !order.sales_advisor_id
+        : order.sales_advisor_id === advisorFilter);
+    return matchesSearch && matchesStatus && matchesAdvisor;
   });
   useEffect(() => {
     setPage(1);
-  }, [filter, query]);
+  }, [filter, advisorFilter, query]);
   const PAGE_SIZE = 10;
   const pageCount = Math.max(1, Math.ceil(visibleOrders.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -150,24 +184,52 @@ export default function OrdersPage({
         />
         <Metric title="Ventas completas" value={String(completedOrders.length)} numericValue={completedOrders.length} icon={<Check />} />
       </div>
-      <div className="transaction-filters" role="tablist" aria-label="Filtrar transacciones">
-        {([
-          ["all", "Todos"],
-          ["paid", "Ventas completas"],
-          ["pending", "Pendientes de pago"],
-          ["refunded", "Reembolsados"],
-        ] as const).map(([status, label]) => (
-          <AdminButton
-            key={status}
-            tone={filter === status ? "primary" : "secondary"}
-            compact
-            role="tab"
-            aria-selected={filter === status}
-            onClick={() => setFilter(status)}
+      <div className="order-filters-row" role="region" aria-label="Filtros de pedidos">
+        <div className="order-filter-group">
+          <label className="order-filter-item">
+            <span>Asesor</span>
+            <select
+              value={advisorFilter}
+              onChange={(event) => setAdvisorFilter(event.target.value)}
+              aria-label="Filtrar por asesor de venta"
+            >
+              <option value="all">Todos los asesores</option>
+              <option value="none">Sin asesor asignado</option>
+              {advisorOptions.map((adv) => (
+                <option key={adv.id} value={adv.id}>
+                  {adv.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="order-filter-item">
+            <span>Estado de pago</span>
+            <select
+              value={filter}
+              onChange={(event) => setFilter(event.target.value)}
+              aria-label="Filtrar por estado de pago"
+            >
+              <option value="all">Todos</option>
+              <option value="partial">Pago parcial</option>
+              <option value="refunded">Reembolsados</option>
+            </select>
+          </label>
+        </div>
+
+        {(advisorFilter !== "all" || filter !== "all" || query !== "") && (
+          <button
+            type="button"
+            className="order-filter-reset"
+            onClick={() => {
+              setAdvisorFilter("all");
+              setFilter("all");
+              onSearchChange("");
+            }}
           >
-            {label}
-          </AdminButton>
-        ))}
+            Limpiar filtros
+          </button>
+        )}
       </div>
       {missingCostItems > 0 && (
         <p className="profile-notice" role="status">
