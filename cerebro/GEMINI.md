@@ -67,7 +67,7 @@ flowchart LR
 ## Avance de las Áreas
 
 - [x] `10-ventas-catalogo` (Manual completado)
-- [ ] `20-pedidos-despachos`
+- [x] `20-pedidos-despachos` (Manual completado)
 - [ ] `30-inventario-decants`
 - [ ] `40-proveedores-compras`
 - [ ] `50-cartera-cobranza`
