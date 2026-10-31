@@ -58,7 +58,7 @@ Este archivo es el centro del cerebro operativo de **Perfumes SAAD**. Se lee cad
 
 - [x] `10-ventas-catalogo` (Manual completado)
 - [x] `20-pedidos-despachos` (Manual completado)
-- [ ] `30-inventario-decants`
+- [x] `30-inventario-decants` (Manual completado)
 - [ ] `40-proveedores-compras`
 - [ ] `50-cartera-cobranza`
 - [ ] `60-finanzas-conciliacion`
