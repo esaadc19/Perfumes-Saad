@@ -197,7 +197,7 @@ export async function updateCreditPayment(
   paymentId: string,
   payment: {
     amount: number;
-    method?: "efectivo" | "transferencia" | "otro";
+    method?: PaymentMethod;
     note?: string | null;
     paid_at?: string;
   }

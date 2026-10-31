@@ -9,6 +9,7 @@ import {
   CREDIT_METHODS,
   type CreditOrderSummary,
   type CreditPayment,
+  type PaymentMethod,
 } from "../../services/credits";
 import AdminButton from "../../components/admin/AdminButton";
 import EmptyState from "../../components/admin/EmptyState";
@@ -92,7 +93,7 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
     setError(null);
     try {
       const amount = Number(formData.get("amount"));
-      const method = formData.get("method") as "efectivo" | "transferencia" | "otro";
+      const method = formData.get("method") as PaymentMethod;
       const note = formData.get("note") as string;
       const paidAt = formData.get("paid_at") as string;
 
