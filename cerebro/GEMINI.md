@@ -24,7 +24,7 @@ Este archivo es el centro del cerebro operativo de **Perfumes SAAD**. Se lee cad
 | `30-inventario-decants` | Stock de botellas selladas, stock de decants (10 ml), insumos de fraccionamiento y mermas | Fraccionar botellas en decants de 10 ml con jeringas y atomizadores, etiquetar, registrar mermas (roturas, evaporación, muestras) | Panel de Inventario (`/productos`), sección de Decants en el Dashboard y bodega física |
 | `40-proveedores-compras` | Red de distribuidores mayoristas de perfumes (2 proveedores en Barranquilla), arbitraje de costos, pagos anticipados (Nequi/Bancolombia), fletes de abastecimiento y empaques | Consultar disponibilidad y precios por WhatsApp ante cotizaciones, arbitraje de margen, pago anticipado, auditar garantías y reposición de empaques de 50 unidades | Chats de WhatsApp con mayoristas, transferencias bancarias y recibos de flete |
 | `50-cartera-cobranza` | Clientes con crédito (círculo cerrado de confianza), esquema 50/50 quincenal (15 y 30), recaudos por Llave Nequi y control de morosidad | Validar paz y salvo previo, registrar 50% al entregar, enviar cobros automáticos por WhatsApp (`/cobrar`), aplicar 5 días de tolerancia y bloquear morosos | Módulo de Cartera (`/cartera`), pantalla de Cobro rápido (`/cobrar`) y Llave Nequi |
-| `60-finanzas-conciliacion` | P&L (ingresos, costo de producto, domicilios, gastos fijos, utilidad), conciliación bancaria y caja | Verificar pagos contra extractos y reportes CSV de Nequi/Bancolombia, registrar gastos fijos del local/operación, auditar utilidad neta | Módulo de Finanzas (`/utilidad`), reportes periódicos y extractos bancarios |
+| `60-finanzas-conciliacion` | P&L de recaudo real en caja, Nequi Negocios, Bancolombia, conciliación semanal CSV, pauta ($100k/sem) y fondo de reserva ($500k-$1M) | Verificar notificaciones bancarias push, conciliar CSV semanalmente en `/utilidad`, calcular utilidad neta y separar préstamos personales del dueño | Módulo de Finanzas (`/utilidad`), reportes CSV de Nequi Negocios y alertas bancarias |
 | `70-marketing-crm` | Mensajes de Instagram (Zernio CRM), fidelización, campañas de recompra y clientes VIP | Atender prospectos de Instagram DM, registrar interacciones en el CRM (`/crm`), planear lanzamientos de perfumes tendencia y promociones | CRM de Zernio, Instagram Direct y módulo de clientes |
 
 ---
@@ -71,7 +71,7 @@ flowchart LR
 - [x] `30-inventario-decants` (Manual completado)
 - [x] `40-proveedores-compras` (Manual completado)
 - [x] `50-cartera-cobranza` (Manual completado)
-- [ ] `60-finanzas-conciliacion`
+- [x] `60-finanzas-conciliacion` (Manual completado)
 - [ ] `70-marketing-crm`
 
 ---
