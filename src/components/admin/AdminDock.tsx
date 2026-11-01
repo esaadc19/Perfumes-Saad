@@ -19,6 +19,7 @@ import {
   Store,
   LogOut,
   TrendingUp,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,6 +43,7 @@ interface Group {
 }
 
 const GROUPS: Group[] = [
+  { title: "Empresa", ids: ["cerebro"] },
   { title: "Ventas", ids: ["finance", "credit", "reports"] },
   { title: "Negocio", ids: ["promotions", "expenses"] },
   { title: "Personas", ids: ["customers", "advisors", "profiles"] },
@@ -49,6 +51,7 @@ const GROUPS: Group[] = [
 ];
 
 const ICONS: Record<string, LucideIcon> = {
+  cerebro: Brain,
   finance: TrendingUp,
   credit: DollarSign,
   reports: BarChart3,

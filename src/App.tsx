@@ -2141,7 +2141,7 @@ function Admin({
   // instante y luego se llene.
   const visibleSections = allowedSections === null
     ? sections
-    : sections.filter((item) => allowedSections.includes(item.id) || (item.id === "finance" && allowedSections.includes("overview")));
+    : sections.filter((item) => allowedSections.includes(item.id) || ((item.id === "finance" || item.id === "cerebro") && allowedSections.includes("overview")));
 
   // La seccion activa nunca puede ser una que la cuenta no puede ver.
   // Si le quitan el permiso mientras la tiene abierta, cae a la primera
@@ -2155,13 +2155,13 @@ function Admin({
   // mostrando una pagina que la cuenta tiene bloqueada.
   useEffect(() => {
     if (!permissionsLoaded || allowedSections === null) return;
-    if (allowedSections.includes(requestedSection) || (requestedSection === "finance" && allowedSections.includes("overview"))) return;
+    if (allowedSections.includes(requestedSection) || ((requestedSection === "finance" || requestedSection === "cerebro") && allowedSections.includes("overview"))) return;
     const fallback = ADMIN_SECTIONS.find((id) => allowedSections.includes(id));
     if (fallback) onSectionChange(fallback);
   }, [permissionsLoaded, allowedSections, requestedSection, onSectionChange]);
 
   const setSection = (next: AdminSection) => {
-    if (allowedSections !== null && !allowedSections.includes(next) && !(next === "finance" && allowedSections.includes("overview"))) return;
+    if (allowedSections !== null && !allowedSections.includes(next) && !((next === "finance" || next === "cerebro") && allowedSections.includes("overview"))) return;
     onSectionChange(next);
   };
 
