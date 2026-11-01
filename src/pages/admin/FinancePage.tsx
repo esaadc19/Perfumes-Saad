@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ArrowUpRight,
   CalendarDays,
+  ShieldCheck,
   CheckCircle2,
   Clock,
   DollarSign,
@@ -172,6 +173,41 @@ export default function FinancePage({
   const totalInvested = useMemo(() => {
     return salesCost + deliveryCost + operatingExpenses + totalPersonalAdvance;
   }, [salesCost, deliveryCost, operatingExpenses, totalPersonalAdvance]);
+
+  // Meta estratégica: Fondo de Reserva de $1.000.000 COP
+  const RESERVE_GOAL = 1000000;
+  const currentReserveFund = Math.max(0, netProfit);
+  const reserveProgressPercent = Math.min(100, Math.round((currentReserveFund / RESERVE_GOAL) * 100));
+  const reserveMissing = Math.max(0, RESERVE_GOAL - currentReserveFund);
+
+  // Proyección de recaudo para la próxima quincena (15 o 30)
+  const fortnightProjection = useMemo(() => {
+    const today = new Date();
+    const bogotaDay = Number(
+      new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", day: "numeric" }).format(today)
+    );
+    const bogotaMonthName = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", month: "long" }).format(today);
+
+    const isFirstFortnight = bogotaDay <= 15;
+    const targetDateLabel = isFirstFortnight ? `15 de ${bogotaMonthName}` : `30 de ${bogotaMonthName}`;
+
+    const pendingCredits = creditOrders.filter((co) => co.status !== "paid");
+    const totalPendingRecaudo = pendingCredits.reduce(
+      (sum, co) => sum + Math.max(0, co.credit_amount - co.paid_amount),
+      0
+    );
+
+    const personalReimbursement = totalPersonalAdvance;
+    const estimatedLiquidProfit = Math.max(0, totalPendingRecaudo - personalReimbursement);
+
+    return {
+      targetDateLabel,
+      totalPendingRecaudo,
+      personalReimbursement,
+      estimatedLiquidProfit,
+      pendingCount: pendingCredits.length,
+    };
+  }, [creditOrders, totalPersonalAdvance]);
 
   // Candidatos para conciliación (Ventas de contado + Cada abono de cartera)
   const reconcileCandidates = useMemo((): ReconcileCandidate[] => {
@@ -1162,6 +1198,61 @@ export default function FinancePage({
                 <div>
                   <span>Utilidad bruta</span>
                   <strong>{money(grossProfit)}</strong>
+                </div>
+              </div>
+            </article>
+          </section>
+
+          {/* Bloque 1.5: Blindaje Financiero & Metas Estratégicas */}
+          <section className="finance-strategic-grid">
+            {/* Termómetro Fondo de Reserva */}
+            <article className="finance-strategic-card">
+              <div className="finance-strategic-head">
+                <span className="finance-strategic-title">
+                  <ShieldCheck size={18} />
+                  Fondo de Reserva de Capital
+                </span>
+                <span className={`finance-strategic-badge ${reserveProgressPercent < 50 ? "badge--warning" : ""}`}>
+                  {reserveProgressPercent}% alcanzado
+                </span>
+              </div>
+              <div className="finance-strategic-metrics">
+                <strong className="finance-strategic-value">{money(currentReserveFund)}</strong>
+                <span className="finance-strategic-goal">Meta: {money(RESERVE_GOAL)}</span>
+              </div>
+              <div className="finance-progress-bar-bg" role="progressbar" aria-valuenow={reserveProgressPercent} aria-valuemin={0} aria-valuemax={100}>
+                <div className="finance-progress-bar-fill" style={{ width: `${reserveProgressPercent}%` }} />
+              </div>
+              <p className="finance-strategic-desc">
+                {reserveMissing > 0
+                  ? `Faltan ${money(reserveMissing)} de utilidad neta para completar el colchón intocable de $1.000.000 COP y blindar al 100% las compras de inventario.`
+                  : "¡Fondo de reserva completado! La empresa cuenta con el colchón necesario para operar sin necesidad de adelantos personales."}
+              </p>
+            </article>
+
+            {/* Proyección Quincenal de Cartera */}
+            <article className="finance-strategic-card">
+              <div className="finance-strategic-head">
+                <span className="finance-strategic-title">
+                  <CalendarDays size={18} />
+                  Recaudo Próxima Quincena ({fortnightProjection.targetDateLabel})
+                </span>
+                <span className="finance-strategic-badge">
+                  {fortnightProjection.pendingCount} {fortnightProjection.pendingCount === 1 ? "crédito" : "créditos"}
+                </span>
+              </div>
+              <div className="finance-strategic-metrics">
+                <strong className="finance-strategic-value">{money(fortnightProjection.totalPendingRecaudo)}</strong>
+                <span className="finance-strategic-goal">Por cobrar</span>
+              </div>
+              <div className="finance-strategic-subitems">
+                <div>
+                  <span style={{ color: "var(--muted)" }}>👛 Reembolso a tu bolsillo personal:</span>
+                  <strong style={{ color: "#b45309" }}>{money(fortnightProjection.personalReimbursement)}</strong>
+                </div>
+                <div>
+                  <span style={{ color: "var(--muted)" }}>📈 Utilidad líquida esperada:</span>
+                  <strong style={{ color: "#059669" }}>{money(fortnightProjection.estimatedLiquidProfit)}</strong>
                 </div>
               </div>
             </article>

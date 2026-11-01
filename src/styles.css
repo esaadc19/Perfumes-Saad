@@ -4796,6 +4796,120 @@ footer a { color: #111; }
   font-variant-numeric: tabular-nums;
 }
 
+
+.finance-strategic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.finance-strategic-card {
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(44, 36, 32, 0.04);
+}
+
+.finance-strategic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.finance-strategic-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.finance-strategic-title svg {
+  color: var(--verde);
+}
+
+.finance-strategic-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(26, 46, 34, 0.08);
+  color: var(--verde);
+}
+
+.finance-strategic-badge.badge--warning {
+  background: rgba(217, 119, 6, 0.1);
+  color: #b45309;
+}
+
+.finance-progress-bar-bg {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(44, 36, 32, 0.08);
+  overflow: hidden;
+}
+
+.finance-progress-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  transition: width 0.4s ease;
+}
+
+.finance-strategic-metrics {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.finance-strategic-value {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+}
+
+.finance-strategic-goal {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.finance-strategic-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 0;
+}
+
+.finance-strategic-subitems {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(44, 36, 32, 0.06);
+  font-size: 12px;
+}
+
+.finance-strategic-subitems > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .finance-statement-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
