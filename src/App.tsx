@@ -123,6 +123,7 @@ const ProfilesPage = lazy(() => import("./pages/admin/ProfilesPage"));
 const ReportsPage = lazy(() => import("./pages/admin/ReportsPage"));
 const ProductsPage = lazy(() => import("./pages/admin/ProductsPage"));
 const FinancePage = lazy(() => import("./pages/admin/FinancePage"));
+const CerebroPage = lazy(() => import("./pages/admin/CerebroPage"));
 import {
   DEFAULT_STORE_SETTINGS,
   getStoreSettings,
@@ -165,6 +166,7 @@ import {
   X,
   MessageCircle,
   KanbanSquare,
+  Brain,
 } from "lucide-react";
 
 type CartItem = {
@@ -2100,6 +2102,7 @@ function Admin({
   }).length;
   const sections = [
     { id: "overview", title: "Dashboard", group: "GENERAL", icon: <LayoutDashboard size={18} /> },
+    { id: "cerebro", title: "Cerebro", group: "GENERAL", icon: <Brain size={18} /> },
     { id: "finance", title: "Utilidad", group: "GENERAL", icon: <TrendingUp size={18} />, hiddenInSidebar: true },
     {
       id: "transactions",
@@ -2283,7 +2286,7 @@ function Admin({
             setExpenses(expenseResult);
             setRecurringExpenses(recurringExpenseResult);
           }
-        } else if (section === "credit") {
+        } else if (section === "credit" || section === "cerebro") {
           // CreditPage loads its own data
         } else {
           const result = await getAdminProfiles();
@@ -3212,6 +3215,12 @@ function Admin({
               reportResult={reportResult}
               onGenerateReport={() => void generateReport()}
             />
+          </Suspense>
+        )}
+
+        {section === "cerebro" && (
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando Cerebro de la Empresa…</span></div>}>
+            <CerebroPage />
           </Suspense>
         )}
 
