@@ -23,7 +23,7 @@ Este archivo es el centro del cerebro operativo de **Perfumes SAAD**. Se lee cad
 | `20-pedidos-despachos` | Registro de pedidos confirmados, empaque, domicilios en Barranquilla y envíos nacionales | Confirmar pagos/abonos iniciales, alistar empaque con protección, coordinar domiciliario local o generar guía nacional (Interrapidísimo/Envía/Coordinadora), enviar link de rastreo (`?track=...`) | Panel de Pedidos (`/pedidos`), chats de WhatsApp y comprobantes de transferencia |
 | `30-inventario-decants` | Stock de botellas selladas, stock de decants (10 ml), insumos de fraccionamiento y mermas | Fraccionar botellas en decants de 10 ml con jeringas y atomizadores, etiquetar, registrar mermas (roturas, evaporación, muestras) | Panel de Inventario (`/productos`), sección de Decants en el Dashboard y bodega física |
 | `40-proveedores-compras` | Red de distribuidores mayoristas de perfumes (2 proveedores en Barranquilla), arbitraje de costos, pagos anticipados (Nequi/Bancolombia), fletes de abastecimiento y empaques | Consultar disponibilidad y precios por WhatsApp ante cotizaciones, arbitraje de margen, pago anticipado, auditar garantías y reposición de empaques de 50 unidades | Chats de WhatsApp con mayoristas, transferencias bancarias y recibos de flete |
-| `50-cartera-cobranza` | Clientes con crédito (fiado), saldos pendientes, fechas de vencimiento y abonos | Evaluar cupo de crédito, registrar abonos en el panel (`/cartera`), enviar recordatorios de cobro quincenales/mensuales por WhatsApp, bloquear morosos | Módulo de Cartera (`/cartera`) y pantalla de Cobro rápido (`/cobrar`) |
+| `50-cartera-cobranza` | Clientes con crédito (círculo cerrado de confianza), esquema 50/50 quincenal (15 y 30), recaudos por Llave Nequi y control de morosidad | Validar paz y salvo previo, registrar 50% al entregar, enviar cobros automáticos por WhatsApp (`/cobrar`), aplicar 5 días de tolerancia y bloquear morosos | Módulo de Cartera (`/cartera`), pantalla de Cobro rápido (`/cobrar`) y Llave Nequi |
 | `60-finanzas-conciliacion` | P&L (ingresos, costo de producto, domicilios, gastos fijos, utilidad), conciliación bancaria y caja | Verificar pagos contra extractos y reportes CSV de Nequi/Bancolombia, registrar gastos fijos del local/operación, auditar utilidad neta | Módulo de Finanzas (`/utilidad`), reportes periódicos y extractos bancarios |
 | `70-marketing-crm` | Mensajes de Instagram (Zernio CRM), fidelización, campañas de recompra y clientes VIP | Atender prospectos de Instagram DM, registrar interacciones en el CRM (`/crm`), planear lanzamientos de perfumes tendencia y promociones | CRM de Zernio, Instagram Direct y módulo de clientes |
 
@@ -70,7 +70,7 @@ flowchart LR
 - [x] `20-pedidos-despachos` (Manual completado)
 - [x] `30-inventario-decants` (Manual completado)
 - [x] `40-proveedores-compras` (Manual completado)
-- [ ] `50-cartera-cobranza`
+- [x] `50-cartera-cobranza` (Manual completado)
 - [ ] `60-finanzas-conciliacion`
 - [ ] `70-marketing-crm`
 
