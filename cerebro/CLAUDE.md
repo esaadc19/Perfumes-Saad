@@ -27,7 +27,7 @@ Este archivo es el centro del cerebro operativo de **Perfumes SAAD**. Se lee cad
 | `40-proveedores-compras` | Red de distribuidores mayoristas de perfumes (2 proveedores en Barranquilla), arbitraje de costos, pagos anticipados (Nequi/Bancolombia), fletes de abastecimiento y empaques | Consultar disponibilidad y precios por WhatsApp ante cotizaciones, arbitraje de margen, pago anticipado, auditar garantías y reposición de empaques de 50 unidades | Chats de WhatsApp con mayoristas, transferencias bancarias y recibos de flete |
 | `50-cartera-cobranza` | Clientes con crédito (círculo cerrado de confianza), esquema 50/50 quincenal (15 y 30), recaudos por Llave Nequi y control de morosidad | Validar paz y salvo previo, registrar 50% al entregar, enviar cobros automáticos por WhatsApp (`/cobrar`), aplicar 5 días de tolerancia y bloquear morosos | Módulo de Cartera (`/cartera`), pantalla de Cobro rápido (`/cobrar`) y Llave Nequi |
 | `60-finanzas-conciliacion` | P&L de recaudo real en caja, Nequi Negocios, Bancolombia, conciliación semanal CSV, pauta ($100k/sem) y fondo de reserva ($500k-$1M) | Verificar notificaciones bancarias push, conciliar CSV semanalmente en `/utilidad`, calcular utilidad neta y separar préstamos personales del dueño | Módulo de Finanzas (`/utilidad`), reportes CSV de Nequi Negocios y alertas bancarias |
-| `70-marketing-crm` | Mensajes de Instagram (Zernio CRM), fidelización, campañas de recompra y clientes VIP | Atender prospectos de Instagram DM, registrar interacciones en el CRM (`/crm`), planear lanzamientos de perfumes tendencia y promociones | CRM de Zernio, Instagram Direct y módulo de clientes |
+| `70-marketing-crm` | Instagram DM, Meta Ads ($100k/sem), Zernio CRM, seguimiento post-venta (día 4), ciclo de recompra (40 días) y precio VIP | Responder cotizaciones en DM con precios claros, publicar Reels y despachos, pautar perfumes virales y activar alertas de recompra | Instagram Direct, Meta Ads Manager y CRM (`/crm`) |
 
 ---
 
@@ -62,7 +62,7 @@ Este archivo es el centro del cerebro operativo de **Perfumes SAAD**. Se lee cad
 - [x] `40-proveedores-compras` (Manual completado)
 - [x] `50-cartera-cobranza` (Manual completado)
 - [x] `60-finanzas-conciliacion` (Manual completado)
-- [ ] `70-marketing-crm`
+- [x] `70-marketing-crm` (Manual completado)
 
 ---
 
