@@ -71,7 +71,17 @@ export interface AdminCustomer {
   credit_terms: "quincenal" | "mensual";
   credit_blocked: boolean;
   created_at: string;
-  orders: { total: number; status: string; created_at: string }[];
+  orders: {
+    id?: string;
+    total: number;
+    status: string;
+    created_at: string;
+    order_items?: {
+      product_name_snapshot: string;
+      size_ml: number;
+      quantity?: number;
+    }[];
+  }[];
 }
 
 export interface AdminProfile {
@@ -212,7 +222,7 @@ export async function getAdminCustomers(): Promise<AdminCustomer[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("customers")
-    .select("id, full_name, phone, email, city, credit_enabled, credit_limit, credit_terms, credit_blocked, created_at, orders(total, status, created_at)")
+    .select("id, full_name, phone, email, city, credit_enabled, credit_limit, credit_terms, credit_blocked, created_at, orders(id, total, status, created_at, order_items(product_name_snapshot, size_ml, quantity))")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los clientes:", error);
