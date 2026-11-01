@@ -988,7 +988,7 @@ footer a { color: #111; }
 .promotion-variants-modal { width: min(940px, 100%); }
 .promotion-variants-summary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 10px;
   margin: 16px 0;
 }
@@ -1884,7 +1884,7 @@ footer a { color: #111; }
   }
   .admin-navsheet-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
     gap: 8px;
   }
   .admin-navsheet-tile {
@@ -1951,7 +1951,7 @@ footer a { color: #111; }
 
 .profitability-totals {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 12px;
   margin-bottom: 16px;
   padding: 16px 18px;
@@ -4679,7 +4679,7 @@ footer a { color: #111; }
 
 .finance-hero-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
   gap: 16px;
 }
 
@@ -4697,6 +4697,16 @@ footer a { color: #111; }
 .finance-kpi-card--income {
   background: linear-gradient(180deg, #f3f9f5 0%, #ffffff 100%);
   border-color: #d8e9de;
+}
+
+.finance-kpi-card--invested {
+  background: linear-gradient(180deg, #f0f7ff 0%, #ffffff 100%);
+  border-color: #d0e4ff;
+}
+
+.finance-kpi-card--personal {
+  background: linear-gradient(180deg, #fffbf0 0%, #ffffff 100%);
+  border-color: #faecc8;
 }
 
 .finance-kpi-card--expense {
@@ -4728,6 +4738,16 @@ footer a { color: #111; }
   border-radius: 9px;
   background: rgba(26, 46, 34, 0.08);
   color: var(--verde);
+}
+
+.finance-kpi-card--invested .finance-kpi-icon {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+.finance-kpi-card--personal .finance-kpi-icon {
+  background: rgba(217, 119, 6, 0.1);
+  color: #d97706;
 }
 
 .finance-kpi-card--expense .finance-kpi-icon {

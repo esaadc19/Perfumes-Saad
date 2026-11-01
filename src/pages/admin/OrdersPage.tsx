@@ -260,6 +260,45 @@ export default function OrdersPage({
                 {b.isOpenCredit && (
                   <div className="order-credit-summary">
                     Abonado: <strong>{money(b.collectedRevenue)}</strong> de {money(b.orderTotal)} · Saldo: <strong>{money(b.creditBalance)}</strong>
+                    {b.unrecoveredCost > 0 ? (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          marginLeft: "0.5rem",
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          background: "#fef3c7",
+                          color: "#b45309",
+                          border: "1px solid #fde68a",
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                        }}
+                        title="Dinero de tu bolsillo adelantado para pagar al mayorista"
+                      >
+                        👛 De tu bolsillo: {money(b.unrecoveredCost)}
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          marginLeft: "0.5rem",
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          background: "#f0fdf4",
+                          color: "#15803d",
+                          border: "1px solid #bbf7d0",
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                        }}
+                        title="El costo ya fue recuperado. Lo que entre ahora es 100% utilidad de la empresa."
+                      >
+                        ✅ Costo recuperado
+                      </span>
+                    )}
                   </div>
                 )}
               </div>

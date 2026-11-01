@@ -160,6 +160,19 @@ export default function FinancePage({
       ? Math.round((netProfit / totalRevenue) * 1000) / 10
       : 0;
 
+  // Capital adelantado del bolsillo de Saad en pedidos a crédito abiertos (pendiente por recuperar)
+  const totalPersonalAdvance = useMemo(() => {
+    return openCreditOrdersInPeriod.reduce((sum, order) => {
+      const b = getOrderFinancialBreakdown(order);
+      return sum + b.unrecoveredCost;
+    }, 0);
+  }, [openCreditOrdersInPeriod]);
+
+  // Dinero total invertido en la operación (costos pagados + gastos + capital propio en fiados)
+  const totalInvested = useMemo(() => {
+    return salesCost + deliveryCost + operatingExpenses + totalPersonalAdvance;
+  }, [salesCost, deliveryCost, operatingExpenses, totalPersonalAdvance]);
+
   // Candidatos para conciliación (Ventas de contado + Cada abono de cartera)
   const reconcileCandidates = useMemo((): ReconcileCandidate[] => {
     const list: ReconcileCandidate[] = [];
@@ -1037,6 +1050,62 @@ export default function FinancePage({
                 <div>
                   <span>Abonos de créditos ({creditOrdersWithAbonosInPeriod.length})</span>
                   <strong>{money(abonosTotal)}</strong>
+                </div>
+              </div>
+            </article>
+
+            <article className="finance-kpi-card finance-kpi-card--invested">
+              <div className="finance-kpi-head">
+                <span className="finance-kpi-icon">
+                  <Package size={18} />
+                </span>
+                <span className="finance-kpi-label">Dinero Invertido</span>
+              </div>
+              <strong className="finance-kpi-value">{money(totalInvested)}</strong>
+              <div className="finance-kpi-Sublist">
+                <div>
+                  <span>Mercancía mayorista</span>
+                  <strong>{money(salesCost)}</strong>
+                </div>
+                <div>
+                  <span>Fletes y domicilios</span>
+                  <strong>{money(deliveryCost)}</strong>
+                </div>
+                <div>
+                  <span>Pauta y gastos ({expensesInPeriod.length})</span>
+                  <strong>{money(operatingExpenses)}</strong>
+                </div>
+                {totalPersonalAdvance > 0 && (
+                  <div>
+                    <span>Fiados activos (costo)</span>
+                    <strong style={{ color: "#d97706" }}>{money(totalPersonalAdvance)}</strong>
+                  </div>
+                )}
+              </div>
+            </article>
+
+            <article className="finance-kpi-card finance-kpi-card--personal">
+              <div className="finance-kpi-head">
+                <span className="finance-kpi-icon">
+                  <Wallet size={18} />
+                </span>
+                <span className="finance-kpi-label">Plata de Saad por Recuperar</span>
+              </div>
+              <strong className="finance-kpi-value" style={{ color: totalPersonalAdvance > 0 ? "#b45309" : "var(--foreground)" }}>
+                {money(totalPersonalAdvance)}
+              </strong>
+              <div className="finance-kpi-Sublist">
+                <div>
+                  <span>Origen del dinero</span>
+                  <strong>Bolsillo personal</strong>
+                </div>
+                <div>
+                  <span>Destino al cobrar</span>
+                  <strong>Reembolso a tu cuenta</strong>
+                </div>
+                <div>
+                  <span>Créditos abiertos</span>
+                  <strong>{openCreditOrdersInPeriod.length} {openCreditOrdersInPeriod.length === 1 ? "pedido" : "pedidos"}</strong>
                 </div>
               </div>
             </article>
