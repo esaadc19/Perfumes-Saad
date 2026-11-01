@@ -6046,3 +6046,54 @@ footer a { color: #111; }
   padding: 2px 7px;
   border-radius: 5px;
 }
+
+.order-cost-funded-section {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(44, 36, 32, 0.02);
+}
+
+.order-cost-funded-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.order-cost-funded-pill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.order-cost-funded-pill:hover:not(:disabled) {
+  border-color: var(--foreground);
+  color: var(--foreground);
+}
+
+.order-cost-funded-pill.active {
+  border-color: var(--verde);
+  background: rgba(26, 46, 34, 0.06);
+  color: var(--verde);
+  font-weight: 700;
+}
+
+.order-cost-funded-pill.active.pill--personal {
+  border-color: #d97706;
+  background: #fffbeb;
+  color: #b45309;
+}

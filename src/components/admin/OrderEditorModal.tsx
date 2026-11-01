@@ -70,7 +70,7 @@ export default function OrderEditorModal({
     deliveryCost: number,
     salesAdvisorId: string | null,
     orderStatus: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled",
-    paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial", paymentMethod?: string
+    paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial", paymentMethod: string, costFundedBy: "business" | "personal"
   ) => void;
 }) {
   const [customerId, setCustomerId] = useState(order?.customer_id ?? "");
@@ -99,6 +99,9 @@ export default function OrderEditorModal({
           day: "2-digit",
         }).format(new Date(order.created_at))
       : localToday
+  );
+  const [costFundedBy, setCostFundedBy] = useState<"business" | "personal">(
+    order?.cost_funded_by ?? "business"
   );
   const [deliveryCost, setDeliveryCost] = useState(String(order?.delivery_cost ?? 0));
   const [salesAdvisorId, setSalesAdvisorId] = useState(order?.sales_advisor_id ?? "");
@@ -235,7 +238,8 @@ export default function OrderEditorModal({
             salesAdvisorId || null,
             orderStatus,
             paymentStatus,
-            paymentMethod
+            paymentMethod,
+            costFundedBy
           );
         }}
       >
@@ -513,6 +517,35 @@ export default function OrderEditorModal({
             <p className="insight">Selecciona una presentación de la lista para agregarla al pedido.</p>
           )}
         </div>
+        <div className="order-cost-funded-section">
+          <label className="auth-label" style={{ marginBottom: 0 }}>
+            ¿Con qué dinero se pagó el costo de este pedido?
+            <div className="order-cost-funded-options">
+              <button
+                type="button"
+                className={`order-cost-funded-pill ${costFundedBy === "business" ? "active" : ""}`}
+                disabled={saving}
+                onClick={() => setCostFundedBy("business")}
+              >
+                🏢 Utilidad / Empresa
+              </button>
+              <button
+                type="button"
+                className={`order-cost-funded-pill ${costFundedBy === "personal" ? "active pill--personal" : ""}`}
+                disabled={saving}
+                onClick={() => setCostFundedBy("personal")}
+              >
+                👛 De mi bolsillo (Personal)
+              </button>
+            </div>
+            <small style={{ marginTop: "6px", display: "block" }}>
+              {costFundedBy === "personal"
+                ? "Adelanto de tu bolsillo: la empresa te reembolsará el costo a tu cuenta personal al cobrar."
+                : "Pagado con la utilidad de la empresa: no genera reembolso hacia tu bolsillo."}
+            </small>
+          </label>
+        </div>
+
         <label className="auth-label order-delivery-cost">
           Costo de domicilio pagado
           <input

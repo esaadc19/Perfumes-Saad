@@ -256,6 +256,18 @@ export default function OrdersPage({
                   {new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}
                   {" · "}
                   {order.sales_advisor_name || salesAdvisors.find((a) => a.id === order.sales_advisor_id)?.full_name || "Sin asesor"}
+                  {" · "}
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.2rem",
+                      fontWeight: 600,
+                      color: order.cost_funded_by === "personal" ? "#b45309" : "#059669",
+                    }}
+                  >
+                    {order.cost_funded_by === "personal" ? "👛 De mi bolsillo" : "🏢 Utilidad empresa"}
+                  </span>
                 </span>
                 {b.isOpenCredit && (
                   <div className="order-credit-summary">

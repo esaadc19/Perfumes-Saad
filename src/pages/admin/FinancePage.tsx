@@ -164,6 +164,8 @@ export default function FinancePage({
   // Capital adelantado del bolsillo de Saad en pedidos a crédito abiertos (pendiente por recuperar)
   const totalPersonalAdvance = useMemo(() => {
     return openCreditOrdersInPeriod.reduce((sum, order) => {
+      // Si el costo fue pagado con dinero del negocio/utilidad, no cuenta como anticipo de bolsillo
+      if (order.cost_funded_by === "business") return sum;
       const b = getOrderFinancialBreakdown(order);
       return sum + b.unrecoveredCost;
     }, 0);

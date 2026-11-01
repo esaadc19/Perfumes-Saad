@@ -141,6 +141,7 @@ export interface AdminOrder {
   reconciled?: boolean;
   reconciled_at?: string | null;
   transaction_reference?: string | null;
+  cost_funded_by?: "business" | "personal";
 }
 
 function requireSupabase() {
@@ -321,7 +322,7 @@ export async function getAdminOrders(): Promise<AdminOrder[]> {
   const client = requireSupabase();
   const { data, error } = await client
     .from("orders")
-    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, sales_advisor_id, sales_advisors(full_name), customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot), credit_due_date, credit_amount, credit_limit_snapshot, payment_method, reconciled, reconciled_at, transaction_reference")
+    .select("id, customer_id, status, payment_status, total, delivery_cost, paid_at, created_at, sales_advisor_id, sales_advisors(full_name), customers(full_name, phone, email), order_items(variant_id, product_name_snapshot, size_ml, quantity, unit_price, subtotal, unit_cost_snapshot), credit_due_date, credit_amount, credit_limit_snapshot, payment_method, reconciled, reconciled_at, transaction_reference, cost_funded_by")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("No se pudieron cargar los pedidos:", error);
@@ -429,6 +430,8 @@ export async function saveAdminPendingOrder(input: {
   salesAdvisorId: string | null;
   orderStatus?: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled";
   paymentStatus?: "pending" | "paid" | "refunded" | "credit" | "partial";
+  paymentMethod?: string;
+  costFundedBy?: "business" | "personal";
 }): Promise<string> {
   const client = requireSupabase();
   const { data, error } = await client.rpc("admin_save_pending_order", {
@@ -441,6 +444,8 @@ export async function saveAdminPendingOrder(input: {
     sales_advisor_id: input.salesAdvisorId,
     new_status: input.orderStatus ?? "pending_confirmation",
     new_payment_status: input.paymentStatus ?? "pending",
+    cost_funded_by: input.costFundedBy ?? "business",
+    new_payment_method: input.paymentMethod ?? "efectivo",
   });
   if (error) {
     console.error("No se pudo guardar el pedido:", error);
