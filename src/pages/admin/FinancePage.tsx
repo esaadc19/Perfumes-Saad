@@ -1066,6 +1066,7 @@ export default function FinancePage({
         <>
           {/* Tarjetas principales de Resumen Financiero */}
           <section className="finance-hero-grid" aria-label="Indicadores financieros principales">
+            {/* 1. Ingresos Cobrados */}
             <article className="finance-kpi-card finance-kpi-card--income">
               <div className="finance-kpi-head">
                 <span className="finance-kpi-icon">
@@ -1074,104 +1075,103 @@ export default function FinancePage({
                 <span className="finance-kpi-label">Total Ingresos Cobrados</span>
               </div>
               <strong className="finance-kpi-value">{money(totalRevenue)}</strong>
-              {metrics?.period_days && (
-                <Delta
-                  current={totalRevenue}
-                  previous={Number(metrics.previous.sales_revenue)}
-                />
-              )}
+              <div className="finance-kpi-badge-slot">
+                {metrics?.period_days ? (
+                  <Delta
+                    current={totalRevenue}
+                    previous={Number(metrics.previous.sales_revenue)}
+                  />
+                ) : (
+                  <span className="finance-kpi-tag finance-kpi-tag--info">Flujo recibido en caja</span>
+                )}
+              </div>
               <div className="finance-kpi-Sublist">
                 <div>
-                  <span>Ventas pagadas ({paidOrdersInPeriod.length})</span>
+                  <span>Ventas de contado ({paidOrdersInPeriod.length})</span>
                   <strong>{money(paidOrdersTotal)}</strong>
                 </div>
                 <div>
                   <span>Abonos de créditos ({creditOrdersWithAbonosInPeriod.length})</span>
                   <strong>{money(abonosTotal)}</strong>
                 </div>
+                <div>
+                  <span>Total cobros</span>
+                  <strong>{paidOrdersInPeriod.length + creditOrdersWithAbonosInPeriod.length} transacciones</strong>
+                </div>
               </div>
             </article>
 
+            {/* 2. Dinero Total Invertido */}
             <article className="finance-kpi-card finance-kpi-card--invested">
               <div className="finance-kpi-head">
                 <span className="finance-kpi-icon">
                   <Package size={18} />
                 </span>
-                <span className="finance-kpi-label">Dinero Invertido</span>
+                <span className="finance-kpi-label">Dinero Total Invertido</span>
               </div>
               <strong className="finance-kpi-value">{money(totalInvested)}</strong>
+              <div className="finance-kpi-badge-slot">
+                <span className="finance-kpi-tag finance-kpi-tag--neutral">
+                  Mercancía + Logística + Gastos
+                </span>
+              </div>
               <div className="finance-kpi-Sublist">
                 <div>
                   <span>Mercancía mayorista</span>
                   <strong>{money(salesCost)}</strong>
                 </div>
                 <div>
-                  <span>Fletes y domicilios</span>
+                  <span>Fletes y envíos</span>
                   <strong>{money(deliveryCost)}</strong>
                 </div>
                 <div>
                   <span>Pauta y gastos ({expensesInPeriod.length})</span>
                   <strong>{money(operatingExpenses)}</strong>
                 </div>
-                {totalPersonalAdvance > 0 && (
-                  <div>
-                    <span>Fiados activos (costo)</span>
-                    <strong style={{ color: "#d97706" }}>{money(totalPersonalAdvance)}</strong>
-                  </div>
-                )}
               </div>
             </article>
 
+            {/* 3. Plata de Saad (Bolsillo) */}
             <article className="finance-kpi-card finance-kpi-card--personal">
               <div className="finance-kpi-head">
                 <span className="finance-kpi-icon">
                   <Wallet size={18} />
                 </span>
-                <span className="finance-kpi-label">Plata de Saad por Recuperar</span>
+                <span className="finance-kpi-label">Plata de Saad (Bolsillo)</span>
               </div>
               <strong className="finance-kpi-value" style={{ color: totalPersonalAdvance > 0 ? "#b45309" : "var(--foreground)" }}>
                 {money(totalPersonalAdvance)}
               </strong>
+              <div className="finance-kpi-badge-slot">
+                {totalPersonalAdvance > 0 ? (
+                  <span className="finance-kpi-tag finance-kpi-tag--warning">
+                    Por recuperar de cartera
+                  </span>
+                ) : (
+                  <span className="finance-kpi-tag finance-kpi-tag--success">
+                    ✓ Bolsillo personal al día
+                  </span>
+                )}
+              </div>
               <div className="finance-kpi-Sublist">
                 <div>
-                  <span>Origen del dinero</span>
-                  <strong>Bolsillo personal</strong>
-                </div>
-                <div>
-                  <span>Destino al cobrar</span>
-                  <strong>Reembolso a tu cuenta</strong>
+                  <span>Cartera fiada total</span>
+                  <strong>{money(fortnightProjection.totalPendingRecaudo)}</strong>
                 </div>
                 <div>
                   <span>Créditos abiertos</span>
                   <strong>{openCreditOrdersInPeriod.length} {openCreditOrdersInPeriod.length === 1 ? "pedido" : "pedidos"}</strong>
                 </div>
-              </div>
-            </article>
-
-            <article className="finance-kpi-card finance-kpi-card--expense">
-              <div className="finance-kpi-head">
-                <span className="finance-kpi-icon">
-                  <ArrowDownRight size={18} />
-                </span>
-                <span className="finance-kpi-label">Total Costos y Egresos</span>
-              </div>
-              <strong className="finance-kpi-value">{money(totalOutflows)}</strong>
-              <div className="finance-kpi-Sublist">
                 <div>
-                  <span>Costo de productos cubierto</span>
-                  <strong>{money(salesCost)}</strong>
-                </div>
-                <div>
-                  <span>Costo de domicilios cubierto</span>
-                  <strong>{money(deliveryCost)}</strong>
-                </div>
-                <div>
-                  <span>Gastos operativos ({expensesInPeriod.length})</span>
-                  <strong>{money(operatingExpenses)}</strong>
+                  <span>Por reembolsar a ti</span>
+                  <strong style={{ color: totalPersonalAdvance > 0 ? "#b45309" : "inherit" }}>
+                    {money(totalPersonalAdvance)}
+                  </strong>
                 </div>
               </div>
             </article>
 
+            {/* 4. Utilidad Neta Real */}
             <article
               className={`finance-kpi-card finance-kpi-card--profit${
                 netProfit < 0 ? " is-negative" : ""
@@ -1186,20 +1186,28 @@ export default function FinancePage({
               <strong className="finance-kpi-value">
                 {metrics && metrics.missing_cost_items > 0 ? "Incompleta" : money(netProfit)}
               </strong>
-              {metrics?.period_days && metrics.missing_cost_items === 0 && (
-                <Delta
-                  current={netProfit}
-                  previous={Number(metrics.previous.sales_profit)}
-                />
-              )}
+              <div className="finance-kpi-badge-slot">
+                {metrics?.period_days && metrics.missing_cost_items === 0 ? (
+                  <Delta
+                    current={netProfit}
+                    previous={Number(metrics.previous.sales_profit)}
+                  />
+                ) : (
+                  <span className="finance-kpi-tag finance-kpi-tag--success">Ganancia libre</span>
+                )}
+              </div>
               <div className="finance-kpi-Sublist">
-                <div>
-                  <span>Margen neto</span>
-                  <strong>{netMargin}%</strong>
-                </div>
                 <div>
                   <span>Utilidad bruta</span>
                   <strong>{money(grossProfit)}</strong>
+                </div>
+                <div>
+                  <span>Gastos operativos</span>
+                  <strong>−{money(operatingExpenses)}</strong>
+                </div>
+                <div>
+                  <span>Margen neto real</span>
+                  <strong style={{ color: netProfit >= 0 ? "#059669" : "#dc2626" }}>{netMargin}%</strong>
                 </div>
               </div>
             </article>
