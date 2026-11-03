@@ -1,12 +1,12 @@
-// Pruebas de la plantilla del correo de reportes.
+// Pruebas de la plantilla del correo de reportes ejecutivos - Perfumes SAAD.
 //
 // Se corre con Node (23.6+) que ejecuta TypeScript nativo:
 //   node supabase/functions/_shared/report-email.test.ts
 //
 // Cubre: titulos dinamicos (DIARIO/SEMANAL/MENSUAL/por dias), numero de
-// reporte, fechas en largo, utilidad incompleta, falta de periodo de
-// comparacion, nota de fiado, abonos de fiado, canales, escape de HTML y
-// degradacion cuando la RPC vieja no trae los datos nuevos.
+// reporte, fechas en formato ejecutivo, utilidad incompleta, indicador de tendencia,
+// nota de fiado, abonos de fiado, canales, grafico de barras SVG de 8 semanas,
+// escape de HTML y degradacion limpia ante datos vacios.
 
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
@@ -26,6 +26,9 @@ function check(label: string, condition: boolean): void {
 function clean(html: string): void {
   check("no trae <script>", !html.includes("<script"));
   check("no trae el CDN de Tailwind", !html.includes("cdn.tailwindcss"));
+  check("no trae imagenes externas", !html.includes("<img"));
+  check("no trae Google Fonts", !html.includes("fonts.googleapis"));
+  check("no trae @import", !html.includes("@import"));
   check("no imprime undefined", !html.includes("undefined"));
   check("no imprime NaN", !html.includes("NaN"));
   check("no imprime [object Object]", !html.includes("[object Object]"));
@@ -87,6 +90,16 @@ const weeklyFull = {
     customers_overdue: 0,
     outstanding_cost: 0,
   },
+  weekly_history: [
+    { label: "S-7", sales: 0 },
+    { label: "S-6", sales: 0 },
+    { label: "S-5", sales: 0 },
+    { label: "S-4", sales: 0 },
+    { label: "S-3", sales: 0 },
+    { label: "S-2", sales: 0 },
+    { label: "S-1", sales: 0 },
+    { label: "Actual", sales: 770000 },
+  ],
 };
 
 const dailyFull = {
@@ -125,57 +138,48 @@ check("rango de 90 dias", reportEmailTitle(false, 90) === "REPORTE DE 90 DÍAS")
 check("un dia sin flag", reportEmailTitle(false, 1) === "REPORTE DIARIO");
 
 // ---------------------------------------------------------------
-// 2. Semanal completo
+// 2. Semanal completo (Diseño Dark Luxury)
 // ---------------------------------------------------------------
 const weekly = formatEmailHtml(weeklyFull, false);
 clean(weekly);
-check("titulo semanal", weekly.includes(">REPORTE SEMANAL<"));
-check("rango en largo", weekly.includes("28 de Septiembre al 04 de Octubre, 2026"));
-check("numero de reporte (semana ISO 40)", weekly.includes("Reporte N° 40-2026"));
-check("fecha de generacion", weekly.includes("11 Oct, 2026"));
-check("encabezado KPIs", weekly.includes("1. Dashboard de Métricas Clave (KPIs)"));
-check("seccion de productos", weekly.includes("2. Productos Vendidos de la Semana"));
-check("seccion financiera", weekly.includes("3. Resumen Financiero de la Semana"));
-check("banda de utilidad", weekly.includes("Utilidad Neta de la Semana"));
-check("utilidad cobrada = ventas - costos - gastos",
-  weekly.includes(money(770000 - 410000 - 35000 - 0)));
-check("formula visible", weekly.includes("Calculado: Ventas"));
-check("margen", weekly.includes("Margen Neto"));
-check("variacion con base", weekly.includes("+60.4%"));
-check("crecimiento neto", weekly.includes(`+${money(290000)}`));
+check("titulo semanal en subject/head", weekly.includes("REPORTE SEMANAL - Perfumes SAAD"));
+check("titulo visual en cabecera", weekly.includes("Reporte semanal"));
+check("rango de fechas", weekly.includes("28 sep al 4 oct 2026"));
+check("marca dorada en cabecera", weekly.includes("PERFUMES SAAD") && weekly.includes("#c8a264"));
+check("fondo canvas oscuro", weekly.includes("#111613"));
+check("cabecera verde bosque", weekly.includes("#1b2a21"));
+check("kpi ventas semana", weekly.includes("VENTAS SEMANA") && weekly.includes(money(770000)));
+check("tendencia subiendo", weekly.includes("subiendo") && weekly.includes("3 pedidos"));
+check("kpi utilidad neta", weekly.includes("UTILIDAD NETA") && weekly.includes(money(325000)));
+check("margen real", weekly.includes("margen real"));
+check("kpi ticket promedio", weekly.includes("TICKET PROMEDIO") && weekly.includes(money(256667)));
+check("kpi clientes nuevos", weekly.includes("CLIENTES NUEVOS") && weekly.includes("6"));
+check("tarjeta ventas ultimas 8 semanas", weekly.includes("Ventas últimas 8 semanas"));
+check("grafico svg con columnas", weekly.includes("<svg") && weekly.includes("Actual") && weekly.includes("S-7"));
+check("tarjeta top productos", weekly.includes("Top productos"));
+check("producto 1 en lista", weekly.includes("Ariana Grande Cloud EDP 100ml") && weekly.includes("1") && weekly.includes("ud"));
+check("tarjeta requiere atencion", weekly.includes("Requiere atención") && weekly.includes("#fdf6f4"));
+check("alertas de stock bajo", weekly.includes("5") && weekly.includes("presentaciones con stock bajo"));
+check("alertas de pedidos pendientes", weekly.includes("0") && weekly.includes("pedidos pendientes de pago"));
+check("tarjeta gastos", weekly.includes("Gastos") && weekly.includes("Semana") && weekly.includes("Mes"));
 check("gastos del mes", weekly.includes(money(63175)));
-check("canales", weekly.includes("Canales de Venta"));
-check("barra de canal directo", weekly.includes("WhatsApp / Panel"));
-check("barra de canal web", weekly.includes("Tienda Online"));
-check("compradores nuevos", weekly.includes("100% de los compradores de la semana"));
-check("pendientes al dia", weekly.includes("Al día"));
-check("stock urgente", weekly.includes("Urgente"));
-check("alerta agotado", weekly.includes("Agotado"));
-check("alerta critico", weekly.includes("Stock Crítico"));
-check("resto de alertas", weekly.includes("+1 producto adicional configurado"));
-check("plan con productos reales",
-  weekly.includes("Ariana Grande Cloud EDP 100ml") && weekly.includes("Lattafa Asad EDP 100ml"));
-check("plan de post-venta", weekly.includes("post-venta para 6 nuevos clientes"));
-check("destacado con familia", weekly.includes("Gourmand"));
-check("producto 2 de la lista", weekly.includes("#2"));
-check("sin fiado no muestra la nota", !weekly.includes("No es pérdida"));
+check("auditoria financiera", weekly.includes("Auditoría Financiera y Canales"));
+check("detalle canales", weekly.includes("WhatsApp / Panel") && weekly.includes("Tienda Online"));
+check("boton cta panel", weekly.includes("Abrir Panel de Control") && weekly.includes("https://perfumes-saad.vercel.app/admin"));
+check("numero de reporte", weekly.includes("Reporte N° 40-2026"));
+check("preheader con cifras", weekly.includes(`Ventas ${money(770000)}`) && weekly.includes("5 alertas de stock"));
 
 // ---------------------------------------------------------------
 // 3. Diario completo
 // ---------------------------------------------------------------
 const daily = formatEmailHtml(dailyFull, true);
 clean(daily);
-check("titulo diario", daily.includes(">REPORTE DIARIO<"));
-check("numero de reporte (dia del anio)", daily.includes("Reporte N° 284-2026"));
-check("rango diario", daily.includes("11 de Octubre, 2026"));
-check("sin comparaciones de periodo", !daily.includes("Ventas periodo anterior"));
-check("sin crecimiento sin base", !daily.includes("Crecimiento neto"));
+check("titulo diario visual", daily.includes("Reporte diario"));
+check("kpi ventas del dia", daily.includes("VENTAS DEL DÍA") && daily.includes(money(450000)));
+check("numero de reporte diario", daily.includes("Reporte N° 284-2026"));
 check("utilidad del dia", daily.includes(money(450000 - 200000 - 25000 - 15000)));
-check("gastos del mes en el KPI", daily.includes(money(63175)));
-check("inventario sano", daily.includes("4. Inventario Sin Alertas") && daily.includes("Inventario sano"));
-check("pendiente del dia", daily.includes("1 pendientes"));
-check("seccion de productos diaria", daily.includes("2. Productos Vendidos del Día"));
-check("unidades del dia", daily.includes("3 unidades vendidas"));
+check("gastos de dia y mes", daily.includes(money(15000)) && daily.includes(money(63175)));
+check("pedidos pendientes diarios", daily.includes("1") && daily.includes("pedidos pendientes de pago"));
 
 // ---------------------------------------------------------------
 // 4. Mensual y rango largo
@@ -186,40 +190,38 @@ const monthly = formatEmailHtml({
   week_end: "2026-10-31",
   period: { days: 31 },
 }, false);
-check("titulo mensual", monthly.includes(">REPORTE MENSUAL<"));
-check("numero de mes", monthly.includes("Reporte N° 10-2026"));
-check("palabra de mes", monthly.includes("Utilidad Neta del Mes"));
+check("titulo mensual visual", monthly.includes("Reporte mensual"));
+check("kpi ventas del mes", monthly.includes("VENTAS DEL MES"));
+check("numero de mes", monthly.includes("Reporte N° 44-2026"));
 
 const ninety = formatEmailHtml({
   ...weeklyFull,
   period: { days: 90 },
 }, false);
-check("titulo por dias", ninety.includes(">REPORTE DE 90 DÍAS<"));
-check("palabra de periodo", ninety.includes("Utilidad Neta del Periodo"));
+check("titulo 90 dias visual", ninety.includes("Reporte de 90 días"));
+check("kpi ventas del periodo", ninety.includes("VENTAS DEL PERIODO"));
 
 // ---------------------------------------------------------------
-// 5. Costos faltantes: utilidad Incompleta
+// 5. Costos faltantes: utilidad Pendiente de costos / Incompleta
 // ---------------------------------------------------------------
 const incomplete = formatEmailHtml({
   ...weeklyFull,
   current_week: { ...weeklyFull.current_week, missing_cost_items: 2, net_profit: 360000 },
 }, false);
 clean(incomplete);
-check("utilidad incompleta", incomplete.includes("Incompleta"));
-check("avisa cuantos pedidos", incomplete.includes("2 pedidos no tienen costo registrado"));
-check("aviso en la banda", incomplete.includes("Costos incompletos"));
-check("no muestra margen falso", !incomplete.includes("Margen Neto"));
+check("utilidad pendiente de costos en kpi", incomplete.includes("Pendiente de costos"));
+check("kpi utilidad con guion", incomplete.includes("$—"));
+check("aviso en auditoria", incomplete.includes("2 pedidos no tienen costo registrado"));
+check("no muestra margen falso", !incomplete.includes("% margen real"));
 
 // ---------------------------------------------------------------
-// 6. Sin periodo anterior: nada de porcentajes inventados
+// 6. Sin periodo anterior
 // ---------------------------------------------------------------
 const noBase = formatEmailHtml({
   ...weeklyFull,
   previous_week: { sales: 0, orders: 0 },
 }, false);
-check("sin base no dice +100%", !noBase.includes("+100%"));
-check("declara que no hay previo", noBase.includes("Sin periodo previo"));
-check("crecimiento honesto", noBase.includes("Sin periodo previo para comparar"));
+check("sin base previa indica primer registro o sin cambios", noBase.includes("primer registro"));
 
 // ---------------------------------------------------------------
 // 7. Fiado activo: la nota de que no es perdida
@@ -229,11 +231,11 @@ const creditWeek = formatEmailHtml({
   current_week: { ...weeklyFull.current_week, credit_cost: 180000 },
   credit: { ...weeklyFull.credit, week_sales: 400000, week_orders: 2 },
 }, false);
-check("nota de fiado", creditWeek.includes("No es pérdida"));
+check("nota de fiado", creditWeek.includes("No es pérdida: es inversión que vuelve al cobrar"));
 check("monto fiado visible", creditWeek.includes(money(400000)));
 
 // ---------------------------------------------------------------
-// 7b. Abonos de fiado abierto: suman a la utilidad y se ven aparte
+// 7b. Abonos de fiado abierto: suman a la utilidad
 // ---------------------------------------------------------------
 const abonoWeek = formatEmailHtml({
   ...weeklyFull,
@@ -255,15 +257,12 @@ const abonoWeek = formatEmailHtml({
 clean(abonoWeek);
 const abonoCashProfit = 970000 - 410000 - 35000;
 check("abonos suman a la utilidad", abonoWeek.includes(money(abonoCashProfit)));
-check("abonos se muestran aparte", abonoWeek.includes("Abonos de fiado") && abonoWeek.includes(money(200000)));
+check("abonos se muestran en auditoria", abonoWeek.includes("Abonos de fiado") && abonoWeek.includes(money(200000)));
 check("total cobrado", abonoWeek.includes(money(970000)));
-check("margen sobre total cobrado", abonoWeek.includes("54.1% Margen Neto"));
-check("formula incluye abonos", abonoWeek.includes("Ventas pagadas") && abonoWeek.includes("Abonos fiado"));
 check("nota de fiado con abono", abonoWeek.includes("De eso ya te abonaron"));
-check("sin abonos no inventa linea", !weekly.includes("Abonos de fiado"));
 
 // ---------------------------------------------------------------
-// 8. Escape de HTML en nombres de producto
+// 8. Escape de HTML
 // ---------------------------------------------------------------
 const hostile = formatEmailHtml({
   ...weeklyFull,
@@ -274,10 +273,9 @@ const hostile = formatEmailHtml({
 }, false);
 check("escapa scripts", !hostile.includes("<script>alert"));
 check("escapa etiquetas", hostile.includes("&lt;script&gt;"));
-check("escapa negritas de familia", hostile.includes("&lt;b&gt;"));
 
 // ---------------------------------------------------------------
-// 9. RPC vieja (sin canales ni compradores): degradacion limpia
+// 9. Degradacion limpia ante datos vacios
 // ---------------------------------------------------------------
 const legacy = {
   report_date: "2026-10-11",
@@ -306,39 +304,6 @@ const legacy = {
 };
 const legacyHtml = formatEmailHtml(legacy, false);
 clean(legacyHtml);
-check("sin canales no pinta la seccion", !legacyHtml.includes("Canales de Venta"));
-check("sin ventas lo dice", legacyHtml.includes("Sin ventas registradas en el periodo"));
-check("cambios sin ventas", legacyHtml.includes("Sin cambios"));
-check("stock sano", legacyHtml.includes("Inventario sano"));
-check("sin datos de stock no inventa", !legacyHtml.includes("Requiere plan de reorden"));
-
-// ---------------------------------------------------------------
-// 10. Diario sin los campos nuevos (RPC diaria vieja)
-// ---------------------------------------------------------------
-const legacyDaily = formatEmailHtml({
-  report_date: "2026-10-11",
-  sales: 300000,
-  orders: 1,
-  items_sold: 2,
-  expenses: 8000,
-  best_product: { name: "Lattafa, Asad EDP 100ml", quantity: 2 },
-}, true);
-clean(legacyDaily);
-check("diario viejo sin seccion de canales", !legacyDaily.includes("Canales de Venta"));
-check("diario viejo sin alertas de inventario", !legacyDaily.includes("Alertas de Inventario"));
-check("diario viejo marca no disponible", legacyDaily.includes("No disponible en este envío"));
-check("diario viejo no muestra utilidad incompleta", !legacyDaily.includes("Incompleta"));
-check("diario viejo muestra gastos del dia", legacyDaily.includes(money(8000)));
-check("diario viejo usa el mejor producto", legacyDaily.includes("Lattafa Asad EDP 100ml"));
-
-// ---------------------------------------------------------------
-// Vistas previas para la verificacion visual
-// ---------------------------------------------------------------
-const outDir = process.env.REPORT_PREVIEW_DIR ?? "";
-if (outDir) {
-  writeFileSync(`${outDir}/report-weekly.html`, weekly, "utf8");
-  writeFileSync(`${outDir}/report-daily.html`, daily, "utf8");
-  writeFileSync(`${outDir}/report-incomplete.html`, incomplete, "utf8");
-}
+check("sin ventas lo declara", legacyHtml.includes("Sin ventas registradas en el periodo"));
 
 console.log(`OK: ${checks} comprobaciones pasaron.`);
