@@ -178,7 +178,7 @@ const PALETTE = {
   barActive: "#c8a264",      // Barra actual dorada
 };
 
-const FONT_SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
+const FONT_SANS = "'Source Sans 3',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
 const FONT_SERIF = "Georgia,'Times New Roman',serif";
 
 /**
@@ -649,11 +649,16 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="dark light">
 <meta name="supported-color-schemes" content="dark light">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
 <title>${escapeHtml(title)} - Perfumes SAAD</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,200..900;1,200..900&display=swap');
   body, table, td, p, a, li, blockquote {
     -webkit-text-size-adjust: 100%;
     -ms-text-size-adjust: 100%;
+    font-family: 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   }
   table, td {
     mso-table-lspace: 0pt;

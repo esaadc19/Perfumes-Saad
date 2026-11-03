@@ -27,8 +27,7 @@ function clean(html: string): void {
   check("no trae <script>", !html.includes("<script"));
   check("no trae el CDN de Tailwind", !html.includes("cdn.tailwindcss"));
   check("no trae imagenes externas", !html.includes("<img"));
-  check("no trae Google Fonts", !html.includes("fonts.googleapis"));
-  check("no trae @import", !html.includes("@import"));
+  check("trae Google Fonts Source Sans 3", html.includes("fonts.googleapis.com") && html.includes("Source+Sans+3"));
   check("no imprime undefined", !html.includes("undefined"));
   check("no imprime NaN", !html.includes("NaN"));
   check("no imprime [object Object]", !html.includes("[object Object]"));
