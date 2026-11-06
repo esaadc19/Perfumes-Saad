@@ -5196,11 +5196,17 @@ footer a { color: #111; }
   overflow-x: auto;
 }
 
-.finance-income-row,
-.finance-expense-row {
-  grid-template-columns: 105px 140px minmax(220px, 2.2fr) 120px 120px 120px;
+.finance-income-row {
+  grid-template-columns: 100px 145px minmax(200px, 2fr) 130px 115px 115px 115px;
   gap: 12px;
-  min-width: 780px;
+  min-width: 932px;
+  align-items: center;
+}
+
+.finance-expense-row {
+  grid-template-columns: 105px 150px minmax(220px, 2.2fr) 110px 110px 120px;
+  gap: 12px;
+  min-width: 827px;
   align-items: center;
 }
 
@@ -5238,7 +5244,7 @@ footer a { color: #111; }
   white-space: nowrap;
 }
 
-.finance-income-row.header > span:nth-child(n+4),
+.finance-income-row.header > span:nth-child(n+5),
 .finance-expense-row.header > span:nth-child(n+4) {
   text-align: right;
 }

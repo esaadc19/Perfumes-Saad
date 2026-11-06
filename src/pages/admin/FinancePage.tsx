@@ -161,20 +161,47 @@ export default function FinancePage({
       ? Math.round((netProfit / totalRevenue) * 1000) / 10
       : 0;
 
-  // Capital adelantado del bolsillo de Saad en pedidos a crédito abiertos (pendiente por recuperar)
-  const totalPersonalAdvance = useMemo(() => {
+  // 1. Dinero cobrado en Nequi que corresponde a reembolso del bolsillo de Saad
+  // (Costos de ventas pagadas o abonos recibidos de pedidos financiados con dinero personal)
+  const personalCollectedToReimburse = useMemo(() => {
+    const paidPart = paidOrdersInPeriod.reduce((sum, order) => {
+      if (order.cost_funded_by !== "personal") return sum;
+      const b = getOrderFinancialBreakdown(order);
+      return sum + b.coveredCost;
+    }, 0);
+
+    const creditPart = creditOrdersWithAbonosInPeriod.reduce((sum, order) => {
+      if (order.cost_funded_by !== "personal") return sum;
+      const b = getOrderFinancialBreakdown(order);
+      return sum + b.coveredCost;
+    }, 0);
+
+    return paidPart + creditPart;
+  }, [paidOrdersInPeriod, creditOrdersWithAbonosInPeriod]);
+
+  // 2. Capital propio aún en la calle (pedidos a crédito donde Saad puso de su bolsillo y el cliente aún debe el costo)
+  const personalInStreetPending = useMemo(() => {
     return openCreditOrdersInPeriod.reduce((sum, order) => {
-      // Si el costo fue pagado con dinero del negocio/utilidad, no cuenta como anticipo de bolsillo
-      if (order.cost_funded_by === "business") return sum;
+      if (order.cost_funded_by !== "personal") return sum;
       const b = getOrderFinancialBreakdown(order);
       return sum + b.unrecoveredCost;
     }, 0);
   }, [openCreditOrdersInPeriod]);
 
+  // 3. Total capital aportado del bolsillo en el periodo (cobrado por reembolsar + fiado en calle)
+  const totalPersonalFunded = personalCollectedToReimburse + personalInStreetPending;
+
+  // Conteo de pedidos financiados con dinero personal
+  const personalOrdersCount = useMemo(() => {
+    const paidCount = paidOrdersInPeriod.filter((o) => o.cost_funded_by === "personal").length;
+    const creditCount = openCreditOrdersInPeriod.filter((o) => o.cost_funded_by === "personal").length;
+    return paidCount + creditCount;
+  }, [paidOrdersInPeriod, openCreditOrdersInPeriod]);
+
   // Dinero total invertido en la operación (costos pagados + gastos + capital propio en fiados)
   const totalInvested = useMemo(() => {
-    return salesCost + deliveryCost + operatingExpenses + totalPersonalAdvance;
-  }, [salesCost, deliveryCost, operatingExpenses, totalPersonalAdvance]);
+    return salesCost + deliveryCost + operatingExpenses + personalInStreetPending;
+  }, [salesCost, deliveryCost, operatingExpenses, personalInStreetPending]);
 
   // Meta estratégica: Fondo de Reserva de $1.000.000 COP
   const RESERVE_GOAL = 1000000;
@@ -199,7 +226,7 @@ export default function FinancePage({
       0
     );
 
-    const personalReimbursement = totalPersonalAdvance;
+    const personalReimbursement = personalInStreetPending;
     const estimatedLiquidProfit = Math.max(0, totalPendingRecaudo - personalReimbursement);
 
     return {
@@ -209,7 +236,7 @@ export default function FinancePage({
       estimatedLiquidProfit,
       pendingCount: pendingCredits.length,
     };
-  }, [creditOrders, totalPersonalAdvance]);
+  }, [creditOrders, personalInStreetPending]);
 
   // Candidatos para conciliación (Ventas de contado + Cada abono de cartera)
   const reconcileCandidates = useMemo((): ReconcileCandidate[] => {
@@ -467,6 +494,8 @@ export default function FinancePage({
       revenue: number;
       orderTotal: number;
       profit: number | null;
+      costFundedBy: "business" | "personal";
+      reimbursement: number;
     }> = [];
 
     if (incomeFilter === "all" || incomeFilter === "paid_orders") {
@@ -478,6 +507,7 @@ export default function FinancePage({
           .map((item) => `${item.product_name_snapshot} ${item.size_ml}ml ×${item.quantity}`)
           .join(", ");
         const timestamp = order.paid_at ?? order.created_at;
+        const isPersonal = order.cost_funded_by === "personal";
 
         rows.push({
           id: `order-${order.id}`,
@@ -490,6 +520,8 @@ export default function FinancePage({
           revenue: b.collectedRevenue,
           orderTotal: b.orderTotal,
           profit: b.realizedProfit,
+          costFundedBy: isPersonal ? "personal" : "business",
+          reimbursement: isPersonal ? b.coveredCost : 0,
         });
       }
     }
@@ -502,6 +534,7 @@ export default function FinancePage({
         const itemsSummary = order.order_items
           .map((item) => `${item.product_name_snapshot} ${item.size_ml}ml ×${item.quantity}`)
           .join(", ");
+        const isPersonal = order.cost_funded_by === "personal";
 
         rows.push({
           id: `credit-order-${order.id}`,
@@ -514,6 +547,8 @@ export default function FinancePage({
           revenue: b.collectedRevenue,
           orderTotal: b.orderTotal,
           profit: b.realizedProfit,
+          costFundedBy: isPersonal ? "personal" : "business",
+          reimbursement: isPersonal ? b.coveredCost : 0,
         });
       }
     }
@@ -572,15 +607,18 @@ export default function FinancePage({
           .map((item) => `${item.product_name_snapshot} ${item.size_ml}ml ×${item.quantity}`)
           .join(", ");
         const timestamp = order.paid_at ?? order.created_at;
+        const isPersonal = order.cost_funded_by === "personal";
 
         rows.push({
           id: `cost-paid-${order.id}`,
           type: "product_cost",
           dateStr: toBogotaDateStr(timestamp),
           sortTime: new Date(timestamp).getTime(),
-          badge: "Costo venta pagada",
+          badge: isPersonal ? "Bolsillo Saad · Reembolso" : "Costo venta empresa",
           title: `${orderCode} · ${customerName}`,
-          subtitle: itemsSummary || "Costo de mercancía y domicilio",
+          subtitle: isPersonal
+            ? `${itemsSummary} · Adelanto de tu bolsillo personal (por devolver de Nequi)`
+            : (itemsSummary || "Costo de mercancía y domicilio"),
           productCost: b.coveredProductCost,
           deliveryCost: b.coveredDeliveryCost,
           totalOutflow: b.coveredCost,
@@ -598,15 +636,16 @@ export default function FinancePage({
         const itemsSummary = order.order_items
           .map((item) => `${item.product_name_snapshot} ${item.size_ml}ml ×${item.quantity}`)
           .join(", ");
+        const isPersonal = order.cost_funded_by === "personal";
 
         rows.push({
           id: `cost-credit-${order.id}`,
           type: "credit_cost",
           dateStr: toBogotaDateStr(order.created_at),
           sortTime: new Date(order.created_at).getTime(),
-          badge: b.coveredCost >= b.fullCost ? "Costo fiado cubierto" : "Costo en fiado",
+          badge: isPersonal ? "Fiado · Bolsillo Saad" : (b.coveredCost >= b.fullCost ? "Costo fiado cubierto" : "Costo en fiado"),
           title: `${orderCode} · ${customerName}`,
-          subtitle: `${itemsSummary} · Cubierto por abonos: ${money(b.coveredCost)} de ${money(b.fullCost)}`,
+          subtitle: `${itemsSummary} · Cubierto por abonos: ${money(b.coveredCost)} de ${money(b.fullCost)}${isPersonal ? " (Bolsillo personal)" : ""}`,
           productCost: b.coveredProductCost,
           deliveryCost: b.coveredDeliveryCost,
           totalOutflow: b.coveredCost,
@@ -1139,13 +1178,22 @@ export default function FinancePage({
                 </span>
                 <span className="finance-kpi-label">Plata de Saad (Bolsillo)</span>
               </div>
-              <strong className="finance-kpi-value" style={{ color: totalPersonalAdvance > 0 ? "#b45309" : "var(--foreground)" }}>
-                {money(totalPersonalAdvance)}
+              <strong
+                className="finance-kpi-value"
+                style={{
+                  color: personalCollectedToReimburse > 0 ? "#b45309" : personalInStreetPending > 0 ? "#d97706" : "var(--foreground)",
+                }}
+              >
+                {money(personalCollectedToReimburse > 0 ? personalCollectedToReimburse : personalInStreetPending)}
               </strong>
               <div className="finance-kpi-badge-slot">
-                {totalPersonalAdvance > 0 ? (
+                {personalCollectedToReimburse > 0 ? (
                   <span className="finance-kpi-tag finance-kpi-tag--warning">
-                    Por recuperar de cartera
+                    Por transferir de Nequi
+                  </span>
+                ) : personalInStreetPending > 0 ? (
+                  <span className="finance-kpi-tag finance-kpi-tag--info">
+                    En cartera fiada
                   </span>
                 ) : (
                   <span className="finance-kpi-tag finance-kpi-tag--success">
@@ -1155,17 +1203,19 @@ export default function FinancePage({
               </div>
               <div className="finance-kpi-Sublist">
                 <div>
-                  <span>Cartera fiada total</span>
-                  <strong>{money(fortnightProjection.totalPendingRecaudo)}</strong>
+                  <span>En Nequi por reembolsar</span>
+                  <strong style={{ color: personalCollectedToReimburse > 0 ? "#b45309" : "inherit" }}>
+                    {money(personalCollectedToReimburse)}
+                  </strong>
                 </div>
                 <div>
-                  <span>Créditos abiertos</span>
-                  <strong>{openCreditOrdersInPeriod.length} {openCreditOrdersInPeriod.length === 1 ? "pedido" : "pedidos"}</strong>
+                  <span>En cartera fiada (calle)</span>
+                  <strong>{money(personalInStreetPending)}</strong>
                 </div>
                 <div>
-                  <span>Por reembolsar a ti</span>
-                  <strong style={{ color: totalPersonalAdvance > 0 ? "#b45309" : "inherit" }}>
-                    {money(totalPersonalAdvance)}
+                  <span>Total financiado bolsillo</span>
+                  <strong>
+                    {money(totalPersonalFunded)} ({personalOrdersCount} {personalOrdersCount === 1 ? "pedido" : "pedidos"})
                   </strong>
                 </div>
               </div>
@@ -1326,9 +1376,10 @@ export default function FinancePage({
                   <span>Fecha</span>
                   <span>Pedido / Cliente</span>
                   <span>Detalle de productos</span>
-                  <span>Asesor</span>
-                  <span>Ingreso Cobrado</span>
-                  <span>Utilidad</span>
+                  <span>Origen Costo</span>
+                  <span>Ingreso Nequi</span>
+                  <span>Reembolso a ti</span>
+                  <span>Utilidad Empresa</span>
                 </div>
                 {incomeRows.map((row) => (
                   <div className="table-row finance-income-row" key={row.id}>
@@ -1339,10 +1390,72 @@ export default function FinancePage({
                         {row.type === "paid_order" ? "Venta de contado" : "Abono de cartera"}
                       </span>
                     </div>
-                    <span className="finance-subtitle">{row.subtitle}</span>
-                    <span className="finance-advisor">{row.advisor || "Sin asesor"}</span>
+                    <div className="finance-row-main">
+                      <span className="finance-subtitle">{row.subtitle}</span>
+                      {row.advisor && (
+                        <small style={{ color: "var(--muted)", fontSize: "11px" }}>
+                          Asesor: {row.advisor}
+                        </small>
+                      )}
+                    </div>
+                    <div>
+                      {row.costFundedBy === "personal" ? (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            padding: "2px 8px",
+                            borderRadius: "999px",
+                            background: "#fef3c7",
+                            color: "#b45309",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                          }}
+                          title="Costo de mercancía financiado con dinero personal de Saad"
+                        >
+                          👛 De mi bolsillo
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            padding: "2px 8px",
+                            borderRadius: "999px",
+                            background: "#ecfdf5",
+                            color: "#059669",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                          }}
+                          title="Costo financiado con la utilidad/capital de la empresa"
+                        >
+                          🏢 Empresa
+                        </span>
+                      )}
+                    </div>
                     <span className="finance-num profit-good">+{money(row.revenue)}</span>
-                    <span className="finance-num">
+                    <span
+                      className="finance-num"
+                      style={{
+                        color: row.reimbursement > 0 ? "#b45309" : "var(--muted)",
+                        fontWeight: row.reimbursement > 0 ? 700 : "normal",
+                      }}
+                      title={row.reimbursement > 0 ? "Costo por transferir a tu cuenta personal" : "Sin reembolso personal"}
+                    >
+                      {row.reimbursement > 0 ? money(row.reimbursement) : "—"}
+                    </span>
+                    <span
+                      className="finance-num"
+                      style={{
+                        color: row.profit !== null && row.profit > 0 ? "#059669" : "inherit",
+                        fontWeight: 600,
+                      }}
+                      title="Utilidad líquida que permanece en la empresa"
+                    >
                       {row.profit === null ? "Sin costo" : money(row.profit)}
                     </span>
                   </div>

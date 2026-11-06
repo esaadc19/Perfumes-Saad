@@ -269,6 +269,27 @@ export default function OrdersPage({
                     {order.cost_funded_by === "personal" ? "👛 De mi bolsillo" : "🏢 Utilidad empresa"}
                   </span>
                 </span>
+                {order.payment_status === "paid" && order.cost_funded_by === "personal" && (
+                  <div className="order-personal-distribution" style={{ marginTop: "4px" }}>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        padding: "2px 8px",
+                        borderRadius: "4px",
+                        background: "#fef3c7",
+                        color: "#b45309",
+                        border: "1px solid #fde68a",
+                        fontSize: "0.72rem",
+                        fontWeight: 600,
+                      }}
+                      title="Venta pagada en Nequi: el costo corresponde a reembolso de tu bolsillo"
+                    >
+                      👛 Reembolso a tu bolsillo: {money(b.fullCost)} · Utilidad SAAD: {money(b.realizedProfit ?? 0)}
+                    </span>
+                  </div>
+                )}
                 {b.isOpenCredit && (
                   <div className="order-credit-summary">
                     Abonado: <strong>{money(b.collectedRevenue)}</strong> de {money(b.orderTotal)} · Saldo: <strong>{money(b.creditBalance)}</strong>

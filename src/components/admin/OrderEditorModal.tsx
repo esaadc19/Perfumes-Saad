@@ -540,8 +540,8 @@ export default function OrderEditorModal({
             </div>
             <small style={{ marginTop: "6px", display: "block" }}>
               {costFundedBy === "personal"
-                ? "Adelanto de tu bolsillo: la empresa te reembolsará el costo a tu cuenta personal al cobrar."
-                : "Pagado con la utilidad de la empresa: no genera reembolso hacia tu bolsillo."}
+                ? "Adelanto de tu bolsillo: al cobrar la venta en Nequi, el sistema dividirá el ingreso entre tu reembolso y la utilidad de la empresa."
+                : "Pagado con la utilidad de la empresa: el 100% del ingreso cobrado permanece como capital y utilidad de la empresa."}
             </small>
           </label>
         </div>
