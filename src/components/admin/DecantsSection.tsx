@@ -22,7 +22,7 @@ import type { AdminOrder } from "../../services/admin";
 interface DecantsSectionProps {
   orders: AdminOrder[];
   period?: { from: string | null; to: string | null };
-  periodDays?: 7 | 30 | 90 | null;
+  periodDays?: number | null;
   titleSuffix?: string;
 }
 

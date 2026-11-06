@@ -4,6 +4,11 @@ import { supabase } from "./lib/supabase";
 import { getBogotaDate, money } from "./lib/format";
 import { applyProgressiveMetrics } from "./lib/order-finance";
 import {
+  type PeriodPreset,
+  resolvePeriodFilter,
+  addDaysIso,
+} from "./services/admin-periods";
+import {
   getAdminSectionFromPath,
   pushAdminPath,
   pushStorePath,
@@ -1872,8 +1877,47 @@ function Admin({
     label: string;
   } | null>(null);
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
-  /** Rango del dashboard: null = acumulado historico. */
-  const [metricsPeriod, setMetricsPeriod] = useState<7 | 30 | 90 | null>(30);
+  /** Rango del dashboard: preset y fechas personalizadas */
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("mes");
+  const [periodCustomFrom, setPeriodCustomFrom] = useState<string>(() => addDaysIso(getBogotaDate(), -29));
+  const [periodCustomTo, setPeriodCustomTo] = useState<string>(() => getBogotaDate());
+  const [isPeriodAllTime, setIsPeriodAllTime] = useState(false);
+
+  const activePeriodFilter = useMemo(() => {
+    return resolvePeriodFilter(periodPreset, periodCustomFrom, periodCustomTo, isPeriodAllTime);
+  }, [periodPreset, periodCustomFrom, periodCustomTo, isPeriodAllTime]);
+
+  const metricsPeriod = activePeriodFilter.days;
+  const setMetricsPeriod = useCallback((days: number | null) => {
+    if (days === null) {
+      setIsPeriodAllTime(true);
+    } else if (days <= 7) {
+      setIsPeriodAllTime(false);
+      setPeriodPreset("semana");
+    } else if (days <= 30) {
+      setIsPeriodAllTime(false);
+      setPeriodPreset("mes");
+    } else {
+      setIsPeriodAllTime(false);
+      setPeriodPreset("ano");
+    }
+  }, []);
+
+  const handlePeriodPresetChange = useCallback((preset: PeriodPreset) => {
+    setIsPeriodAllTime(false);
+    setPeriodPreset(preset);
+  }, []);
+
+  const handlePeriodCustomRangeChange = useCallback((from: string, to: string) => {
+    setIsPeriodAllTime(false);
+    setPeriodPreset("rango");
+    setPeriodCustomFrom(from);
+    setPeriodCustomTo(to);
+  }, []);
+
+  const handlePeriodToggleAllTime = useCallback(() => {
+    setIsPeriodAllTime((prev) => !prev);
+  }, []);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
   const [profiles, setProfiles] = useState<AdminProfile[]>([]);
@@ -2226,11 +2270,17 @@ function Admin({
       try {
         if (section === "overview") {
           const [metricsResult, ordersResult, advisorsResult] = await Promise.all([
-            getAdminDashboardMetrics(metricsPeriod),
+            getAdminDashboardMetrics(
+              activePeriodFilter.days,
+              activePeriodFilter.from,
+              activePeriodFilter.to
+            ),
             getAdminOrders(),
             getSalesAdvisors(),
           ]);
           if (active) {
+            metricsResult.period_from = activePeriodFilter.from;
+            metricsResult.period_to = activePeriodFilter.to;
             setMetrics(applyProgressiveMetrics(metricsResult, ordersResult));
             const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
             const enrichedOrders = ordersResult.map((order) => ({
@@ -2241,13 +2291,19 @@ function Admin({
           }
         } else if (section === "finance") {
           const [metricsResult, ordersResult, advisorsResult, expenseResult, creditOrdersResult] = await Promise.all([
-            getAdminDashboardMetrics(metricsPeriod),
+            getAdminDashboardMetrics(
+              activePeriodFilter.days,
+              activePeriodFilter.from,
+              activePeriodFilter.to
+            ),
             getAdminOrders(),
             getSalesAdvisors(),
             getExpenses(),
             getCreditOrders().catch(() => []),
           ]);
           if (active) {
+            metricsResult.period_from = activePeriodFilter.from;
+            metricsResult.period_to = activePeriodFilter.to;
             setMetrics(applyProgressiveMetrics(metricsResult, ordersResult));
             const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
             const enrichedOrders = ordersResult.map((order) => ({
@@ -2307,7 +2363,7 @@ function Admin({
     return () => {
       active = false;
     };
-  }, [section, sectionRevision, metricsPeriod, hasNoSections, permissionsLoaded]);
+  }, [section, sectionRevision, activePeriodFilter.from, activePeriodFilter.to, activePeriodFilter.days, activePeriodFilter.isAllTime, hasNoSections, permissionsLoaded]);
 
   const saveCustomer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -3240,6 +3296,13 @@ function Admin({
               totalStock={totalStock}
               avgTicket={avgTicket}
               metricsPeriod={metricsPeriod}
+              periodPreset={periodPreset}
+              periodCustomFrom={periodCustomFrom}
+              periodCustomTo={periodCustomTo}
+              isPeriodAllTime={isPeriodAllTime}
+              onPeriodPresetChange={handlePeriodPresetChange}
+              onPeriodCustomRangeChange={handlePeriodCustomRangeChange}
+              onPeriodToggleAllTime={handlePeriodToggleAllTime}
               onMetricsPeriodChange={setMetricsPeriod}
               profitability={profitability}
               profitabilityLoading={profitabilityLoading}
@@ -3275,6 +3338,13 @@ function Admin({
               creditOrders={creditOrders}
               loading={sectionLoading}
               metricsPeriod={metricsPeriod}
+              periodPreset={periodPreset}
+              periodCustomFrom={periodCustomFrom}
+              periodCustomTo={periodCustomTo}
+              isPeriodAllTime={isPeriodAllTime}
+              onPeriodPresetChange={handlePeriodPresetChange}
+              onPeriodCustomRangeChange={handlePeriodCustomRangeChange}
+              onPeriodToggleAllTime={handlePeriodToggleAllTime}
               onMetricsPeriodChange={setMetricsPeriod}
               onSectionChange={setSection}
             />

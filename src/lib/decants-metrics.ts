@@ -80,7 +80,14 @@ export interface DecantsAnalysis {
 /**
  * Calcula el rango de fechas en hora de Colombia (Bogotá) según los días seleccionados.
  */
-export function getPeriodRange(days: 7 | 30 | 90 | null): { from: string | null; to: string | null } {
+export function getPeriodRange(
+  days: number | null,
+  customFrom?: string | null,
+  customTo?: string | null
+): { from: string | null; to: string | null } {
+  if (customFrom && customTo) {
+    return { from: customFrom, to: customTo };
+  }
   if (days === null) return { from: null, to: null };
   const todayStr = getBogotaDate();
   const [y, m, d] = todayStr.split("-").map(Number);

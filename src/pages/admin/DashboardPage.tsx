@@ -36,6 +36,8 @@ import type { Product } from "../../services/products";
 import type { ReportResult } from "./types";
 
 import DecantsSection from "../../components/admin/DecantsSection";
+import PeriodFilterSwitch from "../../components/admin/PeriodFilterSwitch";
+import { type PeriodPreset, formatShortDate } from "../../services/admin-periods";
 import { getPeriodRange } from "../../lib/decants-metrics";
 const Charts = lazy(() => import("../../components/admin/Charts"));
 const ProfitabilityTable = lazy(() => import("../../components/admin/ProfitabilityTable"));
@@ -51,8 +53,15 @@ interface DashboardPageProps {
   lowStock: number;
   totalStock: number;
   avgTicket: number;
-  metricsPeriod: 7 | 30 | 90 | null;
-  onMetricsPeriodChange: (period: 7 | 30 | 90 | null) => void;
+  metricsPeriod?: number | null;
+  periodPreset: PeriodPreset;
+  periodCustomFrom: string;
+  periodCustomTo: string;
+  isPeriodAllTime?: boolean;
+  onPeriodPresetChange: (preset: PeriodPreset) => void;
+  onPeriodCustomRangeChange: (from: string, to: string) => void;
+  onPeriodToggleAllTime?: () => void;
+  onMetricsPeriodChange?: (period: number | null) => void;
   profitability: ProductProfitability | null;
   profitabilityLoading: boolean;
   profitabilityError: string | null;
@@ -80,6 +89,13 @@ export default function DashboardPage({
   totalStock,
   avgTicket,
   metricsPeriod,
+  periodPreset,
+  periodCustomFrom,
+  periodCustomTo,
+  isPeriodAllTime = false,
+  onPeriodPresetChange,
+  onPeriodCustomRangeChange,
+  onPeriodToggleAllTime,
   onMetricsPeriodChange,
   profitability,
   profitabilityLoading,
@@ -98,8 +114,8 @@ export default function DashboardPage({
   onGenerateReport,
 }: DashboardPageProps) {
   const activePeriod = useMemo(() => {
-    return getPeriodRange(metricsPeriod);
-  }, [metricsPeriod]);
+    return getPeriodRange(metricsPeriod ?? 30, metrics.period_from, metrics.period_to);
+  }, [metricsPeriod, metrics.period_from, metrics.period_to]);
 
   // Cálculos de P&L corporativo (Ingresos, Costos, Margen Bruto, Gastos, Margen Neto)
   const totalRevenue = Number(metrics.sales_revenue ?? 0);
@@ -262,27 +278,15 @@ export default function DashboardPage({
       />
       <div className="metrics-period">
         <span className="metrics-period-label">Período</span>
-        <div className="chart-period-switch" role="group" aria-label="Rango de tiempo del dashboard">
-          {([7, 30, 90] as const).map((days) => (
-            <button
-              key={days}
-              type="button"
-              className={metricsPeriod === days ? "selected" : ""}
-              aria-pressed={metricsPeriod === days}
-              onClick={() => onMetricsPeriodChange(days)}
-            >
-              {days} días
-            </button>
-          ))}
-          <button
-            type="button"
-            className={metricsPeriod === null ? "selected" : ""}
-            aria-pressed={metricsPeriod === null}
-            onClick={() => onMetricsPeriodChange(null)}
-          >
-            Todo
-          </button>
-        </div>
+        <PeriodFilterSwitch
+          preset={periodPreset}
+          customFrom={periodCustomFrom}
+          customTo={periodCustomTo}
+          isAllTime={isPeriodAllTime}
+          onPresetChange={onPeriodPresetChange}
+          onCustomRangeChange={onPeriodCustomRangeChange}
+          onToggleAllTime={onPeriodToggleAllTime}
+        />
       </div>
 
       {/* ========================================================
@@ -545,8 +549,10 @@ export default function DashboardPage({
             <div>
               <h2>Que perfume deja mas utilidad</h2>
               <span>
-                {metricsPeriod
-                  ? `Ultimos ${metricsPeriod} dias`
+                {metrics.period_from && metrics.period_to
+                  ? `Del ${formatShortDate(metrics.period_from, true)} al ${formatShortDate(metrics.period_to, true)}`
+                  : metricsPeriod
+                  ? `Últimos ${metricsPeriod} días`
                   : "Todo el historial"}
               </span>
             </div>

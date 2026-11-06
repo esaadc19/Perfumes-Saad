@@ -158,9 +158,27 @@ function requireSupabase() {
  *   una foto del momento.
  */
 export async function getAdminDashboardMetrics(
-  periodDays?: number | null
+  periodDays?: number | null,
+  fromDate?: string | null,
+  toDate?: string | null
 ): Promise<AdminDashboardMetrics> {
   const client = requireSupabase();
+
+  if (fromDate && toDate) {
+    try {
+      const { data, error } = await client.rpc("admin_dashboard_metrics", {
+        period_days: periodDays ?? null,
+        p_from: fromDate,
+        p_to: toDate,
+      });
+      if (!error && data) {
+        return data as AdminDashboardMetrics;
+      }
+    } catch {
+      // Si la RPC remota aún no acepta p_from / p_to, usamos el fallback
+    }
+  }
+
   const { data, error } = await client.rpc("admin_dashboard_metrics", {
     period_days: periodDays ?? null,
   });
@@ -168,7 +186,12 @@ export async function getAdminDashboardMetrics(
     console.error("No se pudieron cargar las métricas:", error);
     throw error;
   }
-  return data as AdminDashboardMetrics;
+  const result = data as AdminDashboardMetrics;
+  if (fromDate && toDate) {
+    result.period_from = fromDate;
+    result.period_to = toDate;
+  }
+  return result;
 }
 
 export interface ProductProfit {

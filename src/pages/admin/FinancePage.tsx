@@ -42,6 +42,8 @@ import {
   type AdminDashboardMetrics,
   type AdminOrder,
 } from "../../services/admin";
+import PeriodFilterSwitch from "../../components/admin/PeriodFilterSwitch";
+import type { PeriodPreset } from "../../services/admin-periods";
 import {
   PAYMENT_METHODS,
   type CreditOrderSummary,
@@ -56,8 +58,15 @@ interface FinancePageProps {
   expenses: Expense[];
   creditOrders: CreditOrderSummary[];
   loading: boolean;
-  metricsPeriod: 7 | 30 | 90 | null;
-  onMetricsPeriodChange: (period: 7 | 30 | 90 | null) => void;
+  metricsPeriod?: number | null;
+  periodPreset: PeriodPreset;
+  periodCustomFrom: string;
+  periodCustomTo: string;
+  isPeriodAllTime?: boolean;
+  onPeriodPresetChange: (preset: PeriodPreset) => void;
+  onPeriodCustomRangeChange: (from: string, to: string) => void;
+  onPeriodToggleAllTime?: () => void;
+  onMetricsPeriodChange?: (period: number | null) => void;
   onSectionChange: (section: AdminSection) => void;
 }
 
@@ -72,6 +81,13 @@ export default function FinancePage({
   creditOrders,
   loading,
   metricsPeriod,
+  periodPreset,
+  periodCustomFrom,
+  periodCustomTo,
+  isPeriodAllTime = false,
+  onPeriodPresetChange,
+  onPeriodCustomRangeChange,
+  onPeriodToggleAllTime,
   onMetricsPeriodChange,
   onSectionChange,
 }: FinancePageProps) {
@@ -735,27 +751,15 @@ export default function FinancePage({
 
         <div className="metrics-period">
           <span className="metrics-period-label">Período</span>
-          <div className="chart-period-switch" role="group" aria-label="Rango de tiempo financiero">
-            {([7, 30, 90] as const).map((days) => (
-              <button
-                key={days}
-                type="button"
-                className={metricsPeriod === days ? "selected" : ""}
-                aria-pressed={metricsPeriod === days}
-                onClick={() => onMetricsPeriodChange(days)}
-              >
-                {days} días
-              </button>
-            ))}
-            <button
-              type="button"
-              className={metricsPeriod === null ? "selected" : ""}
-              aria-pressed={metricsPeriod === null}
-              onClick={() => onMetricsPeriodChange(null)}
-            >
-              Todo
-            </button>
-          </div>
+          <PeriodFilterSwitch
+            preset={periodPreset}
+            customFrom={periodCustomFrom}
+            customTo={periodCustomTo}
+            isAllTime={isPeriodAllTime}
+            onPresetChange={onPeriodPresetChange}
+            onCustomRangeChange={onPeriodCustomRangeChange}
+            onToggleAllTime={onPeriodToggleAllTime}
+          />
         </div>
       </div>
 
