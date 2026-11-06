@@ -1,11 +1,14 @@
 import { lazy, Suspense, useMemo } from "react";
 import {
   AlertTriangle,
+  ArrowUpRight,
   BarChart3,
+  Building2,
   CalendarDays,
   Calculator,
   DollarSign,
   Lock,
+  Megaphone,
   Package,
   Percent,
   ReceiptText,
@@ -24,9 +27,10 @@ import Metric from "../../components/admin/Metric";
 import MetricGroup from "../../components/admin/MetricGroup";
 import MobileOverview from "../../components/admin/MobileOverview";
 import { money } from "../../lib/format";
-import { toBogotaDateStr } from "../../lib/order-finance";
+import { isDateInPeriod, toBogotaDateStr } from "../../lib/order-finance";
 import type { AdminSection } from "../../lib/admin-routes";
 import type { AdminDashboardMetrics, AdminOrder, ProductProfitability } from "../../services/admin";
+import type { Expense } from "../../services/expenses";
 import type { WasteRow } from "../../services/credits";
 import type { Product } from "../../services/products";
 import type { ReportResult } from "./types";
@@ -42,6 +46,7 @@ interface DashboardPageProps {
   metrics: AdminDashboardMetrics;
   orders: AdminOrder[];
   products: Product[];
+  expenses?: Expense[];
   soldOut: number;
   lowStock: number;
   totalStock: number;
@@ -69,6 +74,7 @@ export default function DashboardPage({
   metrics,
   orders,
   products,
+  expenses = [],
   soldOut,
   lowStock,
   totalStock,
@@ -95,6 +101,93 @@ export default function DashboardPage({
     return getPeriodRange(metricsPeriod);
   }, [metricsPeriod]);
 
+  // Cálculos de P&L corporativo (Ingresos, Costos, Margen Bruto, Gastos, Margen Neto)
+  const totalRevenue = Number(metrics.sales_revenue ?? 0);
+  const salesCost = Number(metrics.sales_cost ?? 0);
+  const deliveryCost = Number(metrics.sales_delivery_cost ?? 0);
+  const totalDirectCosts = salesCost + deliveryCost;
+  const grossProfit = totalRevenue - totalDirectCosts;
+  const grossMargin = totalRevenue > 0
+    ? Math.round((grossProfit / totalRevenue) * 1000) / 10
+    : 0;
+
+  // Desglose de ingresos: productos y recaudos por domicilios
+  const { productRevenue, deliveryRevenue } = useMemo(() => {
+    let delRev = 0;
+    const from = metrics.period_from;
+    const to = metrics.period_to;
+
+    for (const order of orders) {
+      const isPaid = order.payment_status === "paid";
+      const isOpenCredit = order.payment_status === "credit" || order.payment_status === "partial";
+      const dateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
+
+      if (isDateInPeriod(dateStr, from, to)) {
+        if (isPaid) {
+          delRev += Number(order.delivery_cost ?? 0);
+        } else if (isOpenCredit) {
+          const creditBalance = Math.max(0, Number(order.credit_amount ?? 0));
+          const collected = Math.max(0, Number(order.total ?? 0) - creditBalance);
+          if (collected > 0) {
+            delRev += Math.min(collected, Number(order.delivery_cost ?? 0));
+          }
+        }
+      }
+    }
+
+    if (delRev === 0 && deliveryCost > 0) {
+      delRev = deliveryCost;
+    }
+
+    const prodRev = Math.max(0, totalRevenue - delRev);
+    return { productRevenue: prodRev, deliveryRevenue: delRev };
+  }, [orders, metrics.period_from, metrics.period_to, totalRevenue, deliveryCost]);
+
+  // Clasificación de Gastos Operativos: Administrativos vs Ventas
+  const { administrativeExpenses, salesExpenses } = useMemo(() => {
+    const from = metrics.period_from;
+    const to = metrics.period_to;
+    const filtered = (expenses ?? []).filter((e) =>
+      isDateInPeriod(e.expense_date, from, to)
+    );
+
+    let admin = 0;
+    let sales = 0;
+    const salesCategories = new Set([
+      "marketing",
+      "pauta",
+      "publicidad",
+      "transporte",
+      "insumos",
+      "empaques",
+      "ventas",
+      "comisiones",
+    ]);
+
+    for (const e of filtered) {
+      const cat = (e.category || "").toLowerCase().trim();
+      const amount = Number(e.amount ?? 0);
+      if (
+        salesCategories.has(cat) ||
+        cat.includes("market") ||
+        cat.includes("paut") ||
+        cat.includes("vent") ||
+        cat.includes("public")
+      ) {
+        sales += amount;
+      } else {
+        admin += amount;
+      }
+    }
+
+    const totalFromMetrics = Number(metrics.total_expenses ?? 0);
+    if (admin === 0 && sales === 0 && totalFromMetrics > 0) {
+      admin = totalFromMetrics;
+    }
+
+    return { administrativeExpenses: admin, salesExpenses: sales };
+  }, [expenses, metrics.period_from, metrics.period_to, metrics.total_expenses]);
+
   return (
     <div className="overview-flow">
       {/* Estructura movil: resumen, ingresos y pedidos recientes. En
@@ -102,6 +195,8 @@ export default function DashboardPage({
       <MobileOverview
         metrics={metrics}
         orders={orders}
+        grossMargin={grossMargin}
+        grossProfit={grossProfit}
         onOpenOrders={canOpenOrders ? () => onSectionChange("transactions") : undefined}
         onOpenFinance={() => onSectionChange("finance")}
       />
@@ -185,19 +280,135 @@ export default function DashboardPage({
           </button>
         </div>
       </div>
-      {/* La lectura principal va primero: ventas cobradas, utilidad y margen.
-          El detalle operativo (cartera, inventario, clientes) queda debajo. */}
+
+      {/* ========================================================
+          1. SECCIÓN: INGRESOS (Ventas de perfumes + Domicilios cobrados)
+         ======================================================== */}
       <MetricGroup
-        title="Ventas"
-        hint="Cada abono suma al valor vendido, cubre primero el costo del pedido hasta su tope y el excedente suma a tu utilidad."
-        icon={<BarChart3 />}
+        title="Ingresos"
+        hint="Flujo total cobrado en caja: ventas de perfumes más recaudos por servicio de domicilio."
+        icon={<ArrowUpRight />}
         wide
       >
-        <Metric title="Ventas cobradas" value={money(Number(metrics.sales_revenue))} numericValue={Number(metrics.sales_revenue)} format="money" icon={<ReceiptText />} hint="Incluye los abonos de fiados que siguen abiertos." delta={metrics.period_days ? { current: Number(metrics.sales_revenue), previous: Number(metrics.previous.sales_revenue) } : undefined} />
-        {/* Sin costo completo no hay numero que contar: la tarjeta dice
-            "Incompleta" y el conteo se queda quieto. */}
         <Metric
-          title="Utilidad neta"
+          title="Total ingresos cobrados"
+          value={money(totalRevenue)}
+          numericValue={totalRevenue}
+          format="money"
+          icon={<ReceiptText />}
+          emphasis
+          hint="Ventas pagadas de contado + abonos de créditos que ya entraron a caja."
+          delta={metrics.period_days ? { current: totalRevenue, previous: Number(metrics.previous.sales_revenue) } : undefined}
+          onClick={() => onSectionChange("finance")}
+        />
+        <Metric
+          title="Ventas de perfumes"
+          value={money(productRevenue)}
+          numericValue={productRevenue}
+          format="money"
+          icon={<ShoppingBag />}
+          hint="Ingresos correspondientes al valor neto de los perfumes vendidos."
+        />
+        <Metric
+          title="Recaudo de domicilios"
+          value={money(deliveryRevenue)}
+          numericValue={deliveryRevenue}
+          format="money"
+          icon={<Truck />}
+          hint="Total cobrado por fletes y envíos a los clientes en el periodo."
+        />
+        <Metric
+          title="Ventas completadas"
+          value={String(metrics.completed_sales)}
+          numericValue={metrics.completed_sales}
+          icon={<ShoppingBag />}
+          hint="Pedidos pagados y entregados en el periodo."
+        />
+        <Metric
+          title="Ticket promedio"
+          value={money(avgTicket)}
+          numericValue={avgTicket}
+          format="money"
+          icon={<Calculator />}
+          hint="Ingreso cobrado promedio por venta."
+        />
+      </MetricGroup>
+
+      {/* ========================================================
+          2. SECCIÓN: COSTOS DIRECTOS Y MARGEN BRUTO
+         ======================================================== */}
+      <MetricGroup
+        title="Costos Directos y Margen Bruto"
+        hint="Costos de mercancía y logística, generando la utilidad y el margen comercial bruto."
+        icon={<Package />}
+        wide
+      >
+        <Metric
+          title="Utilidad bruta"
+          value={metrics.missing_cost_items > 0 ? "Incompleta" : money(grossProfit)}
+          numericValue={metrics.missing_cost_items > 0 ? undefined : grossProfit}
+          format="money"
+          icon={<TrendingUp />}
+          warning={grossProfit < 0}
+          emphasis
+          hint="Ingresos cobrados menos costo de productos y costo de domicilios."
+          onClick={() => onSectionChange("finance")}
+        />
+        <Metric
+          title="Margen bruto"
+          value={`${grossMargin}%`}
+          numericValue={grossMargin}
+          format="percent"
+          icon={<Percent />}
+          hint="Rentabilidad comercial bruta sobre los ingresos cobrados."
+        />
+        <Metric
+          title="Total costos directos"
+          value={money(totalDirectCosts)}
+          numericValue={totalDirectCosts}
+          format="money"
+          icon={<Calculator />}
+          hint="Costo de productos vendidos + costo de domicilios asumidos."
+        />
+        <Metric
+          title="Costo de productos"
+          value={money(Number(metrics.sales_cost))}
+          numericValue={Number(metrics.sales_cost)}
+          format="money"
+          icon={<Package />}
+          hint="Costo mayorista de los perfumes vendidos en el periodo."
+          onClick={() => onSectionChange("products")}
+        />
+        <Metric
+          title="Costo de domicilio"
+          value={money(Number(metrics.sales_delivery_cost))}
+          numericValue={Number(metrics.sales_delivery_cost)}
+          format="money"
+          icon={<Truck />}
+          hint="Costo de mensajería pagado o asumido por la tienda."
+        />
+        <Metric
+          title="Costo de fiado por cobrar"
+          value={money(Number(metrics.credit_cost_pending))}
+          numericValue={Number(metrics.credit_cost_pending)}
+          format="money"
+          icon={<Lock />}
+          hint="Parte del costo de ventas a fiado que aún falta por recuperar con próximos abonos."
+          onClick={() => onSectionChange("credit")}
+        />
+      </MetricGroup>
+
+      {/* ========================================================
+          3. SECCIÓN: GASTOS OPERATIVOS Y MARGEN NETO
+         ======================================================== */}
+      <MetricGroup
+        title="Gastos Operativos y Margen Neto"
+        hint="Gastos de administración y ventas del negocio, determinando la utilidad neta real final."
+        icon={<Wallet />}
+        wide
+      >
+        <Metric
+          title="Utilidad neta real"
           value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
           numericValue={metrics.missing_cost_items > 0 ? undefined : Number(metrics.sales_profit)}
           format="money"
@@ -205,22 +416,57 @@ export default function DashboardPage({
           warning={metrics.sales_profit < 0}
           emphasis
           delta={metrics.period_days ? { current: Number(metrics.sales_profit), previous: Number(metrics.previous.sales_profit) } : undefined}
+          hint="Ganancia libre después de costos, fletes, fiados abiertos y todos los gastos operativos."
           onClick={() => onSectionChange("finance")}
         />
-        <Metric title="Margen" value={`${Number(metrics.net_margin_percent)}%`} numericValue={Number(metrics.net_margin_percent)} format="percent" icon={<Percent />} delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined} deltaFormat="points" />
-        <Metric title="Ventas completadas" value={String(metrics.completed_sales)} numericValue={metrics.completed_sales} icon={<ShoppingBag />} />
-        <Metric title="Ticket promedio" value={money(avgTicket)} numericValue={avgTicket} format="money" icon={<Calculator />} hint="Venta cobrada promedio." />
-        <Metric title="Costo de productos" value={money(Number(metrics.sales_cost))} numericValue={Number(metrics.sales_cost)} format="money" icon={<Package />} />
-        <Metric title="Costo de domicilio" value={money(Number(metrics.sales_delivery_cost))} numericValue={Number(metrics.sales_delivery_cost)} format="money" icon={<Truck />} />
-        <Metric title="Gastos registrados" value={money(Number(metrics.total_expenses))} numericValue={Number(metrics.total_expenses)} format="money" icon={<Wallet />} />
         <Metric
-          title="Costo del fiado por cobrar"
-          value={money(Number(metrics.credit_cost_pending))}
-          numericValue={Number(metrics.credit_cost_pending)}
-          format="money"
-          icon={<Lock />}
-          hint="Parte del costo de ventas a fiado que aún falta por recuperar con próximos abonos."
+          title="Margen neto real"
+          value={`${Number(metrics.net_margin_percent)}%`}
+          numericValue={Number(metrics.net_margin_percent)}
+          format="percent"
+          icon={<Percent />}
+          delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined}
+          deltaFormat="points"
+          hint="Margen neto final libre sobre los ingresos totales cobrados."
         />
+        <Metric
+          title="Gastos de ventas"
+          value={money(salesExpenses)}
+          numericValue={salesExpenses}
+          format="money"
+          icon={<Megaphone />}
+          hint="Pauta digital (Meta/TikTok), publicidad, empaques, comisiones y transporte comercial."
+          onClick={() => onSectionChange("expenses")}
+        />
+        <Metric
+          title="Gastos administrativos"
+          value={money(administrativeExpenses)}
+          numericValue={administrativeExpenses}
+          format="money"
+          icon={<Building2 />}
+          hint="Servicios públicos, arriendo, nómina administrativa, herramientas y gastos generales."
+          onClick={() => onSectionChange("expenses")}
+        />
+        <Metric
+          title="Total gastos registrados"
+          value={money(Number(metrics.total_expenses))}
+          numericValue={Number(metrics.total_expenses)}
+          format="money"
+          icon={<Wallet />}
+          hint="Suma total de gastos operativos pagados en el periodo."
+          onClick={() => onSectionChange("expenses")}
+        />
+        {metrics.committed_expenses > 0 && (
+          <Metric
+            title="Gastos comprometidos"
+            value={money(Number(metrics.committed_expenses))}
+            numericValue={Number(metrics.committed_expenses)}
+            format="money"
+            icon={<CalendarDays />}
+            hint="Recordatorios ya creados que aún no se han pagado."
+            onClick={() => onSectionChange("expenses")}
+          />
+        )}
       </MetricGroup>
 
       <div className="metric-groups">
@@ -240,16 +486,6 @@ export default function DashboardPage({
             icon={<Lock />}
             hint="Margen de los fiados abiertos; se reduce cuando los abonos superan el costo."
           />
-          {metrics.committed_expenses > 0 && (
-            <Metric
-              title="Gastos comprometidos"
-              value={money(Number(metrics.committed_expenses))}
-              numericValue={Number(metrics.committed_expenses)}
-              format="money"
-              icon={<CalendarDays />}
-              hint="Recordatorios ya creados que aún no se han pagado."
-            />
-          )}
         </MetricGroup>
 
         <MetricGroup

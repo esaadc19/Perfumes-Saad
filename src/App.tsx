@@ -3195,6 +3195,7 @@ function Admin({
               metrics={metrics}
               orders={orders}
               products={products}
+              expenses={expenses}
               soldOut={soldOut}
               lowStock={lowStock}
               totalStock={totalStock}

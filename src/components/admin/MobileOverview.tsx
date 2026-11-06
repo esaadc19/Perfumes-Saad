@@ -1,4 +1,4 @@
-import { ArrowUpRight, ReceiptText, ShoppingBag, TrendingUp, Users } from "lucide-react";
+import { ArrowUpRight, Percent, ReceiptText, ShoppingBag, TrendingUp, Users } from "lucide-react";
 import type { AdminDashboardMetrics, AdminOrder } from "../../services/admin";
 
 const money = (value: number) =>
@@ -45,11 +45,15 @@ function initials(name: string) {
 export default function MobileOverview({
   metrics,
   orders,
+  grossMargin,
+  grossProfit,
   onOpenOrders,
   onOpenFinance,
 }: {
   metrics: AdminDashboardMetrics;
   orders: AdminOrder[];
+  grossMargin?: number;
+  grossProfit?: number;
   /** Sin permiso de pedidos el bloque queda informativo, sin enlaces. */
   onOpenOrders?: () => void;
   /** Abre la pagina de detalle financiero al tocar Utilidad neta. */
@@ -57,11 +61,11 @@ export default function MobileOverview({
 }) {
   const cards = [
     {
-      label: "Ventas cobradas",
+      label: "Ingresos cobrados",
       value: money(Number(metrics.sales_revenue)),
       tone: "sales",
       icon: <ReceiptText size={15} />,
-      onClick: undefined,
+      onClick: onOpenFinance,
     },
     {
       label: "Utilidad neta",
@@ -71,18 +75,18 @@ export default function MobileOverview({
       onClick: onOpenFinance,
     },
     {
-      label: "Pedidos",
-      value: String(metrics.total_orders),
+      label: "Margen bruto",
+      value: grossMargin !== undefined ? `${grossMargin}%` : "—",
       tone: "orders",
-      icon: <ShoppingBag size={15} />,
-      onClick: undefined,
+      icon: <Percent size={15} />,
+      onClick: onOpenFinance,
     },
     {
-      label: "Clientes",
-      value: String(metrics.customer_count),
+      label: "Margen neto",
+      value: `${Number(metrics.net_margin_percent)}%`,
       tone: "customers",
-      icon: <Users size={15} />,
-      onClick: undefined,
+      icon: <TrendingUp size={15} />,
+      onClick: onOpenFinance,
     },
   ];
   const recentOrders = orders.slice(0, 4);
