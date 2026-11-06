@@ -1203,6 +1203,7 @@ footer a { color: #111; }
 /* Auto-fit y no 5 columnas fijas: en pantallas medianas las tarjetas
    quedaban a ~120px y el monto no cabia. */
 .transaction-metrics { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-top: 8px; }
+.product-metrics { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 22px; }
 .admin-customer-modal { width: min(100%, 520px); }
 .admin-customer-modal .auth-label { display: grid; gap: 7px; margin-bottom: 12px; }
 .admin-customer-modal .auth-label input { width: 100%; }

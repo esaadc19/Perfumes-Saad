@@ -3476,6 +3476,7 @@ function Admin({
         {section === "products" && (
           <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando productos…</span></div>}>
             <ProductsPage
+              products={products}
               visibleProducts={visibleProducts}
               loading={adminInventoryLoading}
               promotions={promotions}

@@ -1,6 +1,17 @@
-import { useEffect, useState } from "react";
-import { Check, Package, Pencil, Search, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  AlertTriangle,
+  BarChart3,
+  Check,
+  Package,
+  Pencil,
+  ReceiptText,
+  Search,
+  Trash2,
+  TrendingUp,
+} from "lucide-react";
 import AdminButton from "../../components/admin/AdminButton";
+import Metric from "../../components/admin/Metric";
 import { money } from "../../lib/format";
 import type { Product, ProductVariant } from "../../services/products";
 import type { Promotion } from "../../services/promotions";
@@ -9,6 +20,7 @@ import type { ProductPriceFilterState, ProductStockFilter } from "./types";
 const PRODUCT_BATCH_SIZE = 12;
 
 interface ProductsPageProps {
+  products?: Product[];
   visibleProducts: Product[];
   loading: boolean;
   promotions: Promotion[];
@@ -47,6 +59,7 @@ interface ProductsPageProps {
 }
 
 export default function ProductsPage({
+  products,
   visibleProducts,
   loading,
   promotions,
@@ -102,6 +115,57 @@ export default function ProductsPage({
     productPriceFilter.priceMax,
   ]);
 
+  const inventoryMetrics = useMemo(() => {
+    const list = products && products.length > 0 ? products : visibleProducts;
+    let totalCost = 0;
+    let totalRetail = 0;
+    let totalUnits = 0;
+    let soldOutProducts = 0;
+    let missingCostVariants = 0;
+    let activeProductsCount = 0;
+
+    for (const product of list) {
+      if (product.archived) continue;
+      activeProductsCount += 1;
+      let productStock = 0;
+
+      for (const variant of product.variants) {
+        if (variant.active === false) continue;
+        const stock = Math.max(0, Number(variant.stock) || 0);
+        const price = Number(variant.price) || 0;
+        const cost = variant.cost != null ? Number(variant.cost) : null;
+
+        totalUnits += stock;
+        productStock += stock;
+        totalRetail += stock * price;
+
+        if (cost !== null && cost > 0) {
+          totalCost += stock * cost;
+        } else if (stock > 0) {
+          missingCostVariants += 1;
+        }
+      }
+
+      if (productStock === 0 && product.variants.length > 0) {
+        soldOutProducts += 1;
+      }
+    }
+
+    const potentialProfit = totalRetail - totalCost;
+    const marginPercent = totalRetail > 0 ? Math.round((potentialProfit / totalRetail) * 1000) / 10 : 0;
+
+    return {
+      totalCost,
+      totalRetail,
+      potentialProfit,
+      marginPercent,
+      totalUnits,
+      soldOutProducts,
+      missingCostVariants,
+      activeProductsCount,
+    };
+  }, [products, visibleProducts]);
+
   return (
     <>
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -112,6 +176,57 @@ export default function ProductsPage({
         <code> products</code> de Supabase: la tienda también crea las presentaciones en <code>product_variants</code>.
       </p>
       <section className="admin-card">
+        {!showArchivedProducts && (
+          <div className="metrics product-metrics">
+            <Metric
+              title="Valor comercial"
+              value={money(inventoryMetrics.totalRetail)}
+              numericValue={inventoryMetrics.totalRetail}
+              format="money"
+              icon={<TrendingUp />}
+              hint="Proyección si se vende todo el stock"
+            />
+            <Metric
+              title="Costo de productos"
+              value={money(inventoryMetrics.totalCost)}
+              numericValue={inventoryMetrics.totalCost}
+              format="money"
+              icon={<ReceiptText />}
+              hint="Capital invertido en inventario físico"
+            />
+            <Metric
+              title="Utilidad estimada"
+              value={money(inventoryMetrics.potentialProfit)}
+              numericValue={inventoryMetrics.potentialProfit}
+              format="money"
+              icon={<BarChart3 />}
+              hint={`${inventoryMetrics.marginPercent}% de margen bruto proyectado`}
+            />
+            <Metric
+              title="Unidades en stock"
+              value={`${inventoryMetrics.totalUnits} uds.`}
+              numericValue={inventoryMetrics.totalUnits}
+              format="int"
+              icon={<Package />}
+              hint={`${inventoryMetrics.activeProductsCount} perfumes en catálogo`}
+              onClick={() => onProductStockFilterChange(productStockFilter === "available" ? "all" : "available")}
+            />
+            <Metric
+              title="Productos agotados"
+              value={String(inventoryMetrics.soldOutProducts)}
+              numericValue={inventoryMetrics.soldOutProducts}
+              format="int"
+              icon={<AlertTriangle />}
+              warning={inventoryMetrics.soldOutProducts > 0}
+              hint={
+                inventoryMetrics.missingCostVariants > 0
+                  ? `${inventoryMetrics.missingCostVariants} variantes sin costo registrado`
+                  : "Variantes en cero stock"
+              }
+              onClick={() => onProductStockFilterChange(productStockFilter === "sold-out" ? "all" : "sold-out")}
+            />
+          </div>
+        )}
         <div className="card-title product-toolbar">
           <div className="product-list-tools">
             <button
