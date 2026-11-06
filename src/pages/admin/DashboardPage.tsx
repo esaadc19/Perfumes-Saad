@@ -27,7 +27,7 @@ import Metric from "../../components/admin/Metric";
 import MetricGroup from "../../components/admin/MetricGroup";
 import MobileOverview from "../../components/admin/MobileOverview";
 import { money } from "../../lib/format";
-import { isDateInPeriod, toBogotaDateStr } from "../../lib/order-finance";
+import { isDateInPeriod, toBogotaDateStr, getOrderFinancialBreakdown } from "../../lib/order-finance";
 import type { AdminSection } from "../../lib/admin-routes";
 import type { AdminDashboardMetrics, AdminOrder, ProductProfitability } from "../../services/admin";
 import type { Expense } from "../../services/expenses";
@@ -111,9 +111,12 @@ export default function DashboardPage({
     ? Math.round((grossProfit / totalRevenue) * 1000) / 10
     : 0;
 
-  // Desglose de ingresos: productos y recaudos por domicilios
-  const { productRevenue, deliveryRevenue } = useMemo(() => {
-    let delRev = 0;
+  // Desglose de ingresos cobrados: ventas de contado vs abonos de cartera
+  const { paidOrdersTotal, paidOrdersCount, abonosTotal, abonosCount } = useMemo(() => {
+    let paidTotal = 0;
+    let paidCount = 0;
+    let abonoTot = 0;
+    let abonoCount = 0;
     const from = metrics.period_from;
     const to = metrics.period_to;
 
@@ -124,24 +127,25 @@ export default function DashboardPage({
 
       if (isDateInPeriod(dateStr, from, to)) {
         if (isPaid) {
-          delRev += Number(order.delivery_cost ?? 0);
+          paidTotal += Number(order.total ?? 0);
+          paidCount += 1;
         } else if (isOpenCredit) {
-          const creditBalance = Math.max(0, Number(order.credit_amount ?? 0));
-          const collected = Math.max(0, Number(order.total ?? 0) - creditBalance);
-          if (collected > 0) {
-            delRev += Math.min(collected, Number(order.delivery_cost ?? 0));
+          const b = getOrderFinancialBreakdown(order);
+          if (b.collectedRevenue > 0) {
+            abonoTot += b.collectedRevenue;
+            abonoCount += 1;
           }
         }
       }
     }
 
-    if (delRev === 0 && deliveryCost > 0) {
-      delRev = deliveryCost;
-    }
-
-    const prodRev = Math.max(0, totalRevenue - delRev);
-    return { productRevenue: prodRev, deliveryRevenue: delRev };
-  }, [orders, metrics.period_from, metrics.period_to, totalRevenue, deliveryCost]);
+    return {
+      paidOrdersTotal: paidTotal,
+      paidOrdersCount: paidCount,
+      abonosTotal: abonoTot,
+      abonosCount: abonoCount,
+    };
+  }, [orders, metrics.period_from, metrics.period_to]);
 
   // Clasificación de Gastos Operativos: Administrativos vs Ventas
   const { administrativeExpenses, salesExpenses } = useMemo(() => {
@@ -282,11 +286,11 @@ export default function DashboardPage({
       </div>
 
       {/* ========================================================
-          1. SECCIÓN: INGRESOS (Ventas de perfumes + Domicilios cobrados)
+          1. SECCIÓN: INGRESOS (Ventas de contado + Abonos de créditos)
          ======================================================== */}
       <MetricGroup
         title="Ingresos"
-        hint="Flujo total cobrado en caja: ventas de perfumes más recaudos por servicio de domicilio."
+        hint="Flujo total cobrado en caja: ventas pagadas de contado y abonos de cartera recibidos."
         icon={<ArrowUpRight />}
         wide
       >
@@ -302,20 +306,21 @@ export default function DashboardPage({
           onClick={() => onSectionChange("finance")}
         />
         <Metric
-          title="Ventas de perfumes"
-          value={money(productRevenue)}
-          numericValue={productRevenue}
+          title={`Ventas de contado (${paidOrdersCount})`}
+          value={money(paidOrdersTotal)}
+          numericValue={paidOrdersTotal}
           format="money"
           icon={<ShoppingBag />}
-          hint="Ingresos correspondientes al valor neto de los perfumes vendidos."
+          hint="Total cobrado por ventas pagadas 100% de inmediato."
         />
         <Metric
-          title="Recaudo de domicilios"
-          value={money(deliveryRevenue)}
-          numericValue={deliveryRevenue}
+          title={`Abonos de créditos (${abonosCount})`}
+          value={money(abonosTotal)}
+          numericValue={abonosTotal}
           format="money"
-          icon={<Truck />}
-          hint="Total cobrado por fletes y envíos a los clientes en el periodo."
+          icon={<Wallet />}
+          hint="Total recaudado por abonos a ventas fiadas en el periodo."
+          onClick={() => onSectionChange("credit")}
         />
         <Metric
           title="Ventas completadas"
@@ -351,7 +356,7 @@ export default function DashboardPage({
           icon={<TrendingUp />}
           warning={grossProfit < 0}
           emphasis
-          hint="Ingresos cobrados menos costo de productos y costo de domicilios."
+          hint="Ingresos cobrados menos mercancía mayorista y costos de logística."
           onClick={() => onSectionChange("finance")}
         />
         <Metric
@@ -368,10 +373,10 @@ export default function DashboardPage({
           numericValue={totalDirectCosts}
           format="money"
           icon={<Calculator />}
-          hint="Costo de productos vendidos + costo de domicilios asumidos."
+          hint="Mercancía mayorista vendida + costos de logística y fletes."
         />
         <Metric
-          title="Costo de productos"
+          title="Mercancía mayorista"
           value={money(Number(metrics.sales_cost))}
           numericValue={Number(metrics.sales_cost)}
           format="money"
@@ -380,12 +385,12 @@ export default function DashboardPage({
           onClick={() => onSectionChange("products")}
         />
         <Metric
-          title="Costo de domicilio"
+          title="Costo de logística (Fletes y domicilios)"
           value={money(Number(metrics.sales_delivery_cost))}
           numericValue={Number(metrics.sales_delivery_cost)}
           format="money"
           icon={<Truck />}
-          hint="Costo de mensajería pagado o asumido por la tienda."
+          hint="Fletes, mensajería y domicilios pagados o asumidos por la tienda."
         />
         <Metric
           title="Costo de fiado por cobrar"
