@@ -172,6 +172,32 @@ export async function getCreditOrders(): Promise<CreditOrderSummary[]> {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
+export async function updateCreditOrderDueDate(
+  orderId: string,
+  newDueDate: string | null
+): Promise<void> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+
+  // 1. Intentar vía RPC dedicada
+  const { error: rpcError } = await supabase.rpc("admin_update_order_due_date", {
+    target_order_id: orderId,
+    new_due_date: newDueDate || null,
+  });
+
+  if (!rpcError) return;
+
+  // 2. Fallback: actualización directa a la tabla orders si el RPC aún no fue migrado
+  const { error: tableError } = await supabase
+    .from("orders")
+    .update({ credit_due_date: newDueDate || null })
+    .eq("id", orderId);
+
+  if (tableError) {
+    console.error("Error al actualizar fecha de vencimiento:", tableError);
+    throw new Error(tableError.message);
+  }
+}
+
 export async function recordCreditPayment(
   payment: NewCreditPayment
 ): Promise<{ order_id: string; payment_amount: number; remaining_balance: number; new_payment_status: string }> {

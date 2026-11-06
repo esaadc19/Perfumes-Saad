@@ -1495,6 +1495,169 @@ footer a { color: #111; }
 .credit-summary .summary-card.warning > svg { color: var(--danger); }
 .credit-summary .summary-card.warning strong { color: var(--danger); }
 
+/* --- Proyección y cobros por quincena (Cartera) --- */
+.credit-quincenas-section {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(44, 36, 32, 0.03);
+}
+.credit-quincenas-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.credit-quincenas-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.credit-quincenas-head p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.credit-quincenas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.quincena-card {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+}
+.quincena-card:hover {
+  border-color: #cbbfae;
+  box-shadow: 0 4px 12px rgba(44, 36, 32, 0.06);
+  transform: translateY(-1px);
+}
+.quincena-card.is-active {
+  border-color: var(--cuero);
+  background: rgba(138, 86, 50, 0.05);
+  box-shadow: 0 0 0 1.5px var(--cuero);
+}
+.quincena-card-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cuero);
+  margin-bottom: 4px;
+}
+.quincena-card-badge.warning {
+  color: #b45309;
+}
+.quincena-card-amount {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--foreground);
+  line-height: 1.2;
+}
+.quincena-card-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 3px;
+  text-transform: capitalize;
+}
+.quincena-card-count {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.quincena-card--warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+.quincena-card--warning:hover {
+  border-color: #f59e0b;
+}
+.quincena-card--warning.is-active {
+  border-color: #b45309;
+  box-shadow: 0 0 0 1.5px #b45309;
+}
+.credit-due-date-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+.due-date-assign-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(180, 83, 9, 0.08);
+  border: 1px dashed rgba(180, 83, 9, 0.45);
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.due-date-assign-btn:hover {
+  background: #b45309;
+  border-color: #b45309;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+.due-date-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.due-date-pill:hover {
+  border-color: var(--cuero);
+  background: var(--card-subtle);
+  transform: translateY(-1px);
+}
+.due-date-pill .pill-edit-icon {
+  opacity: 0.4;
+  margin-left: 2px;
+  transition: opacity 0.15s ease;
+}
+.due-date-pill:hover .pill-edit-icon {
+  opacity: 1;
+  color: var(--cuero);
+}
+.due-date-pill.is-soon {
+  border-color: rgba(180, 83, 9, 0.4);
+  background: rgba(180, 83, 9, 0.06);
+  color: #92400e;
+  font-weight: 600;
+}
+.due-date-pill.is-overdue {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .credit-filters {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; margin-bottom: 16px;

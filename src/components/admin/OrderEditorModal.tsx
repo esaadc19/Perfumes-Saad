@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { Plus, Search, Trash2, X, User } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Search, Trash2, X, User, Calendar } from "lucide-react";
+import { getUpcomingQuincenas } from "../../lib/quincenas";
 import type { Promotion } from "../../services/promotions";
 import type { Product } from "../../services/products";
 import type { AdminCustomer, AdminOrder, SalesAdvisor } from "../../services/admin";
@@ -70,7 +71,10 @@ export default function OrderEditorModal({
     deliveryCost: number,
     salesAdvisorId: string | null,
     orderStatus: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled",
-    paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial", paymentMethod: string, costFundedBy: "business" | "personal"
+    paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial",
+    paymentMethod: string,
+    costFundedBy: "business" | "personal",
+    creditDueDate?: string | null
   ) => void;
 }) {
   const [customerId, setCustomerId] = useState(order?.customer_id ?? "");
@@ -112,6 +116,10 @@ export default function OrderEditorModal({
   const [paymentStatus, setPaymentStatus] = useState<"pending" | "paid" | "refunded" | "credit" | "partial">(
     (order?.payment_status as "pending" | "paid" | "refunded" | "credit" | "partial") ?? "pending"
   );
+  const [creditDueDate, setCreditDueDate] = useState<string>(
+    order?.credit_due_date ? order.credit_due_date.slice(0, 10) : ""
+  );
+  const upcomingQuincenas = useMemo(() => getUpcomingQuincenas(), []);
   const [productSearch, setProductSearch] = useState("");
   const [items, setItems] = useState<OrderItem[]>(
     order?.order_items.map((item) => ({
@@ -239,7 +247,8 @@ export default function OrderEditorModal({
             orderStatus,
             paymentStatus,
             paymentMethod,
-            costFundedBy
+            costFundedBy,
+            paymentStatus === "credit" || paymentStatus === "partial" ? (creditDueDate || null) : null
           );
         }}
       >
@@ -612,6 +621,60 @@ export default function OrderEditorModal({
             </select>
           </label>
         </div>
+
+        {(paymentStatus === "credit" || paymentStatus === "partial") && (
+          <div
+            className="order-credit-due-section"
+            style={{
+              padding: "12px 14px",
+              background: "rgba(180, 83, 9, 0.04)",
+              borderRadius: "10px",
+              border: "1px solid rgba(180, 83, 9, 0.2)",
+              marginBottom: "16px",
+            }}
+          >
+            <label className="auth-label" style={{ marginBottom: 0 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 600, color: "#92400e" }}>
+                <Calendar size={15} /> Fecha de vencimiento (Vence)
+              </span>
+              <input
+                type="date"
+                value={creditDueDate}
+                onChange={(event) => setCreditDueDate(event.target.value)}
+                disabled={saving}
+                style={{ marginTop: "6px" }}
+              />
+              <small style={{ marginTop: "4px", display: "block", color: "var(--muted)" }}>
+                Pacta la quincena de cobro según el esquema 50/50 de Perfumes SAAD.
+              </small>
+            </label>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
+              <span style={{ fontSize: "11px", color: "var(--muted)", alignSelf: "center", marginRight: "2px" }}>
+                Atajos de quincena:
+              </span>
+              {upcomingQuincenas.map((q) => (
+                <button
+                  key={q.key}
+                  type="button"
+                  onClick={() => setCreditDueDate(q.dateStr)}
+                  disabled={saving}
+                  style={{
+                    fontSize: "11px",
+                    padding: "3px 9px",
+                    borderRadius: "6px",
+                    border: creditDueDate === q.dateStr ? "1px solid #b45309" : "1px solid var(--border)",
+                    background: creditDueDate === q.dateStr ? "#b45309" : "var(--surface)",
+                    color: creditDueDate === q.dateStr ? "#fff" : "var(--foreground)",
+                    cursor: "pointer",
+                    fontWeight: creditDueDate === q.dateStr ? 600 : 500,
+                  }}
+                >
+                  {q.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <p className="order-editor-note">El total cobrado y el costo de domicilio se registran por separado. El inventario se descuenta cuando marques el pedido como pagado o con crédito.</p>
         {orderPrice.discount > 0 && <p className="cart-discount">Ahorro en promociones: -{money(orderPrice.discount)}</p>}

@@ -432,6 +432,7 @@ export async function saveAdminPendingOrder(input: {
   paymentStatus?: "pending" | "paid" | "refunded" | "credit" | "partial";
   paymentMethod?: string;
   costFundedBy?: "business" | "personal";
+  creditDueDate?: string | null;
 }): Promise<string> {
   const client = requireSupabase();
   const { data, error } = await client.rpc("admin_save_pending_order", {
@@ -452,6 +453,12 @@ export async function saveAdminPendingOrder(input: {
     throw new Error(error.message || "No se pudo guardar el pedido.");
   }
   if (typeof data !== "string") throw new Error("Supabase no devolvió el pedido guardado.");
+  if (input.creditDueDate !== undefined) {
+    await client
+      .from("orders")
+      .update({ credit_due_date: input.creditDueDate || null })
+      .eq("id", data);
+  }
   return data;
 }
 

@@ -1,16 +1,35 @@
-import { useState, useEffect, type KeyboardEvent } from "react";
-import { Search, AlertTriangle, DollarSign, TrendingUp, TrendingDown, Clock, X, Pencil, Trash2, Plus, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { useState, useEffect, useMemo, type KeyboardEvent } from "react";
+import {
+  Search,
+  AlertTriangle,
+  DollarSign,
+  Clock,
+  X,
+  Pencil,
+  Trash2,
+  Plus,
+  ShieldCheck,
+  CheckCircle2,
+  Calendar,
+  Check,
+} from "lucide-react";
 import {
   getCreditOrders,
   recordCreditPayment,
   updateCreditPayment,
   deleteCreditPayment,
   setCreditBlock,
+  updateCreditOrderDueDate,
   CREDIT_METHODS,
   type CreditOrderSummary,
   type CreditPayment,
   type PaymentMethod,
 } from "../../services/credits";
+import {
+  getUpcomingQuincenas,
+  formatDueDateColombian,
+  type QuincenaOption,
+} from "../../lib/quincenas";
 import AdminButton from "../../components/admin/AdminButton";
 import EmptyState from "../../components/admin/EmptyState";
 
@@ -21,18 +40,70 @@ const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
-type FilterTab = "all" | "overdue" | "upcoming" | "paid";
+type FilterTab = "all" | "overdue" | "upcoming" | "paid" | "q1" | "q2" | "later" | "no_date";
 
 export default function CreditPage({ sectionRevision }: { sectionRevision: number }) {
   const [orders, setOrders] = useState<CreditOrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterTab>("all");
   const [paymentModal, setPaymentModal] = useState<{ order: CreditOrderSummary | null; editingPayment?: CreditPayment } | null>(null);
   const [savingPayment, setSavingPayment] = useState(false);
   const [deletingPaymentId, setDeletingPaymentId] = useState<string | null>(null);
   const [listModal, setListModal] = useState<CreditOrderSummary | null>(null);
+
+  // Modal para asignar/editar fecha de vencimiento (quincenas)
+  const [dueDateModal, setDueDateModal] = useState<CreditOrderSummary | null>(null);
+  const [selectedDueDate, setSelectedDueDate] = useState<string>("");
+  const [savingDueDate, setSavingDueDate] = useState(false);
+  const [dueDateError, setDueDateError] = useState<string | null>(null);
+
+  const upcomingQuincenas = useMemo(() => getUpcomingQuincenas(), []);
+  const q1 = upcomingQuincenas[0];
+  const q2 = upcomingQuincenas[1];
+
+  // Cálculo de proyecciones por quincena para cobro
+  const quincenaMetrics = useMemo(() => {
+    let q1Total = 0;
+    let q1Count = 0;
+    let q2Total = 0;
+    let q2Count = 0;
+    let laterTotal = 0;
+    let laterCount = 0;
+    let noDateTotal = 0;
+    let noDateCount = 0;
+
+    for (const o of orders) {
+      if (o.status === "paid" || o.credit_amount <= 0) continue;
+      const d = o.credit_due_date ? o.credit_due_date.slice(0, 10) : null;
+      if (!d) {
+        noDateTotal += o.credit_amount;
+        noDateCount += 1;
+      } else if (q1 && d <= q1.dateStr) {
+        q1Total += o.credit_amount;
+        q1Count += 1;
+      } else if (q2 && d <= q2.dateStr) {
+        q2Total += o.credit_amount;
+        q2Count += 1;
+      } else {
+        laterTotal += o.credit_amount;
+        laterCount += 1;
+      }
+    }
+
+    return {
+      q1Total,
+      q1Count,
+      q2Total,
+      q2Count,
+      laterTotal,
+      laterCount,
+      noDateTotal,
+      noDateCount,
+    };
+  }, [orders, q1, q2]);
 
   useEffect(() => {
     loadOrders();
@@ -67,6 +138,27 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
         return !order.overdue && order.status !== "paid";
       case "paid":
         return order.status === "paid";
+      case "q1":
+        return (
+          order.status !== "paid" &&
+          Boolean(order.credit_due_date) &&
+          order.credit_due_date!.slice(0, 10) <= q1.dateStr
+        );
+      case "q2":
+        return (
+          order.status !== "paid" &&
+          Boolean(order.credit_due_date) &&
+          order.credit_due_date!.slice(0, 10) > q1.dateStr &&
+          order.credit_due_date!.slice(0, 10) <= q2.dateStr
+        );
+      case "later":
+        return (
+          order.status !== "paid" &&
+          Boolean(order.credit_due_date) &&
+          order.credit_due_date!.slice(0, 10) > q2.dateStr
+        );
+      case "no_date":
+        return order.status !== "paid" && !order.credit_due_date;
       default:
         return true;
     }
@@ -148,6 +240,53 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
     }
   };
 
+  const openDueDateModal = (order: CreditOrderSummary) => {
+    setDueDateModal(order);
+    setSelectedDueDate(
+      order.credit_due_date ? order.credit_due_date.slice(0, 10) : (q1?.dateStr ?? "")
+    );
+    setDueDateError(null);
+  };
+
+  const handleSaveDueDate = async (orderId: string, newDueDate: string | null) => {
+    setSavingDueDate(true);
+    setDueDateError(null);
+    try {
+      await updateCreditOrderDueDate(orderId, newDueDate);
+      setOrders((current) =>
+        current.map((o) => {
+          if (o.order_id !== orderId) return o;
+          const isPaid = o.status === "paid";
+          const hasDate = !isPaid && typeof newDueDate === "string" && newDueDate.length > 0;
+          const overdue = hasDate
+            ? new Date(newDueDate) < new Date() && o.credit_amount > 0
+            : false;
+          const daysOverdue = overdue && hasDate
+            ? Math.floor((Date.now() - new Date(newDueDate).getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
+          return {
+            ...o,
+            credit_due_date: newDueDate,
+            overdue,
+            days_overdue: daysOverdue,
+          };
+        })
+      );
+      setDueDateModal(null);
+      setActionFeedback(
+        newDueDate
+          ? `Vencimiento guardado correctamente (${newDueDate}).`
+          : "Fecha de vencimiento eliminada."
+      );
+      setTimeout(() => setActionFeedback(null), 4000);
+    } catch (err) {
+      console.error("Error al actualizar fecha de vencimiento:", err);
+      setDueDateError(err instanceof Error ? err.message : "No se pudo actualizar el vencimiento");
+    } finally {
+      setSavingDueDate(false);
+    }
+  };
+
   const getStatusBadge = (order: CreditOrderSummary) => {
     if (order.status === "paid") {
       return <span className="status-badge paid">Pagado</span>;
@@ -220,6 +359,109 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
         </div>
       </div>
 
+      {/* ========================================================
+          PROYECCIÓN DE COBROS POR QUINCENA (Esquema 50/50)
+         ======================================================== */}
+      <div className="credit-quincenas-section">
+        <div className="credit-quincenas-head">
+          <div>
+            <h3>
+              <Calendar size={17} style={{ color: "var(--cuero)" }} />
+              Cobros programados por quincena
+            </h3>
+            <p>Monitorea cuánto flujo de caja recibirás en cada quincena según las fechas pactadas.</p>
+          </div>
+        </div>
+
+        <div className="credit-quincenas-grid">
+          {/* Quincena 1 */}
+          <div
+            className={`quincena-card ${filter === "q1" ? "is-active" : ""}`}
+            onClick={() => setFilter(filter === "q1" ? "all" : "q1")}
+            role="button"
+            tabIndex={0}
+            title={`Filtrar pedidos de la quincena ${q1?.label ?? ""}`}
+          >
+            <div className="quincena-card-badge">Próxima quincena</div>
+            <strong className="quincena-card-amount">{money(quincenaMetrics.q1Total)}</strong>
+            <span className="quincena-card-title">{q1?.label ?? "Próxima"}</span>
+            <small className="quincena-card-count">
+              {quincenaMetrics.q1Count} {quincenaMetrics.q1Count === 1 ? "pedido por cobrar" : "pedidos por cobrar"}
+            </small>
+          </div>
+
+          {/* Quincena 2 */}
+          <div
+            className={`quincena-card ${filter === "q2" ? "is-active" : ""}`}
+            onClick={() => setFilter(filter === "q2" ? "all" : "q2")}
+            role="button"
+            tabIndex={0}
+            title={`Filtrar pedidos de la quincena ${q2?.label ?? ""}`}
+          >
+            <div className="quincena-card-badge">Siguiente quincena</div>
+            <strong className="quincena-card-amount">{money(quincenaMetrics.q2Total)}</strong>
+            <span className="quincena-card-title">{q2?.label ?? "Siguiente"}</span>
+            <small className="quincena-card-count">
+              {quincenaMetrics.q2Count} {quincenaMetrics.q2Count === 1 ? "pedido por cobrar" : "pedidos por cobrar"}
+            </small>
+          </div>
+
+          {/* Más adelante */}
+          {quincenaMetrics.laterCount > 0 && (
+            <div
+              className={`quincena-card ${filter === "later" ? "is-active" : ""}`}
+              onClick={() => setFilter(filter === "later" ? "all" : "later")}
+              role="button"
+              tabIndex={0}
+              title="Filtrar pedidos de quincenas posteriores"
+            >
+              <div className="quincena-card-badge">Más adelante</div>
+              <strong className="quincena-card-amount">{money(quincenaMetrics.laterTotal)}</strong>
+              <span className="quincena-card-title">Futuras quincenas</span>
+              <small className="quincena-card-count">
+                {quincenaMetrics.laterCount} {quincenaMetrics.laterCount === 1 ? "pedido" : "pedidos"}
+              </small>
+            </div>
+          )}
+
+          {/* Sin fecha asignada */}
+          {quincenaMetrics.noDateCount > 0 && (
+            <div
+              className={`quincena-card quincena-card--warning ${filter === "no_date" ? "is-active" : ""}`}
+              onClick={() => setFilter(filter === "no_date" ? "all" : "no_date")}
+              role="button"
+              tabIndex={0}
+              title="Filtrar pedidos que requieren fecha de vencimiento"
+            >
+              <div className="quincena-card-badge warning">⚠️ Requiere fecha</div>
+              <strong className="quincena-card-amount" style={{ color: "#b45309" }}>{money(quincenaMetrics.noDateTotal)}</strong>
+              <span className="quincena-card-title">Sin fecha asignada</span>
+              <small className="quincena-card-count">
+                {quincenaMetrics.noDateCount} {quincenaMetrics.noDateCount === 1 ? "pedido sin fecha" : "pedidos por asignar"}
+              </small>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {actionFeedback && (
+        <p
+          className="form-success"
+          role="status"
+          style={{
+            background: "#ecfdf5",
+            color: "#059669",
+            padding: "10px 14px",
+            borderRadius: "8px",
+            marginBottom: "16px",
+            fontSize: "13px",
+            fontWeight: 500,
+          }}
+        >
+          ✓ {actionFeedback}
+        </p>
+      )}
+
       <div className="credit-filters">
         <label className="admin-search">
           <Search size={16} />
@@ -233,33 +475,32 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
         <div className="filter-tabs" role="tablist" aria-label="Filtrar cartera por estado">
           {([
             ["all", "Todos", orders.length],
+            ["q1", `Quincena ${q1?.label ?? ""}`, quincenaMetrics.q1Count],
+            ["q2", `Quincena ${q2?.label ?? ""}`, quincenaMetrics.q2Count],
+            ["no_date", "Sin fecha", quincenaMetrics.noDateCount],
             ["overdue", "Vencidos", orders.filter((o) => o.overdue).length],
             ["upcoming", "Por vencer", orders.filter((o) => !o.overdue && o.status !== "paid").length],
             ["paid", "Pagados", orders.filter((o) => o.status === "paid").length],
-          ] as const).map(([key, label, count]) => (
-            <AdminButton
-              key={key}
-              tone={filter === key ? "primary" : "secondary"}
-              compact
-              role="tab"
-              aria-selected={filter === key}
-              tabIndex={filter === key ? 0 : -1}
-              className={filter === key ? "active" : ""}
-              onClick={() => setFilter(key as FilterTab)}
-              onKeyDown={(e: KeyboardEvent<HTMLButtonElement>) => {
-                // Flechas para moverse entre pestañas, patrón esperado en un tablist.
-                const order: FilterTab[] = ["all", "overdue", "upcoming", "paid"];
-                const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-                if (!step) return;
-                e.preventDefault();
-                const next = order[(order.indexOf(filter) + step + order.length) % order.length];
-                setFilter(next);
-              }}
-            >
-              {label}
-              <span className="filter-count">{count}</span>
-            </AdminButton>
-          ))}
+          ] as const)
+            .filter(([key, _, count]) => {
+              if (key === "q1" || key === "q2" || key === "no_date") return count > 0;
+              return true;
+            })
+            .map(([key, label, count]) => (
+              <AdminButton
+                key={key}
+                tone={filter === key ? "primary" : "secondary"}
+                compact
+                role="tab"
+                aria-selected={filter === key}
+                tabIndex={filter === key ? 0 : -1}
+                className={filter === key ? "active" : ""}
+                onClick={() => setFilter(key as FilterTab)}
+              >
+                {label}
+                <span className="filter-count">{count}</span>
+              </AdminButton>
+            ))}
         </div>
       </div>
 
@@ -300,7 +541,40 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
                 {money(order.credit_amount)}
               </span>
               <span>{money(order.paid_amount)}</span>
-              {getDueDateDisplay(order)}
+              <div className="credit-due-date-cell">
+                {order.status === "paid" ? (
+                  <span className="due-date" style={{ color: "var(--muted)" }}>
+                    Saldado
+                  </span>
+                ) : order.credit_due_date ? (
+                  (() => {
+                    const info = formatDueDateColombian(order.credit_due_date);
+                    return (
+                      <button
+                        type="button"
+                        className={`due-date-pill ${info.isOverdue ? "is-overdue" : info.isSoon ? "is-soon" : ""}`}
+                        onClick={() => openDueDateModal(order)}
+                        title="Haz clic para cambiar la fecha de vencimiento"
+                      >
+                        <Calendar size={13} />
+                        <span>{info.formatted}</span>
+                        <small>({info.relativeLabel})</small>
+                        <Pencil size={11} className="pill-edit-icon" />
+                      </button>
+                    );
+                  })()
+                ) : (
+                  <button
+                    type="button"
+                    className="due-date-assign-btn"
+                    onClick={() => openDueDateModal(order)}
+                    title="Asignar quincena de cobro a este pedido"
+                  >
+                    <Calendar size={13} />
+                    <span>+ Asignar fecha</span>
+                  </button>
+                )}
+              </div>
               {getStatusBadge(order)}
               <div className="order-actions">
                 {order.status !== "paid" && (
@@ -474,6 +748,135 @@ export default function CreditPage({ sectionRevision }: { sectionRevision: numbe
               </AdminButton>
             </div>
           </form>
+        </div>
+      )}
+
+      {dueDateModal && (
+        <div
+          className="overlay"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !savingDueDate) setDueDateModal(null);
+          }}
+        >
+          <div className="add-modal" style={{ maxWidth: "460px" }}>
+            <button
+              className="close"
+              type="button"
+              onClick={() => {
+                if (!savingDueDate) setDueDateModal(null);
+              }}
+              aria-label="Cerrar"
+            >
+              <X />
+            </button>
+            <p className="eyebrow">CARTERA · VENCIMIENTO</p>
+            <h2>Asignar fecha de cobro</h2>
+            <p className="credit-modal-info" style={{ marginBottom: "16px" }}>
+              Cliente: <strong>{dueDateModal.customer_name}</strong> · Pedido #{dueDateModal.order_code}
+              <br />
+              Saldo pendiente: <strong>{money(dueDateModal.credit_amount)}</strong> de {money(dueDateModal.total)}
+            </p>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label className="auth-label" style={{ fontWeight: 600, display: "block", marginBottom: "8px" }}>
+                Atajos de quincena (Esquema 50/50 SAAD):
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                {upcomingQuincenas.map((q) => {
+                  const isSelected = selectedDueDate === q.dateStr;
+                  return (
+                    <button
+                      key={q.key}
+                      type="button"
+                      onClick={() => setSelectedDueDate(q.dateStr)}
+                      disabled={savingDueDate}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-start",
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        border: isSelected ? "2px solid var(--cuero)" : "1px solid var(--border)",
+                        background: isSelected ? "rgba(138, 86, 50, 0.08)" : "var(--surface)",
+                        cursor: "pointer",
+                        textAlign: "left",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          textTransform: "uppercase",
+                          fontWeight: 700,
+                          color: isSelected ? "var(--cuero)" : "var(--muted)",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        {q.isNext ? "⚡ Próxima quincena" : "Quincena"}
+                      </span>
+                      <strong
+                        style={{
+                          fontSize: "13px",
+                          color: isSelected ? "var(--cuero)" : "var(--foreground)",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {q.label}
+                      </strong>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="auth-label" style={{ marginBottom: "18px" }}>
+              O selecciona una fecha personalizada:
+              <input
+                type="date"
+                value={selectedDueDate}
+                onChange={(e) => setSelectedDueDate(e.target.value)}
+                disabled={savingDueDate}
+                style={{ marginTop: "6px" }}
+              />
+            </label>
+
+            {dueDateError && <p className="form-error" role="alert">{dueDateError}</p>}
+
+            <div className="order-actions" style={{ justifyContent: "space-between", marginTop: "18px" }}>
+              {dueDateModal.credit_due_date ? (
+                <AdminButton
+                  tone="danger"
+                  variant="outline"
+                  compact
+                  type="button"
+                  disabled={savingDueDate}
+                  onClick={() => handleSaveDueDate(dueDateModal.order_id, null)}
+                >
+                  <Trash2 size={14} /> Quitar fecha
+                </AdminButton>
+              ) : <span />}
+              <div style={{ display: "flex", gap: "8px" }}>
+                <AdminButton
+                  tone="secondary"
+                  compact
+                  type="button"
+                  disabled={savingDueDate}
+                  onClick={() => setDueDateModal(null)}
+                >
+                  Cancelar
+                </AdminButton>
+                <AdminButton
+                  tone="primary"
+                  compact
+                  type="button"
+                  disabled={savingDueDate || !selectedDueDate}
+                  onClick={() => handleSaveDueDate(dueDateModal.order_id, selectedDueDate)}
+                >
+                  <Check size={14} /> {savingDueDate ? "Guardando..." : "Guardar vencimiento"}
+                </AdminButton>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </section>
