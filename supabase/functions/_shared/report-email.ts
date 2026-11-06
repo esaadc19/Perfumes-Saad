@@ -642,6 +642,8 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
     </table>
   `;
 
+  const showWeeklyChart = !isDaily && weeklyHistory.length > 0;
+
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -687,8 +689,7 @@ export function formatEmailHtml(data: any, isDaily: boolean): string {
               ${headerCard}
               ${cardGap}
               ${kpisGrid}
-              ${cardGap}
-              ${chartCard}
+              ${showWeeklyChart ? `${cardGap}${chartCard}` : ""}
               ${cardGap}
               ${topProductsCard}
               ${cardGap}

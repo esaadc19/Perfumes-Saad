@@ -4119,9 +4119,18 @@ create index if not exists orders_code_prefix_idx
   on public.orders (upper(left(id::text, 8)));
 
 -- ============================================
--- CRON JOB: REPORTE SEMANAL (Domingos 8am Colombia = 1pm UTC)
+-- CRON JOBS: REPORTES Y RECORDATORIOS
+-- Domingos 8am Colombia = 1pm UTC
 -- ============================================
+-- pg_net es quien hace el HTTP POST desde Postgres.
 create extension if not exists pg_cron with schema extensions;
+create extension if not exists pg_net with schema extensions;
+
+-- La service role key se guarda en Vault, no en app.settings: el rol
+-- postgres de Supabase no puede cambiar ese parámetro en este proyecto.
+-- Crear una vez (reemplazar el valor; no guardarlo en Git):
+--   select vault.create_secret('<SERVICE_ROLE_KEY>', 'weekly_report_service_role_key');
+-- Los crons leen el secreto con vault.decrypted_secrets.
 
 select cron.unschedule(jobid)
 from cron.job
@@ -4132,14 +4141,35 @@ select cron.schedule(
   '0 13 * * 0',
   $weekly$
     select net.http_post(
-      url := 'https://' || current_setting('app.settings.supabase_url', true) || '/functions/v1/weekly-report',
+      url := 'https://elfkbytvuatjlhzhdsmy.supabase.co/functions/v1/weekly-report',
       headers := jsonb_build_object(
-        'Authorization', 'Bearer ' || current_setting('app.settings.supabase_service_role_key', true),
+        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'weekly_report_service_role_key'),
         'Content-Type', 'application/json'
       ),
       body := '{}'::jsonb
     );
   $weekly$
+);
+
+select cron.unschedule(jobid)
+from cron.job
+where jobname = 'monthly-sales-report';
+
+select cron.schedule(
+  'monthly-sales-report',
+  '0 13 1 * *',
+  $monthly$
+    select net.http_post(
+      url := 'https://elfkbytvuatjlhzhdsmy.supabase.co/functions/v1/weekly-report',
+      headers := jsonb_build_object(
+        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'weekly_report_service_role_key'),
+        'Content-Type', 'application/json'
+      ),
+      body := jsonb_build_object(
+        'period_to', to_char(date_trunc('month', now()) - interval '1 day', 'YYYY-MM-DD')
+      )
+    );
+  $monthly$
 );
 
 select cron.unschedule(jobid)
@@ -4151,9 +4181,9 @@ select cron.schedule(
   '0 13 * * *',
   $reminders$
     select net.http_post(
-      url := 'https://' || current_setting('app.settings.supabase_url', true) || '/functions/v1/expense-reminders',
+      url := 'https://elfkbytvuatjlhzhdsmy.supabase.co/functions/v1/expense-reminders',
       headers := jsonb_build_object(
-        'Authorization', 'Bearer ' || current_setting('app.settings.supabase_service_role_key', true),
+        'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'weekly_report_service_role_key'),
         'Content-Type', 'application/json'
       ),
       body := '{}'::jsonb

@@ -156,23 +156,27 @@ function formatReport(data: any): string {
 }
 
 function formatDailyReport(data: any): string {
-  const bestProduct = data.best_product;
+  const bestProduct = data?.best_product;
+  const bestProductName = bestProduct?.name ? cleanProductName(bestProduct.name) : "Sin ventas";
+  const bestProductQty = num(bestProduct?.quantity);
+  const reportDate = String(data?.report_date ?? "");
+
   return `
 📊 *REPORTE DIARIO - PERFUMES SAAD*
-📅 Fecha: ${data.report_date}
+📅 Fecha: ${reportDate}
 
 💰 *VENTAS*
-• Total vendido: ${formatCurrency(data.sales)}
-• Pedidos completados: ${data.orders}
-• Unidades vendidas: ${data.items_sold}
+• Total vendido: ${formatCurrency(num(data?.sales))}
+• Pedidos completados: ${num(data?.orders)}
+• Unidades vendidas: ${num(data?.items_sold)}
 
 📦 *PRODUCTO MÁS VENDIDO*
-• ${bestProduct.name} (${bestProduct.quantity} unidades)
+• ${bestProductName}${bestProductQty > 0 ? ` (${bestProductQty} unidades)` : ""}
 
 💸 *GASTOS*
-• Gastos registrados: ${formatCurrency(data.expenses)}
+• Gastos registrados: ${formatCurrency(num(data?.expenses))}
 
-_Reporte generado el ${data.report_date}_
+_Reporte generado el ${reportDate}_
   `.trim();
 }
 

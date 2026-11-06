@@ -901,14 +901,30 @@ footer a { color: #111; }
 .admin-no-access .empty-state { max-width: 420px; }
 .variant-active-control { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 10px; font-weight: 500; }
 .variant-active-control input { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); }
-.card-title { display: flex; justify-content: space-between; align-items: start; margin-bottom: 22px; }
+.card-title { display: flex; justify-content: space-between; align-items: start; margin-bottom: 22px; gap: 12px; }
 .card-title span { color: var(--muted); font-size: 12px; }
+.card-title > svg {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--cuero);
+  border: 1px solid var(--border);
+  box-sizing: border-box;
+}
 
 /* --- Tablas del admin -------------------------------------------------
    Cabecera fija al desplazar horizontalmente, filas alternas para
    seguir la lectura, y realce al pasar el cursor.                  */
 .admin-table {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(44, 36, 32, 0.2) transparent;
   border-radius: 10px;
   /* Compensa el ancho de la barra de scroll para que la cabecera
      sticky no tape el borde redondeado. */
@@ -1800,7 +1816,14 @@ footer a { color: #111; }
     font: inherit;
     text-decoration: none;
     cursor: pointer;
-    transition: color .16s ease;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .16s ease, transform .1s ease;
+  }
+  .admin-navdock-item:active {
+    transform: scale(0.95);
   }
   .admin-navdock-item.is-active { color: var(--verde); }
   .admin-navdock-item:focus-visible { outline: 2px solid var(--verde); outline-offset: -3px; }
@@ -3740,6 +3763,14 @@ footer a { color: #111; }
   display: none;
 }
 
+@media (min-width: 901px) and (max-width: 1100px) {
+  /* En tablets horizontales (iPad 1024px), reducimos el acolchado lateral
+     para que las tablas, tarjetas de KPI y gráficos tengan máximo espacio útil. */
+  .admin-main {
+    padding: 20px 20px 48px;
+  }
+}
+
 @media (max-width: 900px) {
   /* El espacio de 62px era para una cabecera fija que ya no se renderiza.
      El padding lateral se repite aqui porque la regla de escritorio aparece
@@ -4868,7 +4899,7 @@ footer a { color: #111; }
 
 .finance-strategic-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
   gap: 16px;
   margin-top: 16px;
 }
@@ -5194,6 +5225,13 @@ footer a { color: #111; }
 
 .finance-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(44, 36, 32, 0.2) transparent;
+  padding-bottom: 6px;
+  border-radius: 10px;
 }
 
 .finance-income-row {
@@ -5285,9 +5323,6 @@ footer a { color: #111; }
 }
 
 @media (max-width: 960px) {
-  .finance-hero-grid {
-    grid-template-columns: 1fr;
-  }
   .finance-statement-grid {
     grid-template-columns: 1fr;
   }

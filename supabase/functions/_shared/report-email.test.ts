@@ -179,6 +179,7 @@ check("numero de reporte diario", daily.includes("Reporte N° 284-2026"));
 check("utilidad del dia", daily.includes(money(450000 - 200000 - 25000 - 15000)));
 check("gastos de dia y mes", daily.includes(money(15000)) && daily.includes(money(63175)));
 check("pedidos pendientes diarios", daily.includes("1") && daily.includes("pedidos pendientes de pago"));
+check("no incluye grafico de 8 semanas en reporte diario", !daily.includes("Ventas últimas 8 semanas"));
 
 // ---------------------------------------------------------------
 // 4. Mensual y rango largo
