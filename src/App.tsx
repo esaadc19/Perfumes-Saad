@@ -78,12 +78,16 @@ import {
   getExpenses,
   getRecurringExpenses,
   createExpense,
+  updateExpense,
+  updateRecurringExpense,
   deleteRecurringExpense,
   deleteExpense,
   markRecurringExpensePaid,
   type Expense,
   type RecurrenceFrequency,
   type RecurringExpense,
+  type UpdateExpenseInput,
+  type UpdateRecurringExpenseInput,
 } from "./services/expenses";
 import AuthDialog from "./components/AuthDialog";
 import AccountDialog from "./components/AccountDialog";
@@ -2502,6 +2506,40 @@ function Admin({
     }
   };
 
+  const editExpense = async (id: string, updated: UpdateExpenseInput) => {
+    setSavingExpense(true);
+    setSectionError(null);
+    try {
+      await updateExpense(id, updated);
+      setSectionRevision((current) => current + 1);
+      notifySuccess("Gasto actualizado correctamente.");
+    } catch (saveError) {
+      console.error("No se pudo actualizar el gasto:", saveError);
+      setSectionError(saveError instanceof Error ? saveError.message : "No se pudo actualizar el gasto.");
+      notifyError("No se pudo actualizar el gasto.");
+      throw saveError;
+    } finally {
+      setSavingExpense(false);
+    }
+  };
+
+  const editRecurringExpense = async (id: string, updated: UpdateRecurringExpenseInput) => {
+    setSavingExpense(true);
+    setSectionError(null);
+    try {
+      await updateRecurringExpense(id, updated);
+      setSectionRevision((current) => current + 1);
+      notifySuccess("Recordatorio actualizado correctamente.");
+    } catch (saveError) {
+      console.error("No se pudo actualizar el recordatorio:", saveError);
+      setSectionError(saveError instanceof Error ? saveError.message : "No se pudo actualizar el recordatorio.");
+      notifyError("No se pudo actualizar el recordatorio.");
+      throw saveError;
+    } finally {
+      setSavingExpense(false);
+    }
+  };
+
   const payRecurringExpense = async (expense: RecurringExpense) => {
     setPayingRecurringExpenseId(expense.id);
     setSectionError(null);
@@ -3267,6 +3305,8 @@ function Admin({
               deletingRecurringExpenseId={deletingRecurringExpenseId}
               onPayRecurring={(expense) => void payRecurringExpense(expense)}
               onDeleteRecurring={(id) => void removeRecurringExpense(id)}
+              onUpdateExpense={editExpense}
+              onUpdateRecurring={editRecurringExpense}
               expenses={expenses}
               paginatedExpenses={paginatedExpenses}
               currentPage={currentExpensePage}

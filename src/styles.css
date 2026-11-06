@@ -3092,7 +3092,13 @@ footer a { color: #111; }
 /* 52px en vez de 40: al centrar los botones, 40px quedaba justo y el
    botón se desbordaba hacia el borde de la tarjeta. */
 .expense-row {
-  grid-template-columns: 2fr 1fr 1fr 1fr 52px !important;
+  grid-template-columns: 2fr 1fr 1fr 1fr 88px !important;
+}
+.expense-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 .receipt-auto-send {

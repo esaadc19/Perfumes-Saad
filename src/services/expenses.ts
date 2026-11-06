@@ -76,16 +76,82 @@ export async function createExpense(expense: NewExpense): Promise<void> {
         category: expense.category,
         frequency: expense.recurrence_frequency,
         next_due_date: expense.expense_date,
+        payment_method: expense.payment_method || "efectivo",
       })
     : await supabase.from("expenses").insert({
         name: expense.name,
         amount: expense.amount,
         category: expense.category,
         expense_date: expense.expense_date,
+        payment_method: expense.payment_method || "efectivo",
       });
 
   if (error) {
     console.error("Error creando gasto:", error);
+    throw error;
+  }
+}
+
+export interface UpdateExpenseInput {
+  name: string;
+  amount: number;
+  category: string;
+  expense_date: string;
+  payment_method?: string;
+}
+
+export async function updateExpense(
+  id: string,
+  input: UpdateExpenseInput
+): Promise<void> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+
+  const { error } = await supabase
+    .from("expenses")
+    .update({
+      name: input.name,
+      amount: input.amount,
+      category: input.category,
+      expense_date: input.expense_date,
+      payment_method: input.payment_method || "efectivo",
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error actualizando gasto:", error);
+    throw error;
+  }
+}
+
+export interface UpdateRecurringExpenseInput {
+  name: string;
+  amount: number;
+  category: string;
+  frequency: RecurrenceFrequency;
+  next_due_date: string;
+  payment_method?: string;
+}
+
+export async function updateRecurringExpense(
+  id: string,
+  input: UpdateRecurringExpenseInput
+): Promise<void> {
+  if (!supabase) throw new Error("Supabase no está configurado.");
+
+  const { error } = await supabase
+    .from("recurring_expenses")
+    .update({
+      name: input.name,
+      amount: input.amount,
+      category: input.category,
+      frequency: input.frequency,
+      next_due_date: input.next_due_date,
+      payment_method: input.payment_method || "efectivo",
+    })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error actualizando gasto recurrente:", error);
     throw error;
   }
 }
