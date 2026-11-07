@@ -487,7 +487,13 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     }
   ];
 
-  payload.contents = updatedContents;
+  // Para la redacción final, desactivamos tools para que Gemini redacte en lenguaje natural
+  // la recomendación final al cliente con base en los datos obtenidos de la base de datos
+  const finalPayload: any = {
+    ...payload,
+    contents: updatedContents
+  };
+  delete finalPayload.tools;
 
   // 3. Segunda llamada para que Gemini redacte la respuesta final usando el resultado
   let res: Response;
@@ -495,7 +501,7 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     res = await fetch(modelEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(finalPayload)
     });
   } catch (netErr: any) {
     throw new Error(`Fallo de red en segunda llamada a Gemini: ${netErr?.message || netErr}`);

@@ -89,6 +89,7 @@ export async function GET(request: Request): Promise<Response> {
         latencyMs,
         status,
         disableThinking,
+        rawCandidate: parsed.candidates?.[0]?.content,
         reply: parsed.candidates?.[0]?.content?.parts?.[0]?.text || parsed
       });
     }
