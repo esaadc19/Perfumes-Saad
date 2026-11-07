@@ -177,6 +177,7 @@ import {
   KanbanSquare,
   Brain,
 } from "lucide-react";
+import AiChatWidget from "./components/chat/AiChatWidget";
 
 type CartItem = {
   product: Product;
@@ -1767,6 +1768,7 @@ function App() {
           </div>
         </div>
       )}
+      <AiChatWidget isAdmin={false} />
     </div>
   );
 }
@@ -3793,6 +3795,7 @@ function Admin({
         </div>
       )}
       <Toaster toasts={toasts} onDismiss={dismissToast} />
+      <AiChatWidget isAdmin={true} />
     </div>
   );
 }
