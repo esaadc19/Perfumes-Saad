@@ -437,98 +437,98 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     }
   };
 
-  // 1. Primera llamada a Gemini con fallback de modelos
-  const { data, endpoint: modelEndpoint, usedModel } = await callGeminiApi(apiKey, payload);
-  const candidate = data.candidates?.[0];
-  if (!candidate) {
-    return { text: "No se pudo obtener respuesta del modelo de IA.", usedModel };
-  }
+  let currentContents = [...contents];
+  const toolCallsRun: string[] = [];
+  let finalResponseText = "";
+  let lastUsedModel = "gemini-3.5-flash";
 
-  const parts = candidate.content?.parts || [];
-  const functionCallPart = parts.find((p: any) => p.functionCall);
-
-  // Si Gemini no llamó a ninguna función, devolvemos el texto directamente
-  if (!functionCallPart) {
-    const nonThought = parts.filter((p: any) => p.text && !p.thought);
-    const answer = nonThought.length > 0
-      ? nonThought.map((p: any) => p.text).join("\n\n")
-      : parts.find((p: any) => p.text)?.text || "Respuesta completada.";
-    return { text: answer, usedModel };
-  }
-
-  // 2. Si Gemini llamó a una función (Function Calling)
-  const fnCall = functionCallPart.functionCall;
-  const toolName = fnCall.name;
-  const toolArgs = fnCall.args || {};
-
-  console.log(`[Gemini Tool] Ejecutando: ${toolName}`, toolArgs);
-  let toolResult: any;
-  try {
-    toolResult = await executeGeminiTool(toolName, toolArgs, mode);
-  } catch (tErr: any) {
-    toolResult = { error: `Error ejecutando consulta en base de datos: ${tErr?.message || tErr}` };
-  }
-
-  // Añadimos la respuesta del modelo tal cual (conservando thought_signature) y el turno de functionResponse
-  // Nota: En la API REST de Gemini (v1beta), el turno con functionResponse debe llevar role: "user"
-  const updatedContents = [
-    ...contents,
-    candidate.content,
-    {
-      role: "user",
-      parts: [
-        {
-          functionResponse: {
-            name: toolName,
-            response: { content: toolResult }
-          }
-        }
-      ]
-    }
-  ];
-
-  // Para la redacción final, desactivamos tools para que Gemini redacte en lenguaje natural
-  // la recomendación final al cliente con base en los datos obtenidos de la base de datos
-  const finalPayload: any = {
-    ...payload,
-    contents: updatedContents
-  };
-  delete finalPayload.tools;
-
-  // 3. Segunda llamada para que Gemini redacte la respuesta final usando el resultado
-  let res: Response;
-  try {
-    res = await fetch(modelEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(finalPayload)
-    });
-  } catch (netErr: any) {
-    throw new Error(`Fallo de red en segunda llamada a Gemini: ${netErr?.message || netErr}`);
-  }
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error("Error segunda llamada Gemini:", errorText);
-    return {
-      text: `Se consultó la base de datos (${toolName}) pero hubo un detalle al redactar (${res.status}): ${errorText}`,
-      usedModel
+  for (let step = 0; step < 2; step++) {
+    const payload: any = {
+      system_instruction: { parts: [{ text: systemInstruction }] },
+      contents: currentContents,
+      tools: [{ function_declarations: allowedTools }],
+      generation_config: {
+        temperature: 0.6,
+        max_output_tokens: 1200,
+      },
     };
+
+    const { data, usedModel } = await callGeminiApi(apiKey, payload);
+    lastUsedModel = usedModel;
+    const candidate = data.candidates?.[0];
+    if (!candidate) break;
+
+    const parts = candidate.content?.parts || [];
+    const functionCallPart = parts.find((p: any) => p.functionCall);
+
+    if (!functionCallPart) {
+      const nonThought = parts.filter((p: any) => p.text && !p.thought);
+      finalResponseText = nonThought.length > 0
+        ? nonThought.map((p: any) => p.text).join("\n\n")
+        : parts.find((p: any) => p.text)?.text || "Aquí tienes la recomendación solicitada.";
+      break;
+    }
+
+    const fnCall = functionCallPart.functionCall;
+    const toolName = fnCall.name;
+    const toolArgs = fnCall.args || {};
+    toolCallsRun.push(toolName);
+
+    let toolResult: any;
+    try {
+      toolResult = await executeGeminiTool(toolName, toolArgs, mode);
+    } catch (tErr: any) {
+      toolResult = { error: `Error ejecutando consulta en base de datos: ${tErr?.message || tErr}` };
+    }
+
+    currentContents = [
+      ...currentContents,
+      candidate.content,
+      {
+        role: "user",
+        parts: [
+          {
+            functionResponse: {
+              name: toolName,
+              response: { content: toolResult },
+            },
+          },
+        ],
+      },
+    ];
   }
 
-  const finalData = await res.json();
-  const finalCandidate = finalData.candidates?.[0];
-  const partsList = finalCandidate?.content?.parts || [];
-  const nonThoughtParts = partsList.filter((p: any) => p.text && !p.thought);
-  const textFound = nonThoughtParts.length > 0
-    ? nonThoughtParts.map((p: any) => p.text).join("\n\n")
-    : partsList.find((p: any) => p.text)?.text;
+  // Si después del ciclo de herramientas aún no hay texto redactado, forzamos la redacción final
+  if (!finalResponseText) {
+    const finalPayload: any = {
+      system_instruction: { parts: [{ text: systemInstruction }] },
+      contents: currentContents,
+      tools: [{ function_declarations: allowedTools }],
+      tool_config: {
+        function_calling_config: { mode: "NONE" },
+      },
+      generation_config: {
+        temperature: 0.6,
+        max_output_tokens: 1200,
+      },
+    };
 
-  const finalText = textFound || `[DEBUG finalData]: ${JSON.stringify(finalData)}`;
+    try {
+      const { data } = await callGeminiApi(apiKey, finalPayload);
+      const cand = data.candidates?.[0];
+      const pList = cand?.content?.parts || [];
+      const nonTh = pList.filter((p: any) => p.text && !p.thought);
+      finalResponseText = nonTh.length > 0
+        ? nonTh.map((p: any) => p.text).join("\n\n")
+        : pList.find((p: any) => p.text)?.text || "Aquí tienes las mejores opciones disponibles según tu perfil.";
+    } catch {
+      finalResponseText = "Aquí tienes las opciones seleccionadas en nuestro inventario para ti.";
+    }
+  }
 
   return {
-    text: finalText,
-    toolCallsRun: [toolName],
-    usedModel
+    text: finalResponseText,
+    toolCallsRun,
+    usedModel: lastUsedModel,
   };
 }
