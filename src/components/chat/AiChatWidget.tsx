@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { Bot, MessageCircle, Send, Sparkles, X, User, ArrowRight } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { Bot, MessageCircle, Send, Sparkles, X, RotateCcw, Check, ShoppingBag } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 
 interface Message {
@@ -14,15 +14,136 @@ interface AiChatWidgetProps {
   authToken?: string | null;
 }
 
+/** Formatea texto con soporte para negritas (**texto**) y precios ($190.000) */
+function parseInlineStyles(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  // Coincide con **negrita** o precios en formato COP ($ 190.000 o $190.000)
+  const regex = /(\*\*.*?\*\*|\$\s?[0-9]{1,3}(?:\.[0-9]{3})+)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    const token = match[0];
+    if (token.startsWith("**") && token.endsWith("**")) {
+      parts.push(
+        <strong key={match.index} className="ai-font-bold">
+          {token.slice(2, -2)}
+        </strong>
+      );
+    } else if (token.startsWith("$")) {
+      parts.push(
+        <span key={match.index} className="ai-price-tag">
+          {token}
+        </span>
+      );
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+  return parts.length > 0 ? parts : text;
+}
+
+/** Componente que limpia markdown crudo (###, *, etc.) y lo presenta con diseño premium */
+function FormattedChatContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+
+  let currentBulletList: React.ReactNode[] = [];
+
+  const flushBullets = (key: string) => {
+    if (currentBulletList.length > 0) {
+      elements.push(
+        <div key={key} className="ai-bubble-bullet-group">
+          {currentBulletList}
+        </div>
+      );
+      currentBulletList = [];
+    }
+  };
+
+  lines.forEach((line, idx) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushBullets(`flush-${idx}`);
+      return;
+    }
+
+    // Encabezados estilo markdown (###, ##, #)
+    if (trimmed.startsWith("#")) {
+      flushBullets(`flush-h-${idx}`);
+      const cleanHeader = trimmed.replace(/^#+\s*/, "");
+      elements.push(
+        <h5 key={`h-${idx}`} className="ai-bubble-heading">
+          {cleanHeader}
+        </h5>
+      );
+      return;
+    }
+
+    // Viñetas (* o -)
+    if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+      const cleanBullet = trimmed.replace(/^[*\-]\s+/, "");
+      currentBulletList.push(
+        <div key={`b-${idx}`} className="ai-bubble-bullet">
+          <span className="ai-bullet-dot">•</span>
+          <span className="ai-bullet-text">{parseInlineStyles(cleanBullet)}</span>
+        </div>
+      );
+      return;
+    }
+
+    // Líneas normales de texto
+    flushBullets(`flush-p-${idx}`);
+    elements.push(
+      <p key={`p-${idx}`} className="ai-bubble-paragraph">
+        {parseInlineStyles(trimmed)}
+      </p>
+    );
+  });
+
+  flushBullets("flush-final");
+
+  // Detección de invitación a WhatsApp para agregar botón directo
+  const mentionsWhatsapp =
+    content.includes("WhatsApp") ||
+    content.includes("310 231 8786") ||
+    content.includes("3102318786");
+
+  return (
+    <div className="ai-formatted-content">
+      {elements}
+      {mentionsWhatsapp && (
+        <a
+          href="https://wa.me/573102318786?text=Hola%20Perfumes%20SAAD,%20estoy%20recibiendo%20asesor%C3%ADa%20en%20la%20tienda%20y%20quiero%20confirmar%20un%20pedido."
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ai-whatsapp-pill"
+        >
+          <MessageCircle size={14} />
+          <span>Pedir o consultar por WhatsApp</span>
+        </a>
+      )}
+    </div>
+  );
+}
+
 export default function AiChatWidget({ isAdmin = false, authToken = null }: AiChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const initialWelcome = isAdmin
+    ? "Hola Saad. Soy tu copiloto ejecutivo de Perfumes SAAD. Puedes consultarme ventas del período, perfumes con stock bajo, margen o cartera vencida."
+    : "¡Hola! Te doy la bienvenida a **Perfumes SAAD** ✨\n\nSoy tu asesor olfativo personal. Para recomendarte fragancias 100% certeras con disponibilidad real, cuéntame:\n\n**¿Para quién buscas el perfume hoy?**";
+
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "assistant",
-      content: isAdmin
-        ? "Hola Saad. Soy tu copiloto de Perfumes SAAD. Puedes preguntarme por catálogo, stock de presentaciones, ventas del período o cartera vencida."
-        : "¡Hola! Bienvenido a Perfumes SAAD. Soy tu asesor olfativo virtual. ¿Buscas alguna fragancia en especial, decants de 10ml o te gustaría que te recomiende un perfume según la ocasión o el clima?",
+      content: initialWelcome,
       time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     },
   ]);
@@ -38,7 +159,18 @@ export default function AiChatWidget({ isAdmin = false, authToken = null }: AiCh
     if (isOpen) {
       scrollToBottom();
     }
-  }, [messages, isOpen]);
+  }, [messages, isOpen, loading]);
+
+  const handleReset = () => {
+    setMessages([
+      {
+        id: `welcome-${Date.now()}`,
+        role: "assistant",
+        content: initialWelcome,
+        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+  };
 
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend || input).trim();
@@ -111,17 +243,46 @@ export default function AiChatWidget({ isAdmin = false, authToken = null }: AiCh
     }
   };
 
-  const quickPrompts = isAdmin
-    ? [
-        "¿Cómo van las ventas de este mes?",
-        "¿Qué clientes tienen crédito vencido?",
-        "¿Cuáles perfumes tienen stock bajo?",
-      ]
-    : [
-        "Recomiéndame un perfume para clima cálido",
-        "¿Qué decants de 10ml tienen disponibles?",
-        "Busco un perfume árabe elegante",
+  // Cálculo de qué opciones sugerir dinámicamente según la etapa de la conversación
+  const userMessagesCount = messages.filter((m) => m.role === "user").length;
+
+  let contextualChips: string[] = [];
+
+  if (isAdmin) {
+    contextualChips = [
+      "¿Cómo van las ventas de este mes?",
+      "¿Qué clientes tienen crédito vencido?",
+      "¿Cuáles perfumes tienen stock bajo?",
+    ];
+  } else {
+    if (userMessagesCount === 0) {
+      // Paso 1 del perfilamiento: ¿Para quién es?
+      contextualChips = [
+        "👨 Para Caballero (Hombre)",
+        "👩 Para Dama (Mujer)",
+        "✨ Unisex",
+        "🎁 Es para un Regalo",
+        "🔍 Busco un perfume específico",
       ];
+    } else if (userMessagesCount === 1) {
+      // Paso 2 del perfilamiento: ¿Cómo o para qué ocasión lo busca?
+      contextualChips = [
+        "☀️ Diario / Fresco (Calor u oficina)",
+        "🌙 Noche / Citas (Seductor y duradero)",
+        "👑 Lujo Árabe / Exclusivo con estela",
+        "🧪 Quiero probar Decants de 10ml",
+        "💎 Los más vendidos",
+      ];
+    } else {
+      // Paso 3: Preguntas de cierre / exploración
+      contextualChips = [
+        "🧪 ¿Cuáles tienen Decant de 10ml?",
+        "🚚 ¿Cómo son los envíos a mi ciudad?",
+        "💳 Medios de pago disponibles",
+        "🔄 Empezar de nuevo",
+      ];
+    }
+  }
 
   return (
     <div className="ai-chat-root">
@@ -151,25 +312,41 @@ export default function AiChatWidget({ isAdmin = false, authToken = null }: AiCh
                 <Bot size={18} />
               </span>
               <div>
-                <h4>{isAdmin ? "Copiloto Perfumes SAAD" : "Asesor Perfumes SAAD"}</h4>
-                <span>{isAdmin ? "Gemini 2.5 · Conectado a Supabase" : "Asesoría olfativa con catálogo en vivo"}</span>
+                <h4>{isAdmin ? "Copiloto Perfumes SAAD" : "Asesor Olfativo SAAD"}</h4>
+                <span>{isAdmin ? "Gemini 3.5 Flash · Métricas en vivo" : "Perfilamiento olfativo · Stock en tiempo real"}</span>
               </div>
             </div>
-            <button
-              type="button"
-              className="ai-close-btn"
-              onClick={() => setIsOpen(false)}
-              aria-label="Cerrar chat"
-            >
-              <X size={18} />
-            </button>
+            <div className="ai-header-actions">
+              <button
+                type="button"
+                className="ai-header-btn"
+                onClick={handleReset}
+                title="Reiniciar conversación"
+                aria-label="Reiniciar conversación"
+              >
+                <RotateCcw size={15} />
+              </button>
+              <button
+                type="button"
+                className="ai-header-btn"
+                onClick={() => setIsOpen(false)}
+                title="Cerrar chat"
+                aria-label="Cerrar chat"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="ai-chat-messages">
             {messages.map((m) => (
               <div key={m.id} className={`ai-message-row ${m.role}`}>
                 <div className="ai-message-bubble">
-                  <p>{m.content}</p>
+                  {m.role === "assistant" ? (
+                    <FormattedChatContent content={m.content} />
+                  ) : (
+                    <p className="ai-user-content">{m.content}</p>
+                  )}
                   <span className="ai-message-time">{m.time}</span>
                 </div>
               </div>
@@ -180,26 +357,43 @@ export default function AiChatWidget({ isAdmin = false, authToken = null }: AiCh
                   <span className="ai-typing-dot" />
                   <span className="ai-typing-dot" />
                   <span className="ai-typing-dot" />
-                  <span className="ai-typing-label">Consultando catálogo y stock…</span>
+                  <span className="ai-typing-label">Consultando catálogo y stock disponible…</span>
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Accesos rápidos sugeridos */}
-          {messages.length <= 2 && !loading && (
-            <div className="ai-quick-prompts">
-              {quickPrompts.map((prompt, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  className="ai-quick-btn"
-                  onClick={() => handleSend(prompt)}
-                >
-                  {prompt}
-                </button>
-              ))}
+          {/* Chips de perfilamiento interactivo */}
+          {!loading && contextualChips.length > 0 && (
+            <div className="ai-profiling-chips">
+              <span className="ai-chips-label">
+                {isAdmin
+                  ? "Sugerencias:"
+                  : userMessagesCount === 0
+                  ? "Paso 1 · ¿Para quién es?"
+                  : userMessagesCount === 1
+                  ? "Paso 2 · ¿Qué estilo buscas?"
+                  : "Explorar:"}
+              </span>
+              <div className="ai-chips-scroll">
+                {contextualChips.map((chip, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    className="ai-chip-btn"
+                    onClick={() => {
+                      if (chip === "🔄 Empezar de nuevo") {
+                        handleReset();
+                      } else {
+                        handleSend(chip);
+                      }
+                    }}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -212,7 +406,13 @@ export default function AiChatWidget({ isAdmin = false, authToken = null }: AiCh
           >
             <input
               type="text"
-              placeholder={isAdmin ? "Pregúntale a Gemini sobre tu negocio…" : "Escribe tu duda o qué perfume buscas…"}
+              placeholder={
+                isAdmin
+                  ? "Pregúntale a Gemini sobre ventas o cartera…"
+                  : userMessagesCount === 0
+                  ? "Escribe o elige una opción arriba…"
+                  : "¿Qué aroma u ocasión buscas?…"
+              }
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={loading}
