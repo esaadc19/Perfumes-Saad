@@ -319,22 +319,15 @@ export async function getAvailableModels(apiKey: string): Promise<string[]> {
 }
 
 async function callGeminiApi(apiKey: string, payload: any): Promise<{ data: any; usedModel: string; endpoint: string }> {
-  const modelsToTry: string[] = [];
-  if (process.env.GEMINI_MODEL) modelsToTry.push(process.env.GEMINI_MODEL);
-  if (cachedActiveModel) modelsToTry.push(cachedActiveModel);
-
-  // Consultar directamente a la API de Google qué modelos están activos para este API key
-  const liveModels = await getAvailableModels(apiKey);
-  for (const m of liveModels) {
-    if (!modelsToTry.includes(m)) modelsToTry.push(m);
-  }
-
-  // Fallbacks estándar si la lista vino vacía
-  for (const fallback of ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]) {
-    if (!modelsToTry.includes(fallback)) modelsToTry.push(fallback);
-  }
-
-  console.log("[Gemini API] Modelos disponibles a intentar:", modelsToTry);
+  // Lista prioritaria probada en esta cuenta: llama directamente al modelo más rápido sin reintentos
+  const modelsToTry: string[] = [
+    process.env.GEMINI_MODEL,
+    cachedActiveModel,
+    "gemini-flash-latest",
+    "gemini-3.5-flash",
+    "gemini-flash-lite-latest",
+    "gemini-3.8-flash"
+  ].filter(Boolean) as string[];
 
   let lastError: any = null;
 
@@ -363,6 +356,27 @@ async function callGeminiApi(apiKey: string, payload: any): Promise<{ data: any;
     } catch (err: any) {
       console.warn(`[Gemini API] Falló llamada con ${model}:`, err?.message || err);
       lastError = err;
+    }
+  }
+
+  // Si ninguno de los preferidos funcionó, descubrimos en vivo
+  const liveModels = await getAvailableModels(apiKey);
+  for (const model of liveModels) {
+    if (modelsToTry.includes(model)) continue;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        cachedActiveModel = model;
+        return { data, usedModel: model, endpoint };
+      }
+    } catch {
+      // Ignorar y seguir probando
     }
   }
 
