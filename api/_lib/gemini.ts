@@ -20,7 +20,10 @@ export interface GeminiChatOptions {
 
 function getSupabaseClient() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY;
   if (!url || !key) {
     throw new Error("Faltan variables de entorno de Supabase (SUPABASE_URL o SERVICE_ROLE_KEY).");
   }
@@ -316,11 +319,16 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   // 1. Primera llamada a Gemini
-  let res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  let res: Response;
+  try {
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (netErr: any) {
+    throw new Error(`Fallo de red llamando a Gemini (${model}): ${netErr?.message || netErr}`);
+  }
 
   if (!res.ok) {
     const errorText = await res.text();
@@ -349,7 +357,12 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
   const toolArgs = fnCall.args || {};
 
   console.log(`[Gemini Tool] Ejecutando: ${toolName}`, toolArgs);
-  const toolResult = await executeGeminiTool(toolName, toolArgs, mode);
+  let toolResult: any;
+  try {
+    toolResult = await executeGeminiTool(toolName, toolArgs, mode);
+  } catch (tErr: any) {
+    toolResult = { error: `Error ejecutando consulta en base de datos: ${tErr?.message || tErr}` };
+  }
 
   // Añadimos la llamada del modelo y el resultado de la función al historial
   const updatedContents = [
@@ -374,11 +387,15 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
   payload.contents = updatedContents;
 
   // 3. Segunda llamada para que Gemini redacte la respuesta final usando el resultado
-  res = await fetch(endpoint, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  try {
+    res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (netErr: any) {
+    throw new Error(`Fallo de red en segunda llamada a Gemini: ${netErr?.message || netErr}`);
+  }
 
   if (!res.ok) {
     const errorText = await res.text();

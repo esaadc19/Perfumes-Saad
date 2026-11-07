@@ -81,8 +81,10 @@ export async function POST(request: Request): Promise<Response> {
     });
   } catch (err: any) {
     console.error("Error en /api/gemini/chat:", err);
+    const cause = err.cause ? ` (${err.cause.message || err.cause.code || JSON.stringify(err.cause)})` : "";
     return json(500, {
-      error: err.message || "Error interno procesando conversación con Gemini.",
+      error: (err.message || "Error interno procesando conversación con Gemini.") + cause,
+      step: err.step || "unknown"
     });
   }
 }
