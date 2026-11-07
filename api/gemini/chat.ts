@@ -48,10 +48,50 @@ export async function OPTIONS(): Promise<Response> {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
-export async function GET(): Promise<Response> {
+export async function GET(request: Request): Promise<Response> {
   try {
+    const url = new URL(request.url);
+    const testQuery = url.searchParams.get("test");
+    const testModel = url.searchParams.get("model") || "gemini-2.5-flash";
+    const disableThinking = url.searchParams.get("nothink") !== "false";
+
     const { getGeminiApiKey, getAvailableModels } = await import("../_lib/gemini.js");
     const key = getGeminiApiKey();
+
+    if (testQuery) {
+      const t0 = Date.now();
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${testModel}:generateContent?key=${key}`;
+      const payload: any = {
+        contents: [{ role: "user", parts: [{ text: testQuery }] }],
+        generation_config: {
+          max_output_tokens: 250,
+          temperature: 0.6,
+        }
+      };
+      if (disableThinking) {
+        payload.generation_config.thinking_config = { thinking_budget: 0 };
+      }
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const latencyMs = Date.now() - t0;
+      const status = res.status;
+      const text = await res.text();
+      let parsed: any;
+      try { parsed = JSON.parse(text); } catch { parsed = text; }
+
+      return json(200, {
+        testModel,
+        latencyMs,
+        status,
+        disableThinking,
+        reply: parsed.candidates?.[0]?.content?.parts?.[0]?.text || parsed
+      });
+    }
+
     const models = await getAvailableModels(key);
     return json(200, { success: true, count: models.length, models });
   } catch (err: any) {
