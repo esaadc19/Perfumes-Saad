@@ -48,6 +48,17 @@ export async function OPTIONS(): Promise<Response> {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
+export async function GET(): Promise<Response> {
+  try {
+    const { getGeminiApiKey, getAvailableModels } = await import("../_lib/gemini.js");
+    const key = getGeminiApiKey();
+    const models = await getAvailableModels(key);
+    return json(200, { success: true, count: models.length, models });
+  } catch (err: any) {
+    return json(500, { error: err.message });
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = await request.json().catch(() => ({}));

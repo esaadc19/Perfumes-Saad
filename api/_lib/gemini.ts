@@ -30,7 +30,7 @@ function getSupabaseClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function getGeminiApiKey() {
+export function getGeminiApiKey() {
   const env = process.env;
   // Búsqueda directa o por coincidencia insensible a mayúsculas
   for (const [key, val] of Object.entries(env)) {
@@ -281,7 +281,7 @@ REGLAS FUNDAMENTALES:
 
 let cachedActiveModel: string | null = null;
 
-async function getAvailableModels(apiKey: string): Promise<string[]> {
+export async function getAvailableModels(apiKey: string): Promise<string[]> {
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
     if (res.ok) {
