@@ -76,6 +76,7 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, {
       success: true,
       mode,
+      model: result.usedModel,
       response: result.text,
       toolsUsed: result.toolCallsRun ?? [],
     });

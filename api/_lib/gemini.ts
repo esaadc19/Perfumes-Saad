@@ -287,8 +287,26 @@ async function getAvailableModels(apiKey: string): Promise<string[]> {
     if (res.ok) {
       const json = await res.json();
       const list = (json.models || [])
-        .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"))
+        .filter((m: any) =>
+          Array.isArray(m.supportedGenerationMethods) &&
+          m.supportedGenerationMethods.includes("generateContent") &&
+          typeof m.name === "string" &&
+          m.name.includes("gemini")
+        )
         .map((m: any) => m.name.replace(/^models\//, "")) as string[];
+
+      // Priorizar los modelos más rápidos primero para evitar reintentos lentos
+      list.sort((a, b) => {
+        const score = (name: string) => {
+          if (name.includes("2.0-flash")) return 100;
+          if (name.includes("1.5-flash")) return 90;
+          if (name.includes("flash")) return 80;
+          if (name.includes("pro")) return 50;
+          return 10;
+        };
+        return score(b) - score(a);
+      });
+
       if (list.length > 0) return list;
     } else {
       const err = await res.text();
@@ -355,7 +373,7 @@ async function callGeminiApi(apiKey: string, payload: any): Promise<{ data: any;
 // LLAMADA A LA API DE GEMINI CON FUNCTION CALLING
 // ============================================================================
 
-export async function runGeminiConversation(options: GeminiChatOptions): Promise<{ text: string; toolCallsRun?: string[] }> {
+export async function runGeminiConversation(options: GeminiChatOptions): Promise<{ text: string; toolCallsRun?: string[]; usedModel?: string }> {
   const apiKey = getGeminiApiKey();
   const mode = options.mode || "store";
   const systemInstruction = getSystemInstruction(mode);
@@ -388,10 +406,10 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
   };
 
   // 1. Primera llamada a Gemini con fallback de modelos
-  const { data, endpoint: modelEndpoint } = await callGeminiApi(apiKey, payload);
+  const { data, endpoint: modelEndpoint, usedModel } = await callGeminiApi(apiKey, payload);
   const candidate = data.candidates?.[0];
   if (!candidate) {
-    return { text: "No se pudo obtener respuesta del modelo de IA." };
+    return { text: "No se pudo obtener respuesta del modelo de IA.", usedModel };
   }
 
   const parts = candidate.content?.parts || [];
@@ -403,7 +421,7 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     const answer = nonThought.length > 0
       ? nonThought.map((p: any) => p.text).join("\n\n")
       : parts.find((p: any) => p.text)?.text || "Respuesta completada.";
-    return { text: answer };
+    return { text: answer, usedModel };
   }
 
   // 2. Si Gemini llamó a una función (Function Calling)
@@ -457,7 +475,8 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     const errorText = await res.text();
     console.error("Error segunda llamada Gemini:", errorText);
     return {
-      text: `Se consultó la base de datos (${toolName}) pero hubo un detalle al redactar: ${JSON.stringify(toolResult)}`
+      text: `Se consultó la base de datos (${toolName}) pero hubo un detalle al redactar: ${JSON.stringify(toolResult)}`,
+      usedModel
     };
   }
 
@@ -471,6 +490,7 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
 
   return {
     text: finalText,
-    toolCallsRun: [toolName]
+    toolCallsRun: [toolName],
+    usedModel
   };
 }
