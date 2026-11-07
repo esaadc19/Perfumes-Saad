@@ -28,18 +28,30 @@ function getSupabaseClient() {
 }
 
 function getGeminiApiKey() {
-  const key =
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
-    process.env.GOOGLE_GEMINI_API_KEY ||
-    process.env.VITE_GEMINI_API_KEY ||
-    process.env.GEMINI_KEY ||
-    process.env.GEMINI_APIKEY ||
-    process.env.GOOGLE_AI_KEY;
-  if (!key) {
-    throw new Error("Falta la variable de entorno GEMINI_API_KEY en Vercel (Environments: Production).");
+  const env = process.env;
+  // Búsqueda directa o por coincidencia insensible a mayúsculas
+  for (const [key, val] of Object.entries(env)) {
+    if (
+      val &&
+      (key.toUpperCase().includes("GEMINI") ||
+       key.toUpperCase() === "GOOGLE_API_KEY" ||
+       key.toUpperCase() === "GOOGLE_AI_KEY")
+    ) {
+      return val;
+    }
   }
-  return key;
+
+  const detectedKeys = Object.keys(env).filter(
+    (k) =>
+      k.toUpperCase().includes("KEY") ||
+      k.toUpperCase().includes("API") ||
+      k.toUpperCase().includes("TOKEN") ||
+      k.toUpperCase().includes("SECRET")
+  );
+
+  throw new Error(
+    `Falta la variable de entorno GEMINI_API_KEY en Vercel (Environments: Production). Variables detectadas en el servidor: [${detectedKeys.join(", ")}]`
+  );
 }
 
 // ============================================================================
