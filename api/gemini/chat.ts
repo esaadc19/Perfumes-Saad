@@ -50,10 +50,11 @@ export async function OPTIONS(): Promise<Response> {
 
 export async function GET(request: Request): Promise<Response> {
   try {
-    const url = new URL(request.url);
-    const testQuery = url.searchParams.get("test");
-    const testModel = url.searchParams.get("model") || "gemini-2.5-flash";
-    const disableThinking = url.searchParams.get("nothink") !== "false";
+    const reqUrl = request?.url ? (request.url.startsWith("http") ? request.url : `https://perfumes-saad.vercel.app${request.url}`) : null;
+    const parsedUrl = reqUrl ? new URL(reqUrl) : null;
+    const testQuery = parsedUrl?.searchParams.get("test");
+    const testModel = parsedUrl?.searchParams.get("model") || "gemini-2.5-flash";
+    const disableThinking = parsedUrl?.searchParams.get("nothink") !== "false";
 
     const { getGeminiApiKey, getAvailableModels } = await import("../_lib/gemini.js");
     const key = getGeminiApiKey();
@@ -93,7 +94,7 @@ export async function GET(request: Request): Promise<Response> {
     }
 
     const models = await getAvailableModels(key);
-    return json(200, { success: true, count: models.length, models });
+    return json(200, { success: true, version: "v2-testing", count: models.length, models });
   } catch (err: any) {
     return json(500, { error: err.message });
   }
