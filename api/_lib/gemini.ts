@@ -121,7 +121,7 @@ export async function executeGeminiTool(name: string, args: Record<string, any>,
   if (name === "buscar_perfumes") {
     let queryBuilder = supabase
       .from("products")
-      .select("id, brand, name, gender, category, description, family, climate, image, product_variants(id, size_ml, price, stock, active)")
+      .select("id, brand, name, gender, category, description, family, climate, image_url, product_variants(id, size_ml, price, stock, active)")
       .eq("active", true)
       .eq("archived", false);
 
