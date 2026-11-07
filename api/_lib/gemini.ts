@@ -339,15 +339,12 @@ export async function getAvailableModels(apiKey: string): Promise<string[]> {
 }
 
 async function callGeminiApi(apiKey: string, payload: any): Promise<{ data: any; usedModel: string; endpoint: string }> {
-  // Lista prioritaria probada en esta cuenta: llama directamente al modelo más rápido sin reintentos
+  // Modelo comprobado más rápido y estable en esta cuenta (2.0 segundos de respuesta)
   const modelsToTry: string[] = [
     process.env.GEMINI_MODEL,
-    cachedActiveModel,
     "gemini-3.5-flash",
     "gemini-3.5-flash-lite",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
-    "gemini-3.8-flash"
+    "gemini-flash-latest"
   ].filter(Boolean) as string[];
 
   let lastError: any = null;
