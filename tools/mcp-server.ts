@@ -93,7 +93,7 @@ async function handleToolCall(name: string, args: any) {
   if (name === "buscar_perfumes") {
     let qb = supabase
       .from("products")
-      .select("id, brand, name, gender, category, description, family, climate, product_variants(id, size, price, stock, active)")
+      .select("id, brand, name, gender, category, description, family, climate, product_variants(id, size_ml, price, stock, active)")
       .eq("active", true)
       .eq("archived", false);
 
@@ -114,7 +114,7 @@ async function handleToolCall(name: string, args: any) {
       familia: p.family,
       variantes: (p.product_variants || [])
         .filter((v: any) => v.active !== false)
-        .map((v: any) => `${v.size}ml: $${v.price} (${v.stock} disp.)`),
+        .map((v: any) => `${v.size_ml}ml: $${v.price} (${v.stock} disp.)`),
     }));
   }
 
@@ -122,7 +122,7 @@ async function handleToolCall(name: string, args: any) {
     const q = `%${args.nombre}%`;
     const { data, error } = await supabase
       .from("products")
-      .select("brand, name, product_variants(size, price, stock, active)")
+      .select("brand, name, product_variants(size_ml, price, stock, active)")
       .or(`name.ilike.${q},brand.ilike.${q}`)
       .limit(3);
 

@@ -121,7 +121,7 @@ export async function executeGeminiTool(name: string, args: Record<string, any>,
   if (name === "buscar_perfumes") {
     let queryBuilder = supabase
       .from("products")
-      .select("id, brand, name, gender, category, description, family, climate, image, product_variants(id, size, price, stock, active)")
+      .select("id, brand, name, gender, category, description, family, climate, image, product_variants(id, size_ml, price, stock, active)")
       .eq("active", true)
       .eq("archived", false);
 
@@ -142,8 +142,8 @@ export async function executeGeminiTool(name: string, args: Record<string, any>,
     const formatted = (data || []).map((p: any) => {
       const activeVariants = (p.product_variants || []).filter((v: any) => v.active !== false);
       const hasStock = activeVariants.some((v: any) => v.stock > 0);
-      const decant = activeVariants.find((v: any) => v.size === 10);
-      const full = activeVariants.find((v: any) => v.size >= 50);
+      const decant = activeVariants.find((v: any) => v.size_ml === 10);
+      const full = activeVariants.find((v: any) => v.size_ml >= 50);
 
       return {
         id: p.id,
@@ -158,7 +158,7 @@ export async function executeGeminiTool(name: string, args: Record<string, any>,
         stock_decant_10ml: decant ? decant.stock : 0,
         precio_frasco_completo: full ? full.price : null,
         stock_frasco_completo: full ? full.stock : 0,
-        presentaciones: activeVariants.map((v: any) => `${v.size}ml: $${v.price.toLocaleString("es-CO")} (${v.stock > 0 ? `${v.stock} disp.` : "Agotado"})`)
+        presentaciones: activeVariants.map((v: any) => `${v.size_ml}ml: $${v.price.toLocaleString("es-CO")} (${v.stock > 0 ? `${v.stock} disp.` : "Agotado"})`)
       };
     });
 
@@ -171,7 +171,7 @@ export async function executeGeminiTool(name: string, args: Record<string, any>,
   if (name === "consultar_stock_y_precios") {
     let queryBuilder = supabase
       .from("products")
-      .select("id, brand, name, product_variants(id, size, price, stock, active)")
+      .select("id, brand, name, product_variants(id, size_ml, price, stock, active)")
       .eq("active", true)
       .eq("archived", false);
 
@@ -192,7 +192,7 @@ export async function executeGeminiTool(name: string, args: Record<string, any>,
       variantes: (p.product_variants || [])
         .filter((v: any) => v.active !== false)
         .map((v: any) => ({
-          presentacion_ml: v.size,
+          presentacion_ml: v.size_ml,
           precio_cop: v.price,
           unidades_disponibles: v.stock,
           estado: v.stock > 0 ? "Disponible para despacho" : "Agotado temporalmente"
