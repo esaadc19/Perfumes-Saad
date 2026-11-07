@@ -28,9 +28,16 @@ function getSupabaseClient() {
 }
 
 function getGeminiApiKey() {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const key =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_GEMINI_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GEMINI_KEY ||
+    process.env.GEMINI_APIKEY ||
+    process.env.GOOGLE_AI_KEY;
   if (!key) {
-    throw new Error("Falta la variable de entorno GEMINI_API_KEY.");
+    throw new Error("Falta la variable de entorno GEMINI_API_KEY en Vercel (Environments: Production).");
   }
   return key;
 }
