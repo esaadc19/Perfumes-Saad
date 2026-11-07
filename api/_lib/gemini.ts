@@ -520,9 +520,11 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
   const finalCandidate = finalData.candidates?.[0];
   const partsList = finalCandidate?.content?.parts || [];
   const nonThoughtParts = partsList.filter((p: any) => p.text && !p.thought);
-  const finalText = nonThoughtParts.length > 0
+  const textFound = nonThoughtParts.length > 0
     ? nonThoughtParts.map((p: any) => p.text).join("\n\n")
-    : partsList.find((p: any) => p.text)?.text || "Aquí tienes la información consultada.";
+    : partsList.find((p: any) => p.text)?.text;
+
+  const finalText = textFound || `[DEBUG finalData]: ${JSON.stringify(finalData)}`;
 
   return {
     text: finalText,
