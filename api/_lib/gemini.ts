@@ -469,14 +469,11 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     toolResult = { error: `Error ejecutando consulta en base de datos: ${tErr?.message || tErr}` };
   }
 
-  // Añadimos la llamada del modelo y el resultado de la función al historial
+  // Añadimos la respuesta del modelo tal cual (conservando thought_signature) y el turno de functionResponse
   // Nota: En la API REST de Gemini (v1beta), el turno con functionResponse debe llevar role: "user"
   const updatedContents = [
     ...contents,
-    {
-      role: "model",
-      parts: [{ functionCall: fnCall }]
-    },
+    candidate.content,
     {
       role: "user",
       parts: [
