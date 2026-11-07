@@ -279,6 +279,46 @@ REGLAS FUNDAMENTALES:
 6. Habla en un tono amigable, distinguido y apasionado por los aromas.`;
 }
 
+async function callGeminiApi(apiKey: string, payload: any): Promise<{ data: any; usedModel: string; endpoint: string }> {
+  const modelsToTry = [
+    process.env.GEMINI_MODEL,
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro"
+  ].filter(Boolean) as string[];
+
+  let lastError: any = null;
+
+  for (const model of modelsToTry) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.warn(`[Gemini API] Modelo ${model} respondió con ${res.status}:`, errorText);
+        if (res.status === 404 || res.status === 400) {
+          lastError = new Error(`Modelo ${model} no disponible (${res.status}): ${errorText}`);
+          continue;
+        }
+        throw new Error(`Error comunicando con Gemini (${res.status}): ${errorText}`);
+      }
+
+      const data = await res.json();
+      return { data, usedModel: model, endpoint };
+    } catch (err: any) {
+      console.warn(`[Gemini API] Falló llamada con ${model}:`, err?.message || err);
+      lastError = err;
+    }
+  }
+
+  throw lastError || new Error("No se pudo conectar con ningún modelo de Gemini disponible.");
+}
+
 // ============================================================================
 // LLAMADA A LA API DE GEMINI CON FUNCTION CALLING
 // ============================================================================
@@ -315,28 +355,8 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     }
   };
 
-  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  // 1. Primera llamada a Gemini
-  let res: Response;
-  try {
-    res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-  } catch (netErr: any) {
-    throw new Error(`Fallo de red llamando a Gemini (${model}): ${netErr?.message || netErr}`);
-  }
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    console.error("Error respuesta Gemini:", errorText);
-    throw new Error(`Error comunicando con Gemini API (${res.status}): ${errorText}`);
-  }
-
-  let data = await res.json();
+  // 1. Primera llamada a Gemini con fallback de modelos
+  const { data, endpoint: modelEndpoint } = await callGeminiApi(apiKey, payload);
   const candidate = data.candidates?.[0];
   if (!candidate) {
     return { text: "No se pudo obtener respuesta del modelo de IA." };
@@ -387,8 +407,9 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
   payload.contents = updatedContents;
 
   // 3. Segunda llamada para que Gemini redacte la respuesta final usando el resultado
+  let res: Response;
   try {
-    res = await fetch(endpoint, {
+    res = await fetch(modelEndpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -405,8 +426,8 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     };
   }
 
-  data = await res.json();
-  const finalCandidate = data.candidates?.[0];
+  const finalData = await res.json();
+  const finalCandidate = finalData.candidates?.[0];
   const finalTextPart = finalCandidate?.content?.parts?.find((p: any) => p.text);
 
   return {
