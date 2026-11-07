@@ -520,9 +520,9 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
       const nonTh = pList.filter((p: any) => p.text && !p.thought);
       finalResponseText = nonTh.length > 0
         ? nonTh.map((p: any) => p.text).join("\n\n")
-        : pList.find((p: any) => p.text)?.text || "Aquí tienes las mejores opciones disponibles según tu perfil.";
-    } catch {
-      finalResponseText = "Aquí tienes las opciones seleccionadas en nuestro inventario para ti.";
+        : pList.find((p: any) => p.text)?.text || `[DEBUG cand]: ${JSON.stringify(cand)}`;
+    } catch (e: any) {
+      finalResponseText = `[DEBUG catch]: ${e?.message || e}`;
     }
   }
 
