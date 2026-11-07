@@ -459,7 +459,7 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
       parts: [{ functionCall: fnCall }]
     },
     {
-      role: "user",
+      role: "function",
       parts: [
         {
           functionResponse: {
@@ -489,7 +489,7 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     const errorText = await res.text();
     console.error("Error segunda llamada Gemini:", errorText);
     return {
-      text: `Se consultó la base de datos (${toolName}) pero hubo un detalle al redactar: ${JSON.stringify(toolResult)}`,
+      text: `Se consultó la base de datos (${toolName}) pero hubo un detalle al redactar (${res.status}): ${errorText}`,
       usedModel
     };
   }
