@@ -452,6 +452,7 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
   }
 
   // Añadimos la llamada del modelo y el resultado de la función al historial
+  // Nota: En la API REST de Gemini (v1beta), el turno con functionResponse debe llevar role: "user"
   const updatedContents = [
     ...contents,
     {
@@ -459,7 +460,7 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
       parts: [{ functionCall: fnCall }]
     },
     {
-      role: "function",
+      role: "user",
       parts: [
         {
           functionResponse: {
