@@ -399,8 +399,11 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
 
   // Si Gemini no llamó a ninguna función, devolvemos el texto directamente
   if (!functionCallPart) {
-    const textPart = parts.find((p: any) => p.text);
-    return { text: textPart?.text || "Respuesta completada." };
+    const nonThought = parts.filter((p: any) => p.text && !p.thought);
+    const answer = nonThought.length > 0
+      ? nonThought.map((p: any) => p.text).join("\n\n")
+      : parts.find((p: any) => p.text)?.text || "Respuesta completada.";
+    return { text: answer };
   }
 
   // 2. Si Gemini llamó a una función (Function Calling)
@@ -460,10 +463,14 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
 
   const finalData = await res.json();
   const finalCandidate = finalData.candidates?.[0];
-  const finalTextPart = finalCandidate?.content?.parts?.find((p: any) => p.text);
+  const partsList = finalCandidate?.content?.parts || [];
+  const nonThoughtParts = partsList.filter((p: any) => p.text && !p.thought);
+  const finalText = nonThoughtParts.length > 0
+    ? nonThoughtParts.map((p: any) => p.text).join("\n\n")
+    : partsList.find((p: any) => p.text)?.text || "Aquí tienes la información consultada.";
 
   return {
-    text: finalTextPart?.text || "Aquí tienes la información consultada.",
+    text: finalText,
     toolCallsRun: [toolName]
   };
 }
