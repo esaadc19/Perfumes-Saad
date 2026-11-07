@@ -312,7 +312,8 @@ export async function runGeminiConversation(options: GeminiChatOptions): Promise
     }
   };
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const model = process.env.GEMINI_MODEL || "gemini-3.8-flash";
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   // 1. Primera llamada a Gemini
   let res = await fetch(endpoint, {
