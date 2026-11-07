@@ -279,13 +279,44 @@ REGLAS FUNDAMENTALES:
 6. Habla en un tono amigable, distinguido y apasionado por los aromas.`;
 }
 
+let cachedActiveModel: string | null = null;
+
+async function getAvailableModels(apiKey: string): Promise<string[]> {
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (res.ok) {
+      const json = await res.json();
+      const list = (json.models || [])
+        .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"))
+        .map((m: any) => m.name.replace(/^models\//, "")) as string[];
+      if (list.length > 0) return list;
+    } else {
+      const err = await res.text();
+      console.warn("[Gemini API] No se pudo listar modelos:", res.status, err);
+    }
+  } catch (err: any) {
+    console.warn("[Gemini API] Error en listModels:", err?.message || err);
+  }
+  return [];
+}
+
 async function callGeminiApi(apiKey: string, payload: any): Promise<{ data: any; usedModel: string; endpoint: string }> {
-  const modelsToTry = [
-    process.env.GEMINI_MODEL,
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro"
-  ].filter(Boolean) as string[];
+  const modelsToTry: string[] = [];
+  if (process.env.GEMINI_MODEL) modelsToTry.push(process.env.GEMINI_MODEL);
+  if (cachedActiveModel) modelsToTry.push(cachedActiveModel);
+
+  // Consultar directamente a la API de Google qué modelos están activos para este API key
+  const liveModels = await getAvailableModels(apiKey);
+  for (const m of liveModels) {
+    if (!modelsToTry.includes(m)) modelsToTry.push(m);
+  }
+
+  // Fallbacks estándar si la lista vino vacía
+  for (const fallback of ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]) {
+    if (!modelsToTry.includes(fallback)) modelsToTry.push(fallback);
+  }
+
+  console.log("[Gemini API] Modelos disponibles a intentar:", modelsToTry);
 
   let lastError: any = null;
 
@@ -309,6 +340,7 @@ async function callGeminiApi(apiKey: string, payload: any): Promise<{ data: any;
       }
 
       const data = await res.json();
+      cachedActiveModel = model;
       return { data, usedModel: model, endpoint };
     } catch (err: any) {
       console.warn(`[Gemini API] Falló llamada con ${model}:`, err?.message || err);
