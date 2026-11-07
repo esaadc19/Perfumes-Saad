@@ -17,37 +17,25 @@ const json = (status: number, body: unknown) =>
     },
   });
 
-/**
- * Webhook para automatización de WhatsApp / Instagram con Gemini.
- * Compatible con:
- * - Meta WhatsApp Cloud API (Webhooks directos de Facebook for Developers)
- * - Evolution API / WppConnect / Baileys
- * - Zernio Inbox Webhooks
- */
-export default async function handler(request: Request) {
-  if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+export async function OPTIONS(): Promise<Response> {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
+export async function GET(request: Request): Promise<Response> {
+  const url = new URL(request.url);
+  const mode = url.searchParams.get("hub.mode");
+  const token = url.searchParams.get("hub.verify_token");
+  const challenge = url.searchParams.get("hub.challenge");
+
+  const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN || "saad_perfumes_whatsapp_secret";
+
+  if (mode === "subscribe" && token === expectedToken && challenge) {
+    return new Response(challenge, { status: 200 });
   }
+  return json(200, { status: "Conector WhatsApp Gemini activo" });
+}
 
-  // Verificación de Webhook para WhatsApp Cloud API (GET challenge)
-  if (request.method === "GET") {
-    const url = new URL(request.url);
-    const mode = url.searchParams.get("hub.mode");
-    const token = url.searchParams.get("hub.verify_token");
-    const challenge = url.searchParams.get("hub.challenge");
-
-    const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN || "saad_perfumes_whatsapp_secret";
-
-    if (mode === "subscribe" && token === expectedToken) {
-      return new Response(challenge, { status: 200 });
-    }
-    return json(200, { status: "Conector WhatsApp Gemini activo" });
-  }
-
-  if (request.method !== "POST") {
-    return json(405, { error: "Método no permitido." });
-  }
-
+export async function POST(request: Request): Promise<Response> {
   try {
     const payload = await request.json().catch(() => ({}));
 

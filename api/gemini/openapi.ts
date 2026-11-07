@@ -6,11 +6,11 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "content-type",
 };
 
-export default function handler(request: Request) {
-  if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
-  }
+export async function OPTIONS(): Promise<Response> {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
 
+export async function GET(request: Request): Promise<Response> {
   const host = request.headers.get("host") || "perfumes-saad.vercel.app";
   const protocol = host.includes("localhost") ? "http" : "https";
 

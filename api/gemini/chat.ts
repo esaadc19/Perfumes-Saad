@@ -44,15 +44,11 @@ async function isAdminUser(request: Request): Promise<boolean> {
   return profile?.role === "admin";
 }
 
-export default async function handler(request: Request) {
-  if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
-  }
+export async function OPTIONS(): Promise<Response> {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
 
-  if (request.method !== "POST") {
-    return json(405, { error: "Método no permitido. Usa POST." });
-  }
-
+export async function POST(request: Request): Promise<Response> {
   try {
     const body = await request.json().catch(() => ({}));
     const rawMessages = body.messages as ChatMessage[];
