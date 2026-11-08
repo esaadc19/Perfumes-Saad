@@ -87,11 +87,7 @@ export default function DecantsSection({
     );
   }, [analysis.topCustomers, search]);
 
-  // Máximos para las barras de los gráficos
-  const maxNormalUnits = Math.max(
-    ...analysis.topNormalProducts.map((p) => p.units),
-    1
-  );
+  // Máximo para las barras del gráfico de decants
   const maxDecantUnits = Math.max(
     ...analysis.topMovedDecants.map((p) => p.units),
     1
@@ -222,83 +218,43 @@ export default function DecantsSection({
         </div>
       </div>
 
-      {/* DOS NUEVOS CHARTS: 1 Productos Normales y 1 Decants */}
-      <div className="decants-charts-dual">
-        {/* CHART 1: Productos Normales (> 10ml) */}
-        <div className="decants-chart-panel">
-          <div className="decants-chart-header">
-            <div>
-              <h3>1. Perfumes Normales (Frascos &gt; 10 ml)</h3>
-              <span>Botellas estándar (30ml, 50ml, 100ml)</span>
-            </div>
-            <div className="decant-chart-badge" title={periodLabel}>
-              <span>{analysis.normalTotalUnits} {analysis.normalTotalUnits === 1 ? "und" : "unds"}</span>
-            </div>
+      {/* CUADRO DE ROTACIÓN DE DECANTS (10 ML) */}
+      <div className="decants-chart-panel decants-chart-panel--single">
+        <div className="decants-chart-header">
+          <div>
+            <h3>Rotación de Decants (10 ml)</h3>
+            <span>Fracciones y muestras solicitadas en el período</span>
           </div>
-          {analysis.topNormalProducts.length === 0 ? (
-            <p className="chart-empty-state">No hay pedidos con frascos normales en el periodo.</p>
-          ) : (
-            <div className="decant-bars-list">
-              {analysis.topNormalProducts.slice(0, 6).map((item) => (
-                <div key={item.name} className="decant-bar-row">
-                  <div className="decant-bar-info">
-                    <span className="decant-bar-name">{item.name} ({item.size_ml} ml)</span>
-                    <span className="decant-bar-figures">
-                      {money(item.revenue)} · {item.units} unds
-                    </span>
-                  </div>
-                  <div className="decant-bar-track">
-                    <div
-                      className="decant-bar-fill decant-fill--normal"
-                      style={{
-                        width: `${Math.max((item.units / maxNormalUnits) * 100, 3)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* CHART 2: Decants (10 ml) */}
-        <div className="decants-chart-panel">
-          <div className="decants-chart-header">
-            <div>
-              <h3>2. Decants (10 ml)</h3>
-              <span>Fracciones y muestras solicitadas</span>
-            </div>
-            <div className="decant-chart-badge decant-chart-badge--gold" title={periodLabel}>
-              <span>{analysis.decantsTotalUnits} {analysis.decantsTotalUnits === 1 ? "und" : "unds"}</span>
-            </div>
+          <div className="decant-chart-badge decant-chart-badge--gold" title={periodLabel}>
+            <span>{analysis.decantsTotalUnits} {analysis.decantsTotalUnits === 1 ? "und" : "unds"}</span>
           </div>
-          {analysis.topMovedDecants.length === 0 ? (
-            <p className="chart-empty-state">No hay pedidos con decants de 10 ml en el periodo.</p>
-          ) : (
-            <div className="decant-bars-list">
-              {analysis.topMovedDecants.slice(0, 6).map((item) => (
-                <div key={item.name} className="decant-bar-row">
-                  <div className="decant-bar-info">
-                    <span className="decant-bar-name decant-bar-name--gold">
-                      {item.name} (10 ml)
-                    </span>
-                    <span className="decant-bar-figures">
-                      {money(item.revenue)} · {item.units} unds · {item.marginPercent}% margen
-                    </span>
-                  </div>
-                  <div className="decant-bar-track">
-                    <div
-                      className="decant-bar-fill decant-fill--decant"
-                      style={{
-                        width: `${Math.max((item.units / maxDecantUnits) * 100, 3)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
+        {analysis.topMovedDecants.length === 0 ? (
+          <p className="chart-empty-state">No hay pedidos con decants de 10 ml en el periodo.</p>
+        ) : (
+          <div className="decant-bars-list">
+            {analysis.topMovedDecants.slice(0, 8).map((item) => (
+              <div key={item.name} className="decant-bar-row">
+                <div className="decant-bar-info">
+                  <span className="decant-bar-name decant-bar-name--gold">
+                    {item.name} (10 ml)
+                  </span>
+                  <span className="decant-bar-figures">
+                    {money(item.revenue)} · {item.units} unds · {item.marginPercent}% margen
+                  </span>
+                </div>
+                <div className="decant-bar-track">
+                  <div
+                    className="decant-bar-fill decant-fill--decant"
+                    style={{
+                      width: `${Math.max((item.units / maxDecantUnits) * 100, 3)}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* SECCIÓN DE DECANTS COMO PEDIDOS / TABLAS */}
