@@ -1,19 +1,25 @@
 import { lazy, Suspense, useMemo } from "react";
 import {
   AlertTriangle,
+  ArrowDownRight,
   ArrowUpRight,
   BarChart3,
   Building2,
   CalendarDays,
   Calculator,
+  CheckCircle2,
+  CreditCard,
   DollarSign,
+  FileText,
   Lock,
   Megaphone,
   Package,
   Percent,
   ReceiptText,
+  Send,
   ShoppingBag,
   Sparkles,
+  TrendingDown,
   TrendingUp,
   Truck,
   Users,
@@ -36,6 +42,7 @@ import type { Product } from "../../services/products";
 import type { ReportResult } from "./types";
 
 import DecantsSection from "../../components/admin/DecantsSection";
+import FullBottlesSection from "../../components/admin/FullBottlesSection";
 import PeriodFilterSwitch from "../../components/admin/PeriodFilterSwitch";
 import { type PeriodPreset, formatShortDate } from "../../services/admin-periods";
 import { getPeriodRange } from "../../lib/decants-metrics";
@@ -127,6 +134,15 @@ export default function DashboardPage({
     ? Math.round((grossProfit / totalRevenue) * 1000) / 10
     : 0;
 
+  const totalExpenses = Number(metrics.total_expenses ?? 0);
+  const netProfit = Number(metrics.sales_profit ?? 0);
+  const netMargin = Number(metrics.net_margin_percent ?? 0);
+
+  // Cartera y pendientes
+  const creditOutstanding = Number(metrics.credit_outstanding_balance ?? 0);
+  const creditOverdue = Number(metrics.credit_overdue_balance ?? 0);
+  const creditCustomersWithOverdue = Number(metrics.credit_customers_with_overdue ?? 0);
+
   // Desglose de ingresos cobrados: ventas de contado vs abonos de cartera
   const { paidOrdersTotal, paidOrdersCount, abonosTotal, abonosCount } = useMemo(() => {
     let paidTotal = 0;
@@ -208,10 +224,43 @@ export default function DashboardPage({
     return { administrativeExpenses: admin, salesExpenses: sales };
   }, [expenses, metrics.period_from, metrics.period_to, metrics.total_expenses]);
 
+  // Proporciones matemáticas para la barra segmentada de la tarjeta "Net Profit" (estilo Fintech)
+  const { profitBarPct, costsBarPct, expensesBarPct, expensePillValue } = useMemo(() => {
+    const totalOut = totalDirectCosts + totalExpenses;
+    const base = Math.max(totalRevenue, totalOut + Math.max(0, netProfit), 1);
+    const pPct = Math.max(0, Math.min(100, Math.round((Math.max(0, netProfit) / base) * 100)));
+    const cPct = Math.max(0, Math.min(100, Math.round((totalDirectCosts / base) * 100)));
+    const ePct = Math.max(0, Math.min(100, Math.round((totalExpenses / base) * 100)));
+
+    return {
+      profitBarPct: pPct,
+      costsBarPct: cPct,
+      expensesBarPct: ePct,
+      expensePillValue: totalExpenses > 0 ? money(totalExpenses) : money(totalDirectCosts),
+    };
+  }, [totalRevenue, totalDirectCosts, totalExpenses, netProfit]);
+
+  // Delta porcentual de ingresos vs período anterior
+  const revenueDelta = useMemo(() => {
+    if (!metrics.period_days || !metrics.previous?.sales_revenue) return null;
+    const prev = Number(metrics.previous.sales_revenue);
+    if (prev <= 0) return null;
+    const diff = Math.round(((totalRevenue - prev) / prev) * 100);
+    return diff;
+  }, [totalRevenue, metrics.period_days, metrics.previous?.sales_revenue]);
+
+  // Delta porcentual de profit vs período anterior
+  const profitDelta = useMemo(() => {
+    if (!metrics.period_days || !metrics.previous?.sales_profit) return null;
+    const prev = Number(metrics.previous.sales_profit);
+    if (prev <= 0) return null;
+    const diff = Math.round(((netProfit - prev) / prev) * 100);
+    return diff;
+  }, [netProfit, metrics.period_days, metrics.previous?.sales_profit]);
+
   return (
-    <div className="overview-flow">
-      {/* Estructura movil: resumen, ingresos y pedidos recientes. En
-          escritorio este bloque no se muestra y el orden no cambia. */}
+    <div className="overview-flow fintech-dashboard-flow">
+      {/* Estructura móvil: resumen simplificado */}
       <MobileOverview
         metrics={metrics}
         orders={orders}
@@ -220,40 +269,65 @@ export default function DashboardPage({
         onOpenOrders={canOpenOrders ? () => onSectionChange("transactions") : undefined}
         onOpenFinance={() => onSectionChange("finance")}
       />
-      {/* El panel completo vive en la seccion Reportes. Acá quedan solo las
-          dos acciones rapidas, sin formulario de fechas: el dashboard
-          es para mirar, no para configurar. */}
-      <div className="report-actions report-actions--dashboard">
-        <span className="report-actions-label">Reportes</span>
-        <div className="report-actions-buttons">
-          <AdminButton
-            tone="secondary"
-            compact
-            type="button"
-            onClick={onGenerateReport}
-            disabled={reportLoading}
-          >
-            <BarChart3 size={16} /> {reportLoading ? "Generando..." : "Generar reporte semanal"}
-          </AdminButton>
-          <AdminButton
-            tone="secondary"
-            compact
-            type="button"
-            onClick={() => onSectionChange("reports")}
-          >
-            <CalendarDays size={16} /> Reportes por periodo
-          </AdminButton>
+
+      {/* ========================================================
+          BARRA DE NAVEGACIÓN SUPERIOR FINTECH (ESTILO RAXON)
+         ======================================================== */}
+      <header className="fintech-top-nav">
+        <div className="fintech-nav-left">
+          <div className="fintech-pills">
+            <button
+              type="button"
+              className="fintech-pill is-active"
+              aria-current="page"
+            >
+              <span>Resumen</span>
+            </button>
+            <button
+              type="button"
+              className="fintech-pill"
+              onClick={() => onSectionChange("transactions")}
+            >
+              <ReceiptText size={14} />
+              <span>Transacciones</span>
+            </button>
+            <button
+              type="button"
+              className="fintech-pill"
+              onClick={() => onSectionChange("expenses")}
+            >
+              <Wallet size={14} />
+              <span>Presupuesto y Gastos</span>
+            </button>
+            <button
+              type="button"
+              className="fintech-pill"
+              onClick={() => onSectionChange("reports")}
+            >
+              <BarChart3 size={14} />
+              <span>Reportes</span>
+            </button>
+          </div>
         </div>
-      </div>
-      {reportError && <p className="form-error" role="alert">{reportError}</p>}
-      {reportResult && (
-        <p className="report-result" role="status">
-          Reporte {reportResult.label} generado. {reportResult.emailSent
-            ? "Correo enviado. "
-            : `${reportResult.emailError ?? "No se pudo enviar el correo."} `}
-          <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">Abrir reporte en WhatsApp</a>
-        </p>
-      )}
+
+        <div className="fintech-nav-right">
+          <div className="fintech-live-badge" title="Métricas calculadas en tiempo real">
+            <span className="fintech-live-dot" />
+            <span>En vivo</span>
+          </div>
+          <PeriodFilterSwitch
+            preset={periodPreset}
+            customFrom={periodCustomFrom}
+            customTo={periodCustomTo}
+            isAllTime={isPeriodAllTime}
+            onPresetChange={onPeriodPresetChange}
+            onCustomRangeChange={onPeriodCustomRangeChange}
+            onToggleAllTime={onPeriodToggleAllTime}
+          />
+        </div>
+      </header>
+
+      {/* Alertas críticas del negocio */}
       <AlertBlock
         items={[
           lowStock > 0 ? (
@@ -276,230 +350,373 @@ export default function DashboardPage({
           ) : null,
         ]}
       />
-      <div className="metrics-period">
-        <span className="metrics-period-label">Período</span>
-        <PeriodFilterSwitch
-          preset={periodPreset}
-          customFrom={periodCustomFrom}
-          customTo={periodCustomTo}
-          isAllTime={isPeriodAllTime}
-          onPresetChange={onPeriodPresetChange}
-          onCustomRangeChange={onPeriodCustomRangeChange}
-          onToggleAllTime={onPeriodToggleAllTime}
-        />
-      </div>
 
       {/* ========================================================
-          1. SECCIÓN: INGRESOS (Ventas de contado + Abonos de créditos)
+          PANEL FINTECH PRINCIPAL (INSPIRADO EN LA REFERENCIA)
          ======================================================== */}
-      <MetricGroup
-        title="Ingresos"
-        hint="Flujo total cobrado en caja: ventas pagadas de contado y abonos de cartera recibidos."
-        icon={<ArrowUpRight />}
-        wide
-      >
-        <Metric
-          title="Total ingresos cobrados"
-          value={money(totalRevenue)}
-          numericValue={totalRevenue}
-          format="money"
-          icon={<ReceiptText />}
-          emphasis
-          hint="Ventas pagadas de contado + abonos de créditos que ya entraron a caja."
-          delta={metrics.period_days ? { current: totalRevenue, previous: Number(metrics.previous.sales_revenue) } : undefined}
-          onClick={() => onSectionChange("finance")}
-        />
-        <Metric
-          title={`Ventas de contado (${paidOrdersCount})`}
-          value={money(paidOrdersTotal)}
-          numericValue={paidOrdersTotal}
-          format="money"
-          icon={<ShoppingBag />}
-          hint="Total cobrado por ventas pagadas 100% de inmediato."
-        />
-        <Metric
-          title={`Abonos de créditos (${abonosCount})`}
-          value={money(abonosTotal)}
-          numericValue={abonosTotal}
-          format="money"
-          icon={<Wallet />}
-          hint="Total recaudado por abonos a ventas fiadas en el periodo."
-          onClick={() => onSectionChange("credit")}
-        />
-        <Metric
-          title="Ventas completadas"
-          value={String(metrics.completed_sales)}
-          numericValue={metrics.completed_sales}
-          icon={<ShoppingBag />}
-          hint="Pedidos pagados y entregados en el periodo."
-        />
-        <Metric
-          title="Ticket promedio"
-          value={money(avgTicket)}
-          numericValue={avgTicket}
-          format="money"
-          icon={<Calculator />}
-          hint="Ingreso cobrado promedio por venta."
-        />
-      </MetricGroup>
+      <section className="fintech-grid-container">
+        {/* COLUMNA 1: TOTAL BALANCE / CAJA RECAUDADA */}
+        <div className="fintech-card fintech-balance-card">
+          <div className="fintech-card-header">
+            <div className="fintech-header-icon-label">
+              <span className="fintech-icon-circle">
+                <Wallet size={16} />
+              </span>
+              <span className="fintech-header-title">Total Recaudado en Caja</span>
+            </div>
+            <span className="fintech-currency-badge">COP</span>
+          </div>
+
+          <div className="fintech-balance-body">
+            <h1 className="fintech-main-amount">{money(totalRevenue)}</h1>
+            <div className="fintech-delta-row">
+              {revenueDelta !== null ? (
+                <span className={`fintech-delta-pill ${revenueDelta >= 0 ? "is-up" : "is-down"}`}>
+                  {revenueDelta >= 0 ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                  {revenueDelta >= 0 ? `+${revenueDelta}%` : `${revenueDelta}%`} vs período anterior
+                </span>
+              ) : (
+                <span className="fintech-delta-pill is-neutral">
+                  <Sparkles size={13} /> Flujo neto en caja
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="fintech-quick-actions">
+            <button
+              type="button"
+              className="fintech-action-btn fintech-action-btn--primary"
+              onClick={() => onSectionChange("credit")}
+            >
+              <CreditCard size={15} />
+              <span>Cobrar / Abonos</span>
+            </button>
+            <button
+              type="button"
+              className="fintech-action-btn fintech-action-btn--secondary"
+              onClick={() => onSectionChange("transactions")}
+            >
+              <ShoppingBag size={15} />
+              <span>Registrar Venta</span>
+            </button>
+            <button
+              type="button"
+              className="fintech-action-btn fintech-action-btn--secondary"
+              onClick={() => onSectionChange("credit")}
+            >
+              <FileText size={15} />
+              <span>Ver Cartera (CXC)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* COLUMNA 2 - ARRIBA IZQ: INGRESOS CON DETALLE */}
+        <div className="fintech-card fintech-metric-card">
+          <div className="fintech-card-header">
+            <div className="fintech-header-icon-label">
+              <span className="fintech-icon-circle fintech-icon--income">
+                <ArrowUpRight size={16} />
+              </span>
+              <span className="fintech-header-title">Ingresos Cobrados</span>
+            </div>
+            <button
+              type="button"
+              className="fintech-link-btn"
+              onClick={() => onSectionChange("finance")}
+            >
+              Ver detalle
+            </button>
+          </div>
+
+          <div className="fintech-metric-amount-row">
+            <h2 className="fintech-card-amount">{money(totalRevenue)}</h2>
+            {revenueDelta !== null && (
+              <span className={`fintech-badge-sub ${revenueDelta >= 0 ? "text-emerald" : "text-rose"}`}>
+                {revenueDelta >= 0 ? `+${revenueDelta}%` : `${revenueDelta}%`}
+              </span>
+            )}
+          </div>
+
+          <div className="fintech-breakdown-list">
+            <div className="fintech-breakdown-item">
+              <div className="fintech-breakdown-info">
+                <span className="fintech-dot dot-contado" />
+                <span className="fintech-breakdown-name">Ventas de contado ({paidOrdersCount})</span>
+              </div>
+              <strong className="fintech-breakdown-value">{money(paidOrdersTotal)}</strong>
+            </div>
+
+            <div className="fintech-breakdown-item">
+              <div className="fintech-breakdown-info">
+                <span className="fintech-dot dot-abonos" />
+                <span className="fintech-breakdown-name">Abonos recibidos ({abonosCount})</span>
+              </div>
+              <strong className="fintech-breakdown-value">{money(abonosTotal)}</strong>
+            </div>
+
+            <div className="fintech-breakdown-item">
+              <div className="fintech-breakdown-info">
+                <span className="fintech-dot dot-cxc" />
+                <span className="fintech-breakdown-name">Cuentas por cobrar (Cartera activa)</span>
+              </div>
+              <strong className="fintech-breakdown-value">{money(creditOutstanding)}</strong>
+            </div>
+
+            {creditOverdue > 0 && (
+              <div className="fintech-breakdown-item is-warning">
+                <div className="fintech-breakdown-info">
+                  <span className="fintech-dot dot-overdue" />
+                  <span className="fintech-breakdown-name text-rose">
+                    Cartera vencida ({creditCustomersWithOverdue} clientes)
+                  </span>
+                </div>
+                <strong className="fintech-breakdown-value text-rose">{money(creditOverdue)}</strong>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* COLUMNA 2 - ARRIBA DER: GASTOS TOTALES CON DETALLE */}
+        <div className="fintech-card fintech-metric-card">
+          <div className="fintech-card-header">
+            <div className="fintech-header-icon-label">
+              <span className="fintech-icon-circle fintech-icon--expense">
+                <ArrowDownRight size={16} />
+              </span>
+              <span className="fintech-header-title">Gastos Operativos</span>
+            </div>
+            <button
+              type="button"
+              className="fintech-link-btn"
+              onClick={() => onSectionChange("expenses")}
+            >
+              Ver gastos
+            </button>
+          </div>
+
+          <div className="fintech-metric-amount-row">
+            <h2 className="fintech-card-amount">{money(totalExpenses)}</h2>
+            <span className="fintech-badge-sub text-muted">
+              {metrics.committed_expenses > 0 ? "Con pendientes" : "Pagados en el periodo"}
+            </span>
+          </div>
+
+          <div className="fintech-breakdown-list">
+            <div className="fintech-breakdown-item">
+              <div className="fintech-breakdown-info">
+                <span className="fintech-dot dot-sales-exp" />
+                <span className="fintech-breakdown-name">Gastos de ventas y pauta</span>
+              </div>
+              <strong className="fintech-breakdown-value">{money(salesExpenses)}</strong>
+            </div>
+
+            <div className="fintech-breakdown-item">
+              <div className="fintech-breakdown-info">
+                <span className="fintech-dot dot-admin-exp" />
+                <span className="fintech-breakdown-name">Gastos administrativos y fijos</span>
+              </div>
+              <strong className="fintech-breakdown-value">{money(administrativeExpenses)}</strong>
+            </div>
+
+            {metrics.committed_expenses > 0 && (
+              <div className="fintech-breakdown-item">
+                <div className="fintech-breakdown-info">
+                  <span className="fintech-dot dot-committed" />
+                  <span className="fintech-breakdown-name">Comprometidos (por pagar)</span>
+                </div>
+                <strong className="fintech-breakdown-value text-amber">
+                  {money(Number(metrics.committed_expenses))}
+                </strong>
+              </div>
+            )}
+
+            <div className="fintech-breakdown-item">
+              <div className="fintech-breakdown-info">
+                <span className="fintech-dot dot-cost" />
+                <span className="fintech-breakdown-name">Costo de logística / fletes</span>
+              </div>
+              <strong className="fintech-breakdown-value">{money(deliveryCost)}</strong>
+            </div>
+          </div>
+        </div>
+
+        {/* COLUMNA 2 - ABAJO IZQ: NET PROFIT CON BARRA SEGMENTADA (IGUAL A LA IMAGEN) */}
+        <div className="fintech-card fintech-profit-card">
+          <div className="fintech-card-header">
+            <div className="fintech-header-icon-label">
+              <span className="fintech-icon-circle fintech-icon--profit">
+                <TrendingUp size={16} />
+              </span>
+              <span className="fintech-header-title">Utilidad Neta Real (Net Profit)</span>
+            </div>
+            <span className={`fintech-margin-pill ${netProfit >= 0 ? "is-positive" : "is-negative"}`}>
+              {netMargin}% Margen
+            </span>
+          </div>
+
+          <div className="fintech-metric-amount-row">
+            <h2 className="fintech-card-amount">
+              {metrics.missing_cost_items > 0 ? "Costos incompletos" : money(netProfit)}
+            </h2>
+            {profitDelta !== null && (
+              <span className={`fintech-badge-sub ${profitDelta >= 0 ? "text-emerald" : "text-rose"}`}>
+                {profitDelta >= 0 ? `+${profitDelta}%` : `${profitDelta}%`} vs ant.
+              </span>
+            )}
+          </div>
+
+          {/* LA BARRA SEGMENTADA SOLICITADA EXACTAMENTE COMO LA IMAGEN */}
+          <div className="fintech-segmented-bar-container">
+            {/* Pill flotante indicando el rubro de gastos / utilidad */}
+            <div
+              className="fintech-bar-floating-tag"
+              style={{
+                left: `${Math.min(Math.max(profitBarPct, 15), 75)}%`,
+              }}
+            >
+              <span>{expensePillValue}</span>
+            </div>
+
+            <div className="fintech-segmented-track">
+              {profitBarPct > 0 && (
+                <div
+                  className="fintech-segment segment--profit"
+                  style={{ width: `${profitBarPct}%` }}
+                  title={`Utilidad neta: ${profitBarPct}% (${money(netProfit)})`}
+                />
+              )}
+              {costsBarPct > 0 && (
+                <div
+                  className="fintech-segment segment--costs"
+                  style={{ width: `${costsBarPct}%` }}
+                  title={`Costos mercancía + fletes: ${costsBarPct}% (${money(totalDirectCosts)})`}
+                />
+              )}
+              {expensesBarPct > 0 && (
+                <div
+                  className="fintech-segment segment--expenses"
+                  style={{ width: `${expensesBarPct}%` }}
+                  title={`Gastos operativos: ${expensesBarPct}% (${money(totalExpenses)})`}
+                />
+              )}
+            </div>
+
+            <div className="fintech-segmented-legend">
+              <div className="fintech-legend-item">
+                <span className="legend-dot dot--profit" />
+                <span className="legend-label">Utilidad {profitBarPct}%</span>
+              </div>
+              <div className="fintech-legend-item">
+                <span className="legend-dot dot--costs" />
+                <span className="legend-label">Mercancía {costsBarPct}%</span>
+              </div>
+              <div className="fintech-legend-item">
+                <span className="legend-dot dot--expenses" />
+                <span className="legend-label">Gastos {expensesBarPct}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* COLUMNA 2 - ABAJO DER: TARJETA DE REPORTE FINANCIERO (ESTILO ELEGANTE DE LA IMAGEN) */}
+        <div className="fintech-card fintech-report-banner-card">
+          <div className="fintech-report-bg-glow" />
+          <div className="fintech-report-content">
+            <div className="fintech-report-badge">
+              <BarChart3 size={15} />
+              <span>Reporte Financiero</span>
+            </div>
+            <h3 className="fintech-report-title">Balance y Rendimiento</h3>
+            <p className="fintech-report-desc">
+              Genera el reporte ejecutivo consolidado de ventas, cobranza y rentabilidad listo para enviar o descargar.
+            </p>
+
+            <div className="fintech-report-actions">
+              <button
+                type="button"
+                className="fintech-report-cta"
+                onClick={onGenerateReport}
+                disabled={reportLoading}
+              >
+                <Sparkles size={15} />
+                <span>{reportLoading ? "Generando reporte…" : "Generar reporte semanal"}</span>
+              </button>
+              <button
+                type="button"
+                className="fintech-report-secondary-btn"
+                onClick={() => onSectionChange("reports")}
+              >
+                <CalendarDays size={15} />
+                <span>Por período</span>
+              </button>
+            </div>
+
+            {reportError && (
+              <p className="fintech-report-error" role="alert">
+                {reportError}
+              </p>
+            )}
+
+            {reportResult && (
+              <div className="fintech-report-success">
+                <CheckCircle2 size={16} />
+                <span>
+                  Reporte {reportResult.label} listo.{" "}
+                  <a href={reportResult.whatsappUrl} target="_blank" rel="noreferrer">
+                    Abrir en WhatsApp →
+                  </a>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* ========================================================
-          2. SECCIÓN: COSTOS DIRECTOS Y MARGEN BRUTO
+          NUEVA SECCIÓN SOLICITADA: PERFUMERÍA COMPLETA (FRASCOS ENTEROS)
+          Similar a decants, pero exclusiva para botellas cerradas (> 10 ml)
          ======================================================== */}
-      <MetricGroup
-        title="Costos Directos y Margen Bruto"
-        hint="Costos de mercancía y logística, generando la utilidad y el margen comercial bruto."
-        icon={<Package />}
-        wide
-      >
-        <Metric
-          title="Utilidad bruta"
-          value={metrics.missing_cost_items > 0 ? "Incompleta" : money(grossProfit)}
-          numericValue={metrics.missing_cost_items > 0 ? undefined : grossProfit}
-          format="money"
-          icon={<TrendingUp />}
-          warning={grossProfit < 0}
-          emphasis
-          hint="Ingresos cobrados menos mercancía mayorista y costos de logística."
-          onClick={() => onSectionChange("finance")}
-        />
-        <Metric
-          title="Margen bruto"
-          value={`${grossMargin}%`}
-          numericValue={grossMargin}
-          format="percent"
-          icon={<Percent />}
-          hint="Rentabilidad comercial bruta sobre los ingresos cobrados."
-        />
-        <Metric
-          title="Total costos directos"
-          value={money(totalDirectCosts)}
-          numericValue={totalDirectCosts}
-          format="money"
-          icon={<Calculator />}
-          hint="Mercancía mayorista vendida + costos de logística y fletes."
-        />
-        <Metric
-          title="Mercancía mayorista"
-          value={money(Number(metrics.sales_cost))}
-          numericValue={Number(metrics.sales_cost)}
-          format="money"
-          icon={<Package />}
-          hint="Costo mayorista de los perfumes vendidos en el periodo."
-          onClick={() => onSectionChange("products")}
-        />
-        <Metric
-          title="Costo de logística (Fletes y domicilios)"
-          value={money(Number(metrics.sales_delivery_cost))}
-          numericValue={Number(metrics.sales_delivery_cost)}
-          format="money"
-          icon={<Truck />}
-          hint="Fletes, mensajería y domicilios pagados o asumidos por la tienda."
-        />
-        <Metric
-          title="Costo de fiado por cobrar"
-          value={money(Number(metrics.credit_cost_pending))}
-          numericValue={Number(metrics.credit_cost_pending)}
-          format="money"
-          icon={<Lock />}
-          hint="Parte del costo de ventas a fiado que aún falta por recuperar con próximos abonos."
-          onClick={() => onSectionChange("credit")}
-        />
-      </MetricGroup>
+      <FullBottlesSection
+        orders={orders}
+        period={activePeriod}
+        periodDays={metricsPeriod}
+      />
 
       {/* ========================================================
-          3. SECCIÓN: GASTOS OPERATIVOS Y MARGEN NETO
+          SECCIÓN DE DECANTS (10 ML) CORREGIDA Y FLUIDA
          ======================================================== */}
-      <MetricGroup
-        title="Gastos Operativos y Margen Neto"
-        hint="Gastos de administración y ventas del negocio, determinando la utilidad neta real final."
-        icon={<Wallet />}
-        wide
-      >
-        <Metric
-          title="Utilidad neta real"
-          value={metrics.missing_cost_items > 0 ? "Incompleta" : money(Number(metrics.sales_profit))}
-          numericValue={metrics.missing_cost_items > 0 ? undefined : Number(metrics.sales_profit)}
-          format="money"
-          icon={<TrendingUp />}
-          warning={metrics.sales_profit < 0}
-          emphasis
-          delta={metrics.period_days ? { current: Number(metrics.sales_profit), previous: Number(metrics.previous.sales_profit) } : undefined}
-          hint="Ganancia libre después de costos, fletes, fiados abiertos y todos los gastos operativos."
-          onClick={() => onSectionChange("finance")}
-        />
-        <Metric
-          title="Margen neto real"
-          value={`${Number(metrics.net_margin_percent)}%`}
-          numericValue={Number(metrics.net_margin_percent)}
-          format="percent"
-          icon={<Percent />}
-          delta={metrics.period_days ? { current: Number(metrics.net_margin_percent), previous: Number(metrics.previous.net_margin_percent) } : undefined}
-          deltaFormat="points"
-          hint="Margen neto final libre sobre los ingresos totales cobrados."
-        />
-        <Metric
-          title="Gastos de ventas"
-          value={money(salesExpenses)}
-          numericValue={salesExpenses}
-          format="money"
-          icon={<Megaphone />}
-          hint="Pauta digital (Meta/TikTok), publicidad, empaques, comisiones y transporte comercial."
-          onClick={() => onSectionChange("expenses")}
-        />
-        <Metric
-          title="Gastos administrativos"
-          value={money(administrativeExpenses)}
-          numericValue={administrativeExpenses}
-          format="money"
-          icon={<Building2 />}
-          hint="Servicios públicos, arriendo, nómina administrativa, herramientas y gastos generales."
-          onClick={() => onSectionChange("expenses")}
-        />
-        <Metric
-          title="Total gastos registrados"
-          value={money(Number(metrics.total_expenses))}
-          numericValue={Number(metrics.total_expenses)}
-          format="money"
-          icon={<Wallet />}
-          hint="Suma total de gastos operativos pagados en el periodo."
-          onClick={() => onSectionChange("expenses")}
-        />
-        {metrics.committed_expenses > 0 && (
-          <Metric
-            title="Gastos comprometidos"
-            value={money(Number(metrics.committed_expenses))}
-            numericValue={Number(metrics.committed_expenses)}
-            format="money"
-            icon={<CalendarDays />}
-            hint="Recordatorios ya creados que aún no se han pagado."
-            onClick={() => onSectionChange("expenses")}
-          />
-        )}
-      </MetricGroup>
+      <DecantsSection
+        orders={orders}
+        period={activePeriod}
+        periodDays={metricsPeriod}
+      />
 
+      {/* ========================================================
+          MÉTRICAS COMPLEMENTARIAS: CARTERA, INVENTARIO Y CLIENTES
+         ======================================================== */}
       <div className="metric-groups">
         <MetricGroup
-          title="Cartera"
-          hint="Lo vendido a fiado y lo que todavía no es tuyo."
+          title="Cartera y Créditos"
+          hint="Ventas a fiado, saldo pendiente por cobrar y utilidad por liberar."
           icon={<DollarSign />}
         >
           <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} numericValue={metrics.credit_sales} icon={<ReceiptText />} />
-          <Metric title="Total a crédito" value={money(Number(metrics.credit_revenue))} numericValue={Number(metrics.credit_revenue)} format="money" icon={<BarChart3 />} />
-          <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} numericValue={Number(metrics.credit_outstanding_balance)} format="money" icon={<DollarSign />} />
+          <Metric title="Total colocado a crédito" value={money(Number(metrics.credit_revenue))} numericValue={Number(metrics.credit_revenue)} format="money" icon={<BarChart3 />} />
+          <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} numericValue={Number(metrics.credit_outstanding_balance)} format="money" icon={<DollarSign />} onClick={() => onSectionChange("credit")} />
           <Metric
             title="Utilidad no cobrada"
             value={money(Number(metrics.locked_credit_profit))}
             numericValue={Number(metrics.locked_credit_profit)}
             format="money"
             icon={<Lock />}
-            hint="Margen de los fiados abiertos; se reduce cuando los abonos superan el costo."
+            hint="Margen de los fiados abiertos; se libera a medida que los clientes abonan."
           />
         </MetricGroup>
 
         <MetricGroup
-          title="Inventario"
-          hint="Lo que tienes disponible para vender hoy."
+          title="Inventario y Stock"
+          hint="Disponibilidad en bodega y productos activos."
           icon={<Package />}
         >
           <Metric title="Productos activos" value={String(products.filter((product) => !product.archived).length)} numericValue={products.filter((product) => !product.archived).length} icon={<Package />} />
@@ -508,26 +725,22 @@ export default function DashboardPage({
         </MetricGroup>
 
         <MetricGroup
-          title="Clientes"
-          hint="Cuánta gente te ha comprado y quién te debe."
+          title="Clientes y Pedidos"
+          hint="Base de clientes compradores y volumen de órdenes."
           icon={<Users />}
         >
-          <Metric title="Clientes registrados" value={String(metrics.customer_count)} numericValue={metrics.customer_count} icon={<Users />} />
-          <Metric title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<AlertTriangle />} onClick={metrics.credit_customers_with_overdue > 0 ? () => onSectionChange("credit") : undefined} />
-          <Metric title="Pedidos registrados" value={String(metrics.total_orders)} numericValue={metrics.total_orders} icon={<ReceiptText />} />
+          <Metric title="Clientes registrados" value={String(metrics.customer_count)} numericValue={metrics.customer_count} icon={<Users />} onClick={() => onSectionChange("customers")} />
+          <Metric title="Clientes con mora" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<AlertTriangle />} warning={metrics.credit_customers_with_overdue > 0} onClick={metrics.credit_customers_with_overdue > 0 ? () => onSectionChange("credit") : undefined} />
+          <Metric title="Pedidos registrados" value={String(metrics.total_orders)} numericValue={metrics.total_orders} icon={<ReceiptText />} onClick={() => onSectionChange("transactions")} />
         </MetricGroup>
       </div>
 
+      {/* Gráficos de evolución y volumen */}
       <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
         <Charts orders={orders} products={metrics.top_products} />
       </Suspense>
 
-      {/* SECCIÓN DE DECANTS (10 ML) Y COMPARATIVO DE CHARTS */}
-      <DecantsSection orders={orders} period={activePeriod} periodDays={metricsPeriod} />
-
-      {/* Rentabilidad por producto: no dice cuanto se vendio, sino que
-          perfume deja mas utilidad. Se abre a pedido porque la consulta
-          es pesada. */}
+      {/* Rentabilidad por producto */}
       <div className="profitability-toggle">
         <AdminButton
           tone="secondary"
@@ -547,7 +760,7 @@ export default function DashboardPage({
         <div className="admin-card profitability-card">
           <div className="card-title">
             <div>
-              <h2>Que perfume deja mas utilidad</h2>
+              <h2>Qué perfume deja más utilidad</h2>
               <span>
                 {metrics.period_from && metrics.period_to
                   ? `Del ${formatShortDate(metrics.period_from, true)} al ${formatShortDate(metrics.period_to, true)}`
@@ -572,14 +785,14 @@ export default function DashboardPage({
           )}
         </div>
       )}
+
+      {/* Insights y Alertas */}
       <section className="insight-grid">
-        {/* Merma: la pregunta que sin registro no tiene respuesta.
-            Dice cuanto se perdio, no solo cuantas unidades faltaron. */}
         <div className="admin-card waste-card">
           <div className="card-title">
             <div>
               <h2>Merma</h2>
-              <span>Valor perdido ultimos {wasteDays} dias</span>
+              <span>Valor perdido últimos {wasteDays} días</span>
             </div>
             <Package size={18} />
           </div>
@@ -593,8 +806,8 @@ export default function DashboardPage({
           {!wasteLoading && !wasteError && waste && waste.length === 0 && (
             <p className="insight">
               Sin merma registrada. Cuando registres una rotura, un robo o un
-              vencimiento desde el boton "Merma o ingreso" de cada presentacion, aqui
-              aparece cuanto se perdio.
+              vencimiento desde el botón "Merma o ingreso" de cada presentación, aquí
+              aparece cuánto se perdió.
             </p>
           )}
           {!wasteLoading && !wasteError && waste && waste.length > 0 && (
@@ -616,20 +829,21 @@ export default function DashboardPage({
                 ))}
               </div>
               {waste.length > 6 && (
-                <p className="report-hint">y {waste.length - 6} presentations mas</p>
+                <p className="report-hint">y {waste.length - 6} presentaciones más</p>
               )}
             </>
           )}
         </div>
 
         <div className="admin-card">
-          <div className="card-title"><div><h2>Consejo</h2><span>Lectura inicial del inventario</span></div><Sparkles size={18}/></div>
+          <div className="card-title"><div><h2>Consejo</h2><span>Lectura de inventario</span></div><Sparkles size={18}/></div>
           <p className="insight">{metrics.top_products[0]
             ? `“${metrics.top_products[0].name}” es el producto más solicitado (${metrics.top_products[0].units} unidades en pedidos). Revisa su stock antes de impulsar nuevas ventas.`
             : "Cuando registres pedidos, aquí aparecerá el producto más solicitado para ayudarte a planificar el inventario."}</p>
         </div>
+
         <div className="admin-card">
-          <div className="card-title"><div><h2>Alertas</h2><span>Inventario y pedidos por atender</span></div><AlertTriangle size={18}/></div>
+          <div className="card-title"><div><h2>Alertas</h2><span>Inventario y pedidos</span></div><AlertTriangle size={18}/></div>
           <div className="alert-list">
             <button className="alert-link" onClick={() => onDashboardDetailChange("sold-out")}>
               <span>Productos agotados</span><strong>{soldOut}</strong>

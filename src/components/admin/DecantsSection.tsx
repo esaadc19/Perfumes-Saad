@@ -231,8 +231,8 @@ export default function DecantsSection({
               <h3>1. Perfumes Normales (Frascos &gt; 10 ml)</h3>
               <span>Botellas estándar (30ml, 50ml, 100ml)</span>
             </div>
-            <div className="decant-chart-badge">
-              <span>{periodLabel}: {analysis.normalTotalUnits} unds</span>
+            <div className="decant-chart-badge" title={periodLabel}>
+              <span>{analysis.normalTotalUnits} {analysis.normalTotalUnits === 1 ? "und" : "unds"}</span>
             </div>
           </div>
           {analysis.topNormalProducts.length === 0 ? (
@@ -268,8 +268,8 @@ export default function DecantsSection({
               <h3>2. Decants (10 ml)</h3>
               <span>Fracciones y muestras solicitadas</span>
             </div>
-            <div className="decant-chart-badge decant-chart-badge--gold">
-              <span>{periodLabel}: {analysis.decantsTotalUnits} unds</span>
+            <div className="decant-chart-badge decant-chart-badge--gold" title={periodLabel}>
+              <span>{analysis.decantsTotalUnits} {analysis.decantsTotalUnits === 1 ? "und" : "unds"}</span>
             </div>
           </div>
           {analysis.topMovedDecants.length === 0 ? (

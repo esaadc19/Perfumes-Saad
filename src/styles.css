@@ -6239,14 +6239,10 @@ footer a { color: #111; }
 /* Dual Charts */
 .decants-charts-dual {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-@media (max-width: 900px) {
-  .decants-charts-dual {
-    grid-template-columns: 1fr;
-  }
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .decants-chart-panel {
@@ -6257,13 +6253,19 @@ footer a { color: #111; }
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .decants-chart-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
 .decants-chart-header h3 {
@@ -6285,7 +6287,9 @@ footer a { color: #111; }
   font-weight: 600;
   padding: 3px 8px;
   border-radius: 6px;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: 100%;
+  word-break: break-word;
 }
 
 .decant-chart-badge--gold {
@@ -7027,4 +7031,1167 @@ footer a { color: #111; }
     right: 0;
   }
 }
+
+/* ========================================================
+   FINTECH DASHBOARD LAYOUT (INSPIRADO EN LA REFERENCIA RAXON)
+   ======================================================== */
+.fintech-dashboard-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* 1. Header & Top Navigation */
+.fintech-top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 8px 0 4px 0;
+  border-bottom: 1px solid rgba(44, 36, 32, 0.08);
+}
+
+.fintech-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fintech-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1efea;
+  padding: 4px;
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+
+.fintech-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 7px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fintech-pill:hover {
+  color: #0f172a;
+}
+
+.fintech-pill.is-active {
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.fintech-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.fintech-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.1);
+  color: #065f46;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fintech-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+  animation: pulseDot 2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.6;
+  }
+}
+
+/* 2. Grid Principal Fintech */
+.fintech-grid-container {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fintech-card {
+  background: #ffffff;
+  border: 1px solid rgba(44, 36, 32, 0.08);
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  min-width: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fintech-card:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+
+/* Distribución por columnas en Desktop */
+.fintech-balance-card {
+  grid-column: span 4;
+}
+
+.fintech-metric-card {
+  grid-column: span 4;
+}
+
+.fintech-profit-card {
+  grid-column: span 7;
+}
+
+.fintech-report-banner-card {
+  grid-column: span 5;
+}
+
+@media (max-width: 1100px) {
+  .fintech-balance-card {
+    grid-column: span 6;
+  }
+  .fintech-metric-card {
+    grid-column: span 6;
+  }
+  .fintech-profit-card {
+    grid-column: span 12;
+  }
+  .fintech-report-banner-card {
+    grid-column: span 12;
+  }
+}
+
+@media (max-width: 768px) {
+  .fintech-grid-container {
+    grid-template-columns: 1fr;
+  }
+  .fintech-balance-card,
+  .fintech-metric-card,
+  .fintech-profit-card,
+  .fintech-report-banner-card {
+    grid-column: span 1;
+  }
+}
+
+/* Card Header */
+.fintech-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.fintech-header-icon-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fintech-icon-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: #f4f2ee;
+  color: #11231a;
+  display: grid;
+  place-items: center;
+}
+
+.fintech-icon--income {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.fintech-icon--expense {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.fintech-icon--profit {
+  background: rgba(200, 167, 109, 0.18);
+  color: #855d14;
+}
+
+.fintech-header-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.fintech-currency-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: #f1efea;
+  color: #64748b;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+}
+
+.fintech-link-btn {
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #8b6f5c;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+
+.fintech-link-btn:hover {
+  color: #11231a;
+  text-decoration: underline;
+}
+
+/* Montos principales */
+.fintech-main-amount {
+  font-size: 30px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 4px 0 8px 0;
+  line-height: 1.1;
+}
+
+.fintech-card-amount {
+  font-size: 24px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.fintech-metric-amount-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 4px 0 16px 0;
+}
+
+.fintech-delta-row {
+  margin-bottom: 20px;
+}
+
+.fintech-delta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.fintech-delta-pill.is-up {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+}
+
+.fintech-delta-pill.is-down {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.fintech-delta-pill.is-neutral {
+  background: #f1efea;
+  color: #64748b;
+}
+
+.fintech-margin-pill {
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.fintech-margin-pill.is-positive {
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+}
+
+.fintech-margin-pill.is-negative {
+  background: rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
+}
+
+.fintech-badge-sub {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.text-emerald {
+  color: #059669;
+}
+
+.text-rose {
+  color: #dc2626;
+}
+
+.text-amber {
+  color: #d97706;
+}
+
+.text-muted {
+  color: #64748b;
+}
+
+/* Quick Actions Pills (Total Balance) */
+.fintech-quick-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.fintech-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.fintech-action-btn--primary {
+  background: #11231a;
+  color: #ffffff;
+}
+
+.fintech-action-btn--primary:hover {
+  background: #000000;
+  transform: translateY(-1px);
+}
+
+.fintech-action-btn--secondary {
+  background: #f6f5f1;
+  color: #2c2420;
+  border-color: rgba(44, 36, 32, 0.08);
+}
+
+.fintech-action-btn--secondary:hover {
+  background: #edebe4;
+  color: #000000;
+}
+
+/* Breakdown List (Income & Expenses) */
+.fintech-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(44, 36, 32, 0.06);
+}
+
+.fintech-breakdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.fintech-breakdown-item.is-warning {
+  background: rgba(239, 68, 68, 0.05);
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.fintech-breakdown-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #475569;
+}
+
+.fintech-breakdown-name {
+  font-size: 12px;
+}
+
+.fintech-breakdown-value {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.fintech-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-contado {
+  background: #10b981;
+}
+
+.dot-abonos {
+  background: #c8a76d;
+}
+
+.dot-cxc {
+  background: #3b82f6;
+}
+
+.dot-overdue {
+  background: #ef4444;
+}
+
+.dot-sales-exp {
+  background: #f97316;
+}
+
+.dot-admin-exp {
+  background: #64748b;
+}
+
+.dot-committed {
+  background: #f59e0b;
+}
+
+.dot-cost {
+  background: #8b5cf6;
+}
+
+/* 3. BARRA SEGMENTADA DE NET PROFIT (IDENTICA A LA IMAGEN) */
+.fintech-segmented-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  margin-top: 24px;
+}
+
+.fintech-bar-floating-tag {
+  position: absolute;
+  top: -26px;
+  transform: translateX(-50%);
+  background: #ea580c;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 5px;
+  box-shadow: 0 2px 6px rgba(234, 88, 12, 0.35);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.fintech-bar-floating-tag::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 4px 4px 0 4px;
+  border-style: solid;
+  border-color: #ea580c transparent transparent transparent;
+}
+
+.fintech-segmented-track {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(44, 36, 32, 0.08);
+  display: flex;
+  overflow: hidden;
+}
+
+.fintech-segment {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.segment--profit {
+  background: #10b981;
+}
+
+.segment--costs {
+  background: #f97316;
+}
+
+.segment--expenses {
+  background: #64748b;
+}
+
+.fintech-segmented-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.fintech-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dot--profit {
+  background: #10b981;
+}
+
+.dot--costs {
+  background: #f97316;
+}
+
+.dot--expenses {
+  background: #64748b;
+}
+
+.legend-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* 4. TARJETA DE REPORTE FINANCIERO (ESTILO BANNER ELEGANTE) */
+.fintech-report-banner-card {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%);
+  color: #ffffff;
+  border: 0;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(234, 88, 12, 0.25);
+}
+
+.fintech-report-bg-glow {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.25) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.fintech-report-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.fintech-report-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 4px 10px;
+  border-radius: 999px;
+  width: fit-content;
+  margin-bottom: 10px;
+}
+
+.fintech-report-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0 0 6px 0;
+}
+
+.fintech-report-desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 16px 0;
+}
+
+.fintech-report-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fintech-report-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  color: #c2410c;
+  border: 0;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.fintech-report-cta:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #fafaf9;
+}
+
+.fintech-report-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.fintech-report-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fintech-report-secondary-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.fintech-report-error {
+  margin-top: 10px;
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.fintech-report-success {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.fintech-report-success a {
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* ========================================================
+   SECCIÓN: PERFUMERÍA COMPLETA (FRASCOS ENTEROS)
+   ======================================================== */
+.full-bottles-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.full-bottles-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.full-bottles-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(17, 35, 26, 0.08);
+  color: #11231a;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.full-bottles-summary-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: #f7f6f2;
+  border: 1px solid rgba(44, 36, 32, 0.08);
+  border-radius: 10px;
+  padding: 8px 14px;
+}
+
+.full-bottles-summary-pill strong {
+  font-size: 20px;
+  font-weight: 800;
+  color: #11231a;
+  line-height: 1;
+}
+
+.full-bottles-summary-pill span {
+  font-size: 11.5px;
+  color: #8b6f5c;
+}
+
+/* 3 Cards de Resumen */
+.full-bottles-highlight-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.full-bottle-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fafaf8;
+  border: 1px solid rgba(44, 36, 32, 0.08);
+  border-radius: 12px;
+  padding: 16px 18px;
+  min-width: 0;
+}
+
+.full-bottle-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.full-bottle-icon--crown {
+  background: rgba(200, 167, 109, 0.2);
+  color: #8a641a;
+}
+
+.full-bottle-icon--profit {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.full-bottle-icon--customer {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+
+.full-bottle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.full-bottle-subtitle {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8b6f5c;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.full-bottle-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #11231a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.full-bottle-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.full-bottle-profit-amount {
+  color: #059669;
+  font-weight: 700;
+}
+
+.full-bottle-empty-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* Metrics Bar */
+.full-bottles-metrics-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f7f6f2;
+  border-radius: 10px;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.full-bottle-metric-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.full-bottle-metric-stat span {
+  font-size: 11px;
+  color: #8b6f5c;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.full-bottle-metric-stat strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: #11231a;
+}
+
+.full-bottle-metric-divider {
+  width: 1px;
+  height: 28px;
+  background: rgba(44, 36, 32, 0.1);
+}
+
+/* Ranking Visual Panel */
+.full-bottles-ranking-panel {
+  border: 1px solid rgba(44, 36, 32, 0.08);
+  border-radius: 12px;
+  padding: 20px;
+  background: #fafaf8;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.full-bottles-ranking-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.full-bottles-ranking-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #11231a;
+  margin: 0;
+}
+
+.full-bottles-ranking-header span {
+  font-size: 12px;
+  color: #8b6f5c;
+}
+
+.full-bottle-ranking-badge {
+  background: rgba(17, 35, 26, 0.08);
+  color: #11231a;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.full-bottle-bars-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.full-bottle-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.full-bottle-bar-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.full-bottle-bar-name {
+  color: #11231a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 65%;
+}
+
+.full-bottle-bar-figures {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.full-bottle-bar-track {
+  width: 100%;
+  height: 9px;
+  background: rgba(44, 36, 32, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.full-bottle-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #11231a;
+  transition: width 0.4s ease;
+}
+
+/* Subtables Section */
+.full-bottles-subtable-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-top: 1px solid rgba(44, 36, 32, 0.08);
+  padding-top: 18px;
+}
+
+.full-bottles-subtable-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.full-bottles-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1efea;
+  padding: 4px;
+  border-radius: 9px;
+  flex-wrap: wrap;
+}
+
+.full-bottles-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-family: inherit;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.full-bottles-tab-btn:hover {
+  color: #11231a;
+}
+
+.full-bottles-tab-btn.is-active {
+  background: #ffffff;
+  color: #11231a;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.full-bottles-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid rgba(44, 36, 32, 0.12);
+  border-radius: 8px;
+  padding: 6px 12px;
+  color: #64748b;
+}
+
+.full-bottles-search-box input {
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  font-family: inherit;
+  color: #11231a;
+  width: 190px;
+}
+
+.full-bottles-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid rgba(44, 36, 32, 0.08);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.full-bottles-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.full-bottles-table th {
+  background: #f7f6f2;
+  color: #8b6f5c;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(44, 36, 32, 0.08);
+  white-space: nowrap;
+}
+
+.full-bottles-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(44, 36, 32, 0.05);
+  color: #2c2420;
+}
+
+.full-bottles-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.full-bottle-size-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: #f1efea;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #11231a;
+}
+
+.full-bottle-margin-badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.margin--high {
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+}
+
+.margin--mid {
+  background: rgba(200, 167, 109, 0.2);
+  color: #80581a;
+}
+
+.margin--low {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.full-bottle-status-pill {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.status--paid {
+  background: rgba(16, 185, 129, 0.15);
+  color: #065f46;
+}
+
+.status--credit,
+.status--partial {
+  background: rgba(200, 167, 109, 0.2);
+  color: #7d5718;
+}
+
+.full-bottle-items-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.full-bottle-subtext {
+  display: block;
+  font-size: 11px;
+  color: #8b6f5c;
+}
+
+.full-bottle-fav-pill {
+  background: #f7f6f2;
+  color: #11231a;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
 
