@@ -31,7 +31,6 @@ import AlertBlock from "../../components/admin/AlertBlock";
 import EmptyState from "../../components/admin/EmptyState";
 import Metric from "../../components/admin/Metric";
 import MetricGroup from "../../components/admin/MetricGroup";
-import MobileOverview from "../../components/admin/MobileOverview";
 import { money } from "../../lib/format";
 import { isDateInPeriod, toBogotaDateStr, getOrderFinancialBreakdown } from "../../lib/order-finance";
 import type { AdminSection } from "../../lib/admin-routes";
@@ -260,16 +259,6 @@ export default function DashboardPage({
 
   return (
     <div className="overview-flow fintech-dashboard-flow">
-      {/* Estructura móvil: resumen simplificado */}
-      <MobileOverview
-        metrics={metrics}
-        orders={orders}
-        grossMargin={grossMargin}
-        grossProfit={grossProfit}
-        onOpenOrders={canOpenOrders ? () => onSectionChange("transactions") : undefined}
-        onOpenFinance={() => onSectionChange("finance")}
-      />
-
       {/* ========================================================
           BARRA DE NAVEGACIÓN SUPERIOR FINTECH (ESTILO RAXON)
          ======================================================== */}

@@ -4225,27 +4225,14 @@ footer a { color: #111; }
     border-radius: 18px;
   }
 
-  /* El orden cambia solo en movil. En escritorio el flujo sigue siendo block. */
+  /* Flujo limpio unificado en móvil */
   .overview-flow {
     display: flex;
     flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    min-width: 0;
   }
-  .overview-flow > * { order: 20; }
-  .overview-flow > .mobile-summary { order: 1; }
-  .overview-flow > .dashboard-chart-card,
-  .overview-flow > .loading-state { order: 2; }
-  .overview-flow > .mobile-orders { order: 3; }
-  .overview-flow > .alert-block { order: 4; }
-  .overview-flow > .metrics-period { order: 5; }
-  .overview-flow > .metric-groups { order: 6; }
-  .overview-flow > .metric-group { order: 7; }
-  .overview-flow > .top-products-chart-card { order: 8; }
-  .overview-flow > .profitability-toggle { order: 9; }
-  .overview-flow > .profitability-card { order: 10; }
-  .overview-flow > .insight-grid { order: 11; }
-  .overview-flow > .report-actions { order: 12; }
-  .overview-flow > .report-result { order: 13; }
-  .overview-flow > .form-error { order: 14; }
 
   .mobile-summary {
     display: grid;
@@ -8193,5 +8180,387 @@ footer a { color: #111; }
   font-size: 11.5px;
   font-weight: 600;
 }
+
+/* ========================================================
+   OPTIMIZACIONES MOBILE Y PANTALLAS PEQUEÑAS (FINTECH & SECCIONES)
+   ======================================================== */
+@media (max-width: 768px) {
+  /* Contenedor general */
+  .fintech-dashboard-flow {
+    gap: 16px;
+  }
+
+  /* 1. Barra superior: Tabs deslizables y selector de periodo completo */
+  .fintech-top-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 2px 0 10px 0;
+  }
+
+  .fintech-nav-left {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 3px;
+  }
+
+  .fintech-nav-left::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fintech-pills {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    min-width: max-content;
+    gap: 4px;
+    padding: 3px;
+    border-radius: 12px;
+    background: #f1efea;
+  }
+
+  .fintech-pill {
+    padding: 8px 13px;
+    font-size: 12.5px;
+    white-space: nowrap;
+    min-height: 40px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .fintech-nav-right {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .fintech-live-badge {
+    align-self: flex-start;
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .fintech-nav-right .period-filter-root {
+    width: 100%;
+  }
+
+  .fintech-nav-right .period-segmented-bar {
+    display: flex;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 2px;
+  }
+
+  .fintech-nav-right .period-segmented-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fintech-nav-right .period-tab-btn {
+    flex: 1 0 auto;
+    white-space: nowrap;
+    padding: 7px 9px;
+    font-size: 11.5px;
+    min-height: 38px;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  /* 2. Grid de tarjetas: 1 columna y paddings optimizados */
+  .fintech-grid-container {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .fintech-balance-card,
+  .fintech-metric-card,
+  .fintech-profit-card,
+  .fintech-report-banner-card {
+    grid-column: span 1 !important;
+  }
+
+  .fintech-card {
+    padding: 16px 14px;
+    border-radius: 14px;
+  }
+
+  .fintech-card:hover {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  }
+
+  .fintech-main-amount {
+    font-size: clamp(23px, 6.8vw, 28px);
+    margin: 4px 0 6px 0;
+  }
+
+  .fintech-card-amount {
+    font-size: clamp(19px, 5.8vw, 23px);
+  }
+
+  /* Botones de acción vertical táctil */
+  .fintech-quick-actions {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .fintech-action-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+    font-size: 13px;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Leyenda de Net Profit en vertical */
+  .fintech-segmented-bar-container {
+    margin-top: 22px;
+    gap: 10px;
+  }
+
+  .fintech-bar-floating-tag {
+    top: -24px;
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .fintech-segmented-track {
+    height: 12px;
+  }
+
+  .fintech-segmented-legend {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .fintech-legend-item {
+    font-size: 11.5px;
+  }
+
+  /* Banner de reporte financiero */
+  .fintech-report-banner-card {
+    padding: 18px 16px;
+    border-radius: 14px;
+  }
+
+  .fintech-report-title {
+    font-size: 18px;
+  }
+
+  .fintech-report-desc {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+
+  .fintech-report-actions {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .fintech-report-cta,
+  .fintech-report-secondary-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 44px;
+    font-size: 13px;
+    touch-action: manipulation;
+  }
+
+  /* 3. Secciones de Perfumes Completos y Decants */
+  .full-bottles-section,
+  .decants-section {
+    padding: 16px 14px;
+    border-radius: 14px;
+  }
+
+  .full-bottles-header,
+  .decants-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .full-bottles-summary-pill,
+  .decants-summary-pill {
+    align-items: flex-start;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 12px;
+  }
+
+  .full-bottles-highlight-grid,
+  .decants-highlight-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .full-bottle-card,
+  .decant-highlight-card {
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+
+  .full-bottles-metrics-bar,
+  .decants-metrics-bar {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+
+  .full-bottle-metric-divider,
+  .decant-metric-divider {
+    display: none;
+  }
+
+  .full-bottles-ranking-panel,
+  .decants-chart-panel {
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+  .full-bottle-bar-info,
+  .decant-bar-info {
+    font-size: 11.5px;
+    gap: 6px;
+  }
+
+  .full-bottle-bar-name,
+  .decant-bar-name {
+    max-width: 58%;
+    font-size: 12px;
+  }
+
+  .full-bottle-bar-figures,
+  .decant-bar-figures {
+    font-size: 11px;
+  }
+
+  /* Subtablas y barra de herramientas */
+  .full-bottles-subtable-toolbar,
+  .decants-subtable-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .full-bottles-tabs,
+  .decants-tabs {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex-wrap: nowrap;
+    padding: 3px;
+    border-radius: 8px;
+  }
+
+  .full-bottles-tabs::-webkit-scrollbar,
+  .decants-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .full-bottles-tab-btn,
+  .decants-tab-btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    font-size: 12px;
+    padding: 8px 12px;
+    min-height: 40px;
+    touch-action: manipulation;
+  }
+
+  .full-bottles-search-box,
+  .decants-search-box {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 12px;
+  }
+
+  .full-bottles-search-box input,
+  .decants-search-box input {
+    width: 100%;
+    font-size: 16px; /* Cumple regla mobile-native: evita zoom en iOS */
+  }
+
+  .full-bottles-table-wrapper,
+  .decants-table-wrapper {
+    margin-left: -14px;
+    margin-right: -14px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .full-bottles-table,
+  .decants-table {
+    min-width: 560px;
+    font-size: 12px;
+  }
+
+  .full-bottles-table th,
+  .decants-table th {
+    padding: 8px 10px;
+    font-size: 10.5px;
+  }
+
+  .full-bottles-table td,
+  .decants-table td {
+    padding: 10px 10px;
+  }
+
+  /* Grupos de métricas e insights */
+  .metric-groups {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .insight-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* Pantallas extra pequeñas (< 380px: ej. iPhone SE / Galaxy Fold) */
+@media (max-width: 380px) {
+  .fintech-card {
+    padding: 14px 12px;
+  }
+
+  .fintech-main-amount {
+    font-size: 21px;
+  }
+
+  .fintech-card-amount {
+    font-size: 18px;
+  }
+
+  .full-bottles-metrics-bar,
+  .decants-metrics-bar {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .full-bottles-table,
+  .decants-table {
+    min-width: 520px;
+  }
+}
+
 
 
