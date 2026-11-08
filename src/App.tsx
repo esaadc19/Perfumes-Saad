@@ -7,6 +7,7 @@ import {
   type PeriodPreset,
   resolvePeriodFilter,
   addDaysIso,
+  startOfMonth,
 } from "./services/admin-periods";
 import {
   getAdminSectionFromPath,
@@ -1881,7 +1882,7 @@ function Admin({
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
   /** Rango del dashboard: preset y fechas personalizadas */
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("mes");
-  const [periodCustomFrom, setPeriodCustomFrom] = useState<string>(() => addDaysIso(getBogotaDate(), -29));
+  const [periodCustomFrom, setPeriodCustomFrom] = useState<string>(() => startOfMonth(getBogotaDate()));
   const [periodCustomTo, setPeriodCustomTo] = useState<string>(() => getBogotaDate());
   const [isPeriodAllTime, setIsPeriodAllTime] = useState(false);
 

@@ -2,15 +2,16 @@
  * Utilidades para manejo de períodos en el Dashboard y Finanzas.
  *
  * Soporta los filtros:
- * - "semana": Últimos 7 días
- * - "mes": Últimos 30 días
- * - "ano": Últimos 365 días / año en curso
- * - "rango": Rango personalizado con fecha de inicio y fin
+ * - "semana": Últimos 7 días desde el día que se consulta
+ * - "mes": Mes que está cursando (1º del mes en curso hasta hoy)
+ * - "mes_pasado": Mes calendario anterior completo
+ * - "ano": Año en curso (1º de enero hasta hoy)
+ * - "rango": Rango personalizado con fecha de inicio y fin (y todo el historial)
  *
  * Todas las fechas se calculan en zona horaria de Colombia (Bogotá UTC-5).
  */
 
-export type PeriodPreset = "semana" | "mes" | "ano" | "rango";
+export type PeriodPreset = "semana" | "mes" | "mes_pasado" | "ano" | "rango";
 
 export interface PeriodFilterValue {
   preset: PeriodPreset;
@@ -44,6 +45,29 @@ export function addDaysIso(iso: string, days: number): string {
   return toIso(date);
 }
 
+/** Primer día del mes de una fecha AAAA-MM-DD. */
+export function startOfMonth(iso: string): string {
+  return `${iso.slice(0, 7)}-01`;
+}
+
+/** Primer día del año de una fecha AAAA-MM-DD. */
+export function startOfYear(iso: string): string {
+  return `${iso.slice(0, 4)}-01-01`;
+}
+
+/** Obtiene el rango del mes anterior completo (AAAA-MM-DD). */
+export function getLastMonthRange(today: string = getBogotaDate()): { from: string; to: string } {
+  const curYear = parseInt(today.slice(0, 4), 10);
+  const curMonth = parseInt(today.slice(5, 7), 10);
+  const prevYear = curMonth === 1 ? curYear - 1 : curYear;
+  const prevMonth = curMonth === 1 ? 12 : curMonth - 1;
+  const prevMonthStr = String(prevMonth).padStart(2, "0");
+  const from = `${prevYear}-${prevMonthStr}-01`;
+  const lastDayNum = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
+  const to = `${prevYear}-${prevMonthStr}-${String(lastDayNum).padStart(2, "0")}`;
+  return { from, to };
+}
+
 /** Calcula la diferencia en días entre dos fechas (inclusivo). */
 export function countDaysBetween(fromIsoStr: string, toIsoStr: string): number {
   if (!fromIsoStr || !toIsoStr) return 0;
@@ -57,6 +81,18 @@ const MONTH_NAMES_SHORT = [
   "ene", "feb", "mar", "abr", "may", "jun",
   "jul", "ago", "sep", "oct", "nov", "dic"
 ];
+
+const MONTH_NAMES_FULL = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+];
+
+/** Nombre completo del mes a partir de AAAA-MM-DD. */
+export function formatMonthName(iso: string): string {
+  if (!iso) return "";
+  const monthIdx = parseInt(iso.slice(5, 7), 10) - 1;
+  return MONTH_NAMES_FULL[monthIdx] || "";
+}
 
 /** Formatea una fecha como "1 oct" o "1 oct 2026". */
 export function formatShortDate(iso: string, includeYear = false): string {
@@ -91,6 +127,7 @@ export function resolvePeriodFilter(
     };
   }
 
+  // 1. Semana: Últimos 7 días desde el día en que se coloca
   if (preset === "semana") {
     const from = addDaysIso(today, -6);
     return {
@@ -103,32 +140,52 @@ export function resolvePeriodFilter(
     };
   }
 
+  // 2. Mes: Mes que está cursando (1º del mes hasta hoy)
   if (preset === "mes") {
-    const from = addDaysIso(today, -29);
+    const from = startOfMonth(today);
+    const days = countDaysBetween(from, today);
+    const monthName = formatMonthName(today);
     return {
       preset,
       from,
       to: today,
-      days: 30,
+      days,
       isAllTime: false,
-      label: `Últimos 30 días (${formatShortDate(from)} – ${formatShortDate(today)})`,
+      label: `Mes en curso (${monthName}: ${formatShortDate(from)} – ${formatShortDate(today)})`,
     };
   }
 
+  // 3. Mes pasado: Mes calendario anterior completo
+  if (preset === "mes_pasado") {
+    const { from, to } = getLastMonthRange(today);
+    const days = countDaysBetween(from, to);
+    const monthName = formatMonthName(from);
+    return {
+      preset,
+      from,
+      to,
+      days,
+      isAllTime: false,
+      label: `Mes pasado (${monthName}: ${formatShortDate(from, true)} – ${formatShortDate(to, true)})`,
+    };
+  }
+
+  // 4. Año: Año en curso (1º de enero hasta hoy)
   if (preset === "ano") {
-    const from = addDaysIso(today, -364);
+    const from = startOfYear(today);
+    const days = countDaysBetween(from, today);
     return {
       preset,
       from,
       to: today,
-      days: 365,
+      days,
       isAllTime: false,
-      label: `Últimos 365 días (${formatShortDate(from, true)} – ${formatShortDate(today, true)})`,
+      label: `Año en curso (${today.slice(0, 4)}: ${formatShortDate(from, true)} – ${formatShortDate(today, true)})`,
     };
   }
 
-  // Rango personalizado
-  const from = customFrom || addDaysIso(today, -29);
+  // 5. Rango personalizado (deja el rango como está)
+  const from = customFrom || startOfMonth(today);
   const to = customTo || today;
   const days = countDaysBetween(from, to);
 

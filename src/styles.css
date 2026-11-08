@@ -1265,9 +1265,9 @@ footer a { color: #111; }
   background: transparent;
   color: #4b5563;
   font-family: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
-  padding: 6px 18px;
+  padding: 6px 14px;
   border-radius: 9px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -4573,12 +4573,19 @@ footer a { color: #111; }
   .overview-flow .metrics-period .period-segmented-bar {
     display: flex;
     width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .overview-flow .metrics-period .period-segmented-bar::-webkit-scrollbar {
+    display: none;
   }
   .overview-flow .metrics-period .period-tab-btn {
-    flex: 1 1 0;
+    flex: 1 0 auto;
     justify-content: center;
-    padding: 7px 4px;
+    padding: 7px 10px;
     font-size: 11.5px;
+    white-space: nowrap;
   }
   .overview-flow .metrics-period .chart-period-switch {
     display: flex;

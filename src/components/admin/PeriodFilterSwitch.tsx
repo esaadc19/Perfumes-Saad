@@ -5,6 +5,8 @@ import {
   formatShortDate,
   getBogotaDate,
   addDaysIso,
+  startOfMonth,
+  getLastMonthRange,
 } from "../../services/admin-periods";
 
 export interface PeriodFilterSwitchProps {
@@ -61,27 +63,20 @@ export default function PeriodFilterSwitch({
 
   // Accesos rápidos dentro del rango personalizado
   const setThisMonth = () => {
-    const start = `${today.slice(0, 7)}-01`;
+    const start = startOfMonth(today);
     onCustomRangeChange(start, today);
   };
 
   const setLastMonth = () => {
-    const curYear = parseInt(today.slice(0, 4), 10);
-    const curMonth = parseInt(today.slice(5, 7), 10);
-    const prevYear = curMonth === 1 ? curYear - 1 : curYear;
-    const prevMonth = curMonth === 1 ? 12 : curMonth - 1;
-    const start = `${prevYear}-${String(prevMonth).padStart(2, "0")}-01`;
-    // Último día del mes pasado
-    const lastDayNum = new Date(Date.UTC(prevYear, prevMonth, 0)).getUTCDate();
-    const end = `${prevYear}-${String(prevMonth).padStart(2, "0")}-${String(lastDayNum).padStart(2, "0")}`;
-    onCustomRangeChange(start, end);
+    const { from, to } = getLastMonthRange(today);
+    onCustomRangeChange(from, to);
   };
 
   const isRangoActive = preset === "rango" || isAllTime;
 
   return (
     <div className="period-filter-root">
-      {/* Barra segmentada idéntica a la imagen del usuario: Semana | Mes | Año | Rango */}
+      {/* Barra segmentada: Semana | Mes | Mes pasado | Año | Rango */}
       <div className="period-segmented-bar" role="tablist" aria-label="Filtro de período">
         <button
           type="button"
@@ -100,6 +95,15 @@ export default function PeriodFilterSwitch({
           onClick={() => handlePresetClick("mes")}
         >
           Mes
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={preset === "mes_pasado" && !isAllTime}
+          className={`period-tab-btn ${preset === "mes_pasado" && !isAllTime ? "selected" : ""}`}
+          onClick={() => handlePresetClick("mes_pasado")}
+        >
+          Mes pasado
         </button>
         <button
           type="button"
