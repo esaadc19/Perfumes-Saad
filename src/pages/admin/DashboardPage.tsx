@@ -1,36 +1,18 @@
-import { lazy, Suspense, useMemo } from "react";
+import { useMemo } from "react";
 import {
-  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
-  Building2,
   CalendarDays,
-  Calculator,
   CheckCircle2,
   CreditCard,
-  DollarSign,
   FileText,
-  Lock,
-  Megaphone,
-  Package,
-  Percent,
   ReceiptText,
-  Send,
   ShoppingBag,
   Sparkles,
-  TrendingDown,
   TrendingUp,
-  Truck,
-  Users,
   Wallet,
-  X,
 } from "lucide-react";
-import AdminButton from "../../components/admin/AdminButton";
-import AlertBlock from "../../components/admin/AlertBlock";
-import EmptyState from "../../components/admin/EmptyState";
-import Metric from "../../components/admin/Metric";
-import MetricGroup from "../../components/admin/MetricGroup";
 import { money } from "../../lib/format";
 import { isDateInPeriod, toBogotaDateStr, getOrderFinancialBreakdown } from "../../lib/order-finance";
 import type { AdminSection } from "../../lib/admin-routes";
@@ -43,10 +25,8 @@ import type { ReportResult } from "./types";
 import DecantsSection from "../../components/admin/DecantsSection";
 import FullBottlesSection from "../../components/admin/FullBottlesSection";
 import PeriodFilterSwitch from "../../components/admin/PeriodFilterSwitch";
-import { type PeriodPreset, formatShortDate } from "../../services/admin-periods";
+import { type PeriodPreset } from "../../services/admin-periods";
 import { getPeriodRange } from "../../lib/decants-metrics";
-const Charts = lazy(() => import("../../components/admin/Charts"));
-const ProfitabilityTable = lazy(() => import("../../components/admin/ProfitabilityTable"));
 
 export type DashboardDetail = "sold-out" | "low-stock" | "pending" | "profitability" | null;
 
@@ -88,12 +68,7 @@ interface DashboardPageProps {
 export default function DashboardPage({
   metrics,
   orders,
-  products,
   expenses = [],
-  soldOut,
-  lowStock,
-  totalStock,
-  avgTicket,
   metricsPeriod,
   periodPreset,
   periodCustomFrom,
@@ -102,17 +77,6 @@ export default function DashboardPage({
   onPeriodPresetChange,
   onPeriodCustomRangeChange,
   onPeriodToggleAllTime,
-  onMetricsPeriodChange,
-  profitability,
-  profitabilityLoading,
-  profitabilityError,
-  dashboardDetail,
-  onDashboardDetailChange,
-  waste,
-  wasteDays,
-  wasteLoading,
-  wasteError,
-  canOpenOrders,
   onSectionChange,
   reportLoading,
   reportError,
@@ -123,21 +87,17 @@ export default function DashboardPage({
     return getPeriodRange(metricsPeriod ?? 30, metrics.period_from, metrics.period_to);
   }, [metricsPeriod, metrics.period_from, metrics.period_to]);
 
-  // Cálculos de P&L corporativo (Ingresos, Costos, Margen Bruto, Gastos, Margen Neto)
+  // Cálculos de P&L corporativo (Ingresos, Costos, Gastos, Margen Neto)
   const totalRevenue = Number(metrics.sales_revenue ?? 0);
   const salesCost = Number(metrics.sales_cost ?? 0);
   const deliveryCost = Number(metrics.sales_delivery_cost ?? 0);
   const totalDirectCosts = salesCost + deliveryCost;
-  const grossProfit = totalRevenue - totalDirectCosts;
-  const grossMargin = totalRevenue > 0
-    ? Math.round((grossProfit / totalRevenue) * 1000) / 10
-    : 0;
 
   const totalExpenses = Number(metrics.total_expenses ?? 0);
   const netProfit = Number(metrics.sales_profit ?? 0);
   const netMargin = Number(metrics.net_margin_percent ?? 0);
 
-  // Cartera y pendientes
+  // Cartera y cuentas por cobrar
   const creditOutstanding = Number(metrics.credit_outstanding_balance ?? 0);
   const creditOverdue = Number(metrics.credit_overdue_balance ?? 0);
   const creditCustomersWithOverdue = Number(metrics.credit_customers_with_overdue ?? 0);
@@ -223,7 +183,7 @@ export default function DashboardPage({
     return { administrativeExpenses: admin, salesExpenses: sales };
   }, [expenses, metrics.period_from, metrics.period_to, metrics.total_expenses]);
 
-  // Proporciones matemáticas para la barra segmentada de la tarjeta "Net Profit" (estilo Fintech)
+  // Proporciones para la barra segmentada de la tarjeta "Net Profit" (estilo Fintech)
   const { profitBarPct, costsBarPct, expensesBarPct, expensePillValue } = useMemo(() => {
     const totalOut = totalDirectCosts + totalExpenses;
     const base = Math.max(totalRevenue, totalOut + Math.max(0, netProfit), 1);
@@ -260,7 +220,7 @@ export default function DashboardPage({
   return (
     <div className="overview-flow fintech-dashboard-flow">
       {/* ========================================================
-          BARRA DE NAVEGACIÓN SUPERIOR FINTECH (ESTILO RAXON)
+          1. BARRA DE NAVEGACIÓN SUPERIOR FINTECH (TABS + PERÍODO)
          ======================================================== */}
       <header className="fintech-top-nav">
         <div className="fintech-nav-left">
@@ -316,35 +276,11 @@ export default function DashboardPage({
         </div>
       </header>
 
-      {/* Alertas críticas del negocio */}
-      <AlertBlock
-        items={[
-          lowStock > 0 ? (
-            <Metric key="low-stock" title="Presentaciones con stock bajo" value={String(lowStock)} numericValue={lowStock} icon={<AlertTriangle />} warning onClick={() => onDashboardDetailChange("low-stock")} />
-          ) : null,
-          soldOut > 0 ? (
-            <Metric key="sold-out" title="Presentaciones agotadas" value={String(soldOut)} numericValue={soldOut} icon={<X />} warning onClick={() => onDashboardDetailChange("sold-out")} />
-          ) : null,
-          metrics.pending_orders > 0 ? (
-            <Metric key="pending" title="Pedidos pendientes de pago" value={String(metrics.pending_orders)} numericValue={metrics.pending_orders} icon={<AlertTriangle />} warning onClick={() => onDashboardDetailChange("pending")} />
-          ) : null,
-          metrics.missing_cost_items > 0 ? (
-            <Metric key="missing-cost" title="Costos por completar" value={String(metrics.missing_cost_items)} numericValue={metrics.missing_cost_items} icon={<AlertTriangle />} warning onClick={() => onSectionChange("products")} />
-          ) : null,
-          metrics.credit_overdue_balance > 0 ? (
-            <Metric key="overdue" title="Cartera vencida" value={money(Number(metrics.credit_overdue_balance))} numericValue={Number(metrics.credit_overdue_balance)} format="money" icon={<AlertTriangle />} warning onClick={() => onSectionChange("credit")} />
-          ) : null,
-          metrics.credit_customers_with_overdue > 0 ? (
-            <Metric key="overdue-clients" title="Clientes con cartera vencida" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<Users />} warning onClick={() => onSectionChange("credit")} />
-          ) : null,
-        ]}
-      />
-
       {/* ========================================================
-          PANEL FINTECH PRINCIPAL (INSPIRADO EN LA REFERENCIA)
+          2. PANEL FINTECH PRINCIPAL (SOLO LO PEDIDO)
          ======================================================== */}
       <section className="fintech-grid-container">
-        {/* COLUMNA 1: TOTAL BALANCE / CAJA RECAUDADA */}
+        {/* TARJETA 1: TOTAL BALANCE / CAJA RECAUDADA */}
         <div className="fintech-card fintech-balance-card">
           <div className="fintech-card-header">
             <div className="fintech-header-icon-label">
@@ -400,7 +336,7 @@ export default function DashboardPage({
           </div>
         </div>
 
-        {/* COLUMNA 2 - ARRIBA IZQ: INGRESOS CON DETALLE */}
+        {/* TARJETA 2: INGRESOS CON DETALLADO DE CONTADO, ABONOS Y CARTERA */}
         <div className="fintech-card fintech-metric-card">
           <div className="fintech-card-header">
             <div className="fintech-header-icon-label">
@@ -466,7 +402,7 @@ export default function DashboardPage({
           </div>
         </div>
 
-        {/* COLUMNA 2 - ARRIBA DER: GASTOS TOTALES CON DETALLE */}
+        {/* TARJETA 3: GASTOS TOTALES CON DETALLADO OPERATIVO */}
         <div className="fintech-card fintech-metric-card">
           <div className="fintech-card-header">
             <div className="fintech-header-icon-label">
@@ -530,7 +466,7 @@ export default function DashboardPage({
           </div>
         </div>
 
-        {/* COLUMNA 2 - ABAJO IZQ: NET PROFIT CON BARRA SEGMENTADA (IGUAL A LA IMAGEN) */}
+        {/* TARJETA 4: NET PROFIT CON BARRA SEGMENTADA (IGUAL A LA IMAGEN) */}
         <div className="fintech-card fintech-profit-card">
           <div className="fintech-card-header">
             <div className="fintech-header-icon-label">
@@ -555,9 +491,8 @@ export default function DashboardPage({
             )}
           </div>
 
-          {/* LA BARRA SEGMENTADA SOLICITADA EXACTAMENTE COMO LA IMAGEN */}
+          {/* BARRA SEGMENTADA CON TAG FLOTANTE Y LEYENDA */}
           <div className="fintech-segmented-bar-container">
-            {/* Pill flotante indicando el rubro de gastos / utilidad */}
             <div
               className="fintech-bar-floating-tag"
               style={{
@@ -608,7 +543,7 @@ export default function DashboardPage({
           </div>
         </div>
 
-        {/* COLUMNA 2 - ABAJO DER: TARJETA DE REPORTE FINANCIERO (ESTILO ELEGANTE DE LA IMAGEN) */}
+        {/* TARJETA 5: BANNER DE REPORTE FINANCIERO */}
         <div className="fintech-card fintech-report-banner-card">
           <div className="fintech-report-bg-glow" />
           <div className="fintech-report-content">
@@ -663,8 +598,7 @@ export default function DashboardPage({
       </section>
 
       {/* ========================================================
-          NUEVA SECCIÓN SOLICITADA: PERFUMERÍA COMPLETA (FRASCOS ENTEROS)
-          Similar a decants, pero exclusiva para botellas cerradas (> 10 ml)
+          3. SECCIÓN DE PERFUMERÍA COMPLETA (FRASCOS ENTEROS > 10 ML)
          ======================================================== */}
       <FullBottlesSection
         orders={orders}
@@ -673,185 +607,13 @@ export default function DashboardPage({
       />
 
       {/* ========================================================
-          SECCIÓN DE DECANTS (10 ML) CORREGIDA Y FLUIDA
+          4. SECCIÓN DE DECANTS (SOLO EL CUADRO DE DECANTS DE 10 ML)
          ======================================================== */}
       <DecantsSection
         orders={orders}
         period={activePeriod}
         periodDays={metricsPeriod}
       />
-
-      {/* ========================================================
-          MÉTRICAS COMPLEMENTARIAS: CARTERA, INVENTARIO Y CLIENTES
-         ======================================================== */}
-      <div className="metric-groups">
-        <MetricGroup
-          title="Cartera y Créditos"
-          hint="Ventas a fiado, saldo pendiente por cobrar y utilidad por liberar."
-          icon={<DollarSign />}
-        >
-          <Metric title="Ventas a crédito" value={String(metrics.credit_sales)} numericValue={metrics.credit_sales} icon={<ReceiptText />} />
-          <Metric title="Total colocado a crédito" value={money(Number(metrics.credit_revenue))} numericValue={Number(metrics.credit_revenue)} format="money" icon={<BarChart3 />} />
-          <Metric title="Por cobrar (CXC)" value={money(Number(metrics.credit_outstanding_balance))} numericValue={Number(metrics.credit_outstanding_balance)} format="money" icon={<DollarSign />} onClick={() => onSectionChange("credit")} />
-          <Metric
-            title="Utilidad no cobrada"
-            value={money(Number(metrics.locked_credit_profit))}
-            numericValue={Number(metrics.locked_credit_profit)}
-            format="money"
-            icon={<Lock />}
-            hint="Margen de los fiados abiertos; se libera a medida que los clientes abonan."
-          />
-        </MetricGroup>
-
-        <MetricGroup
-          title="Inventario y Stock"
-          hint="Disponibilidad en bodega y productos activos."
-          icon={<Package />}
-        >
-          <Metric title="Productos activos" value={String(products.filter((product) => !product.archived).length)} numericValue={products.filter((product) => !product.archived).length} icon={<Package />} />
-          <Metric title="Unidades en stock" value={String(totalStock)} numericValue={totalStock} icon={<ShoppingBag />} />
-          <Metric title="Presentaciones agotadas" value={String(soldOut)} numericValue={soldOut} icon={<X />} onClick={soldOut > 0 ? () => onDashboardDetailChange("sold-out") : undefined} />
-        </MetricGroup>
-
-        <MetricGroup
-          title="Clientes y Pedidos"
-          hint="Base de clientes compradores y volumen de órdenes."
-          icon={<Users />}
-        >
-          <Metric title="Clientes registrados" value={String(metrics.customer_count)} numericValue={metrics.customer_count} icon={<Users />} onClick={() => onSectionChange("customers")} />
-          <Metric title="Clientes con mora" value={String(metrics.credit_customers_with_overdue)} numericValue={metrics.credit_customers_with_overdue} icon={<AlertTriangle />} warning={metrics.credit_customers_with_overdue > 0} onClick={metrics.credit_customers_with_overdue > 0 ? () => onSectionChange("credit") : undefined} />
-          <Metric title="Pedidos registrados" value={String(metrics.total_orders)} numericValue={metrics.total_orders} icon={<ReceiptText />} onClick={() => onSectionChange("transactions")} />
-        </MetricGroup>
-      </div>
-
-      {/* Gráficos de evolución y volumen */}
-      <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando gráficas…</span></div>}>
-        <Charts orders={orders} products={metrics.top_products} />
-      </Suspense>
-
-      {/* Rentabilidad por producto */}
-      <div className="profitability-toggle">
-        <AdminButton
-          tone="secondary"
-          compact
-          type="button"
-          aria-expanded={dashboardDetail === "profitability"}
-          onClick={() =>
-            onDashboardDetailChange(dashboardDetail === "profitability" ? null : "profitability")
-          }
-        >
-          <BarChart3 size={16} />
-          {dashboardDetail === "profitability" ? "Ocultar rentabilidad" : "Ver rentabilidad por producto"}
-        </AdminButton>
-      </div>
-
-      {dashboardDetail === "profitability" && (
-        <div className="admin-card profitability-card">
-          <div className="card-title">
-            <div>
-              <h2>Qué perfume deja más utilidad</h2>
-              <span>
-                {metrics.period_from && metrics.period_to
-                  ? `Del ${formatShortDate(metrics.period_from, true)} al ${formatShortDate(metrics.period_to, true)}`
-                  : metricsPeriod
-                  ? `Últimos ${metricsPeriod} días`
-                  : "Todo el historial"}
-              </span>
-            </div>
-            <Percent size={18} />
-          </div>
-          {profitabilityLoading && (
-            <div className="loading-state" role="status">
-              <span className="loading-spinner" aria-hidden="true" />
-              <span>Calculando rentabilidad…</span>
-            </div>
-          )}
-          {profitabilityError && <p className="form-error" role="alert">{profitabilityError}</p>}
-          {!profitabilityLoading && !profitabilityError && (
-            <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando tabla…</span></div>}>
-              <ProfitabilityTable data={profitability} />
-            </Suspense>
-          )}
-        </div>
-      )}
-
-      {/* Insights y Alertas */}
-      <section className="insight-grid">
-        <div className="admin-card waste-card">
-          <div className="card-title">
-            <div>
-              <h2>Merma</h2>
-              <span>Valor perdido últimos {wasteDays} días</span>
-            </div>
-            <Package size={18} />
-          </div>
-          {wasteLoading && (
-            <div className="loading-state" role="status">
-              <span className="loading-spinner" aria-hidden="true" />
-              <span>Calculando…</span>
-            </div>
-          )}
-          {wasteError && <p className="form-error" role="alert">{wasteError}</p>}
-          {!wasteLoading && !wasteError && waste && waste.length === 0 && (
-            <p className="insight">
-              Sin merma registrada. Cuando registres una rotura, un robo o un
-              vencimiento desde el botón "Merma o ingreso" de cada presentación, aquí
-              aparece cuánto se perdió.
-            </p>
-          )}
-          {!wasteLoading && !wasteError && waste && waste.length > 0 && (
-            <>
-              <p className="waste-total">
-                <span>Perdido</span>
-                <strong>{money(waste.reduce((sum, row) => sum + Number(row.total_lost), 0))}</strong>
-              </p>
-              <div className="waste-list">
-                {waste.slice(0, 6).map((row) => (
-                  <div className="waste-row" key={`${row.product_name}-${row.size_ml}`}>
-                    <span className="waste-name">
-                      {row.product_name}
-                      <small>{row.size_ml} ml</small>
-                    </span>
-                    <span className="waste-units">{row.units_lost} und</span>
-                    <span className="waste-money">{money(Number(row.total_lost))}</span>
-                  </div>
-                ))}
-              </div>
-              {waste.length > 6 && (
-                <p className="report-hint">y {waste.length - 6} presentaciones más</p>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="admin-card">
-          <div className="card-title"><div><h2>Consejo</h2><span>Lectura de inventario</span></div><Sparkles size={18}/></div>
-          <p className="insight">{metrics.top_products[0]
-            ? `“${metrics.top_products[0].name}” es el producto más solicitado (${metrics.top_products[0].units} unidades en pedidos). Revisa su stock antes de impulsar nuevas ventas.`
-            : "Cuando registres pedidos, aquí aparecerá el producto más solicitado para ayudarte a planificar el inventario."}</p>
-        </div>
-
-        <div className="admin-card">
-          <div className="card-title"><div><h2>Alertas</h2><span>Inventario y pedidos</span></div><AlertTriangle size={18}/></div>
-          <div className="alert-list">
-            <button className="alert-link" onClick={() => onDashboardDetailChange("sold-out")}>
-              <span>Productos agotados</span><strong>{soldOut}</strong>
-            </button>
-            <button className="alert-link" onClick={() => onDashboardDetailChange("low-stock")}>
-              <span>Presentaciones con stock bajo</span><strong>{lowStock}</strong>
-            </button>
-            <button className="alert-link" onClick={() => onDashboardDetailChange("pending")}>
-              <span>Confirmados pendientes de pago</span><strong>{metrics.pending_orders}</strong>
-            </button>
-            {soldOut === 0 && lowStock === 0 && metrics.pending_orders === 0 && (
-              <EmptyState
-                title="Todo en orden"
-                hint="No hay productos agotados, stock bajo ni pedidos pendientes."
-              />
-            )}
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
