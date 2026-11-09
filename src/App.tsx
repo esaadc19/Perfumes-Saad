@@ -2154,7 +2154,7 @@ function Admin({
   const sections = [
     { id: "overview", title: "Dashboard", group: "GENERAL", icon: <LayoutDashboard size={18} /> },
     { id: "cerebro", title: "Cerebro", group: "GENERAL", icon: <Brain size={18} /> },
-    { id: "finance", title: "Utilidad", group: "GENERAL", icon: <TrendingUp size={18} />, hiddenInSidebar: true },
+    { id: "finance", title: "Estado de Resultados", group: "GENERAL", icon: <TrendingUp size={18} />, hiddenInSidebar: true },
     {
       id: "transactions",
       title: "Pedidos",
@@ -3333,7 +3333,7 @@ function Admin({
         )}
 
         {section === "finance" && (
-          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando utilidad y resumen financiero…</span></div>}>
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando Estado de Resultados…</span></div>}>
             <FinancePage
               metrics={metrics}
               orders={orders}

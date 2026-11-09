@@ -44,7 +44,7 @@ export const ADMIN_SECTION_PATHS: Record<AdminSection, string> = {
 export const ADMIN_SECTION_TITLES: Record<AdminSection, string> = {
   overview: "Dashboard",
   cerebro: "Cerebro de la Empresa",
-  finance: "Utilidad y Finanzas",
+  finance: "Estado de Resultados",
   products: "Productos",
   promotions: "Promociones",
   transactions: "Pedidos",

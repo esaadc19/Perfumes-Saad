@@ -5366,6 +5366,330 @@ footer a { color: #111; }
   gap: 8px;
 }
 
+/* =========================================================
+   ESTADO DE RESULTADOS (P&L) - CASCADA Y BARRA FINANCIERA
+   ========================================================= */
+
+.pnl-waterfall-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: 0 4px 18px rgba(44, 36, 32, 0.04);
+}
+
+.pnl-waterfall-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pnl-waterfall-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pnl-waterfall-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--gold, #c5a059);
+  text-transform: uppercase;
+}
+
+.pnl-waterfall-title-group h2 {
+  margin: 0;
+  font-size: clamp(17px, 1.8vw, 21px);
+  font-weight: 700;
+  color: #1a2e22;
+}
+
+.pnl-waterfall-subtitle {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.pnl-margin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.pnl-margin-pill.is-positive {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.pnl-margin-pill.is-negative {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+.pnl-waterfall-steps {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #faf8f5;
+  border: 1px solid rgba(44, 36, 32, 0.06);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.pnl-step {
+  flex: 1 1 0;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid rgba(44, 36, 32, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pnl-step:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.04);
+}
+
+.pnl-step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.pnl-step-badge span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pnl-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pnl-step-label {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.pnl-step-value {
+  font-size: clamp(15px, 1.3vw, 18px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #1a2e22;
+  white-space: nowrap;
+}
+
+.pnl-step-detail {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pnl-step-operator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  flex-shrink: 0;
+  padding: 0 2px;
+}
+
+.pnl-step--gross {
+  background: #fdfbf7;
+  border-color: #ebdcc2;
+}
+
+.pnl-step--gross .pnl-step-value {
+  color: #855d14;
+}
+
+.pnl-step--net.is-profit {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.pnl-step--net.is-profit .pnl-step-value {
+  color: #15803d;
+}
+
+.pnl-step--net.is-loss {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.pnl-step--net.is-loss .pnl-step-value {
+  color: #dc2626;
+}
+
+.pnl-distribution-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(44, 36, 32, 0.08);
+}
+
+.pnl-distribution-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.pnl-distribution-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.dot-cogs { background: #3b82f6; }
+.dot-delivery { background: #8b5cf6; }
+.dot-expenses { background: #f97316; }
+.dot-net { background: #10b981; }
+
+.pnl-distribution-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(44, 36, 32, 0.08);
+  overflow: hidden;
+}
+
+.bar-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.bar-cogs { background: #3b82f6; }
+.bar-delivery { background: #8b5cf6; }
+.bar-expenses { background: #f97316; }
+.bar-net { background: #10b981; }
+
+.finance-table-sum-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.finance-table-sum-badge span {
+  color: var(--muted);
+}
+
+.finance-table-sum-badge strong {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-table-sum-badge.profit-good strong {
+  color: #15803d;
+}
+
+.finance-table-sum-badge.profit-loss strong {
+  color: #dc2626;
+}
+
+.finance-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(44, 36, 32, 0.06);
+  flex-wrap: wrap;
+}
+
+.finance-load-more-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a2e22;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.finance-load-more-btn:hover {
+  background: rgba(26, 46, 34, 0.05);
+  border-color: var(--verde);
+  color: var(--verde);
+}
+
+.finance-show-all-btn {
+  background: transparent;
+  border: none;
+  font-size: 12.5px;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 6px 10px;
+}
+
+.finance-show-all-btn:hover {
+  color: var(--foreground);
+}
+
 .finance-statement-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
@@ -5687,6 +6011,38 @@ footer a { color: #111; }
   }
 }
 
+@media (max-width: 860px) {
+  .pnl-waterfall-card {
+    padding: 16px;
+    gap: 14px;
+  }
+  .pnl-waterfall-steps {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px;
+  }
+  .pnl-step {
+    min-width: 100%;
+    padding: 12px;
+  }
+  .pnl-step-operator {
+    transform: rotate(90deg);
+    padding: 2px 0;
+  }
+  .pnl-distribution-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .finance-search input {
+    font-size: 16px; /* Evita auto-zoom molesto en Safari iOS */
+  }
+  .finance-table-sum-badge {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
 
 /* =========================================================
    SUBNAV Y CONCILIACIÓN EN /utilidad
@@ -5694,13 +6050,26 @@ footer a { color: #111; }
 
 .finance-subnav {
   display: flex;
+  align-items: center;
   gap: 10px;
   margin-bottom: 20px;
   border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.finance-subnav::-webkit-scrollbar {
+  display: none;
 }
 
 .finance-subnav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
   border: 0;
   background: transparent;
   padding: 8px 16px;

@@ -6,10 +6,13 @@ import {
   CalendarDays,
   ShieldCheck,
   CheckCircle2,
+  ChevronDown,
   Clock,
   DollarSign,
+  Equal,
   FileSpreadsheet,
   HelpCircle,
+  Minus,
   Package,
   RefreshCw,
   Search,
@@ -97,6 +100,11 @@ export default function FinancePage({
   const [incomeSearch, setIncomeSearch] = useState("");
   const [expenseSearch, setExpenseSearch] = useState("");
 
+  // Paginación progresiva para alto rendimiento y suavidad en mobile
+  const [incomePageSize, setIncomePageSize] = useState(25);
+  const [expensePageSize, setExpensePageSize] = useState(25);
+  const [reconcilePageSize, setReconcilePageSize] = useState(30);
+
   // Estados de conciliación
   const [reconcileAccountFilter, setReconcileAccountFilter] = useState<string>("all");
   const [reconcileStatusFilter, setReconcileStatusFilter] = useState<"all" | "pending" | "reconciled">("all");
@@ -164,18 +172,31 @@ export default function FinancePage({
   const totalRevenue = metrics ? Number(metrics.sales_revenue) : paidOrdersTotal + abonosTotal;
   const salesCost = metrics ? Number(metrics.sales_cost) : 0;
   const deliveryCost = metrics ? Number(metrics.sales_delivery_cost) : 0;
+  const directCosts = salesCost + deliveryCost;
   const operatingExpenses = metrics
     ? Number(metrics.total_expenses)
     : expensesInPeriod.reduce((sum, e) => sum + Number(e.amount), 0);
 
   const totalOutflows = salesCost + deliveryCost + operatingExpenses;
   const grossProfit = totalRevenue - salesCost - deliveryCost;
+  const grossMargin =
+    totalRevenue > 0 ? Math.round((grossProfit / totalRevenue) * 1000) / 10 : 0;
   const netProfit = metrics ? Number(metrics.sales_profit) : grossProfit - operatingExpenses;
   const netMargin = metrics
     ? Number(metrics.net_margin_percent)
     : totalRevenue > 0
       ? Math.round((netProfit / totalRevenue) * 1000) / 10
       : 0;
+
+  // Porcentajes para la barra de distribución de ingresos (P&L)
+  const cogsPercent =
+    totalRevenue > 0 ? Math.min(100, Math.round((salesCost / totalRevenue) * 100)) : 0;
+  const deliveryPercent =
+    totalRevenue > 0 ? Math.min(100, Math.round((deliveryCost / totalRevenue) * 100)) : 0;
+  const expensePercent =
+    totalRevenue > 0 ? Math.min(100, Math.round((operatingExpenses / totalRevenue) * 100)) : 0;
+  const profitPercent =
+    totalRevenue > 0 ? Math.max(0, Math.round((netProfit / totalRevenue) * 100)) : 0;
 
   // 1. Dinero cobrado en Nequi que corresponde a reembolso del bolsillo de Saad
   // (Costos de ventas pagadas o abonos recibidos de pedidos financiados con dinero personal)
@@ -580,6 +601,15 @@ export default function FinancePage({
       : rows;
   }, [paidOrdersInPeriod, creditOrdersWithAbonosInPeriod, incomeFilter, incomeSearch]);
 
+  const filteredIncomeRevenue = useMemo(
+    () => incomeRows.reduce((acc, r) => acc + r.revenue, 0),
+    [incomeRows]
+  );
+  const visibleIncomeRows = useMemo(
+    () => incomeRows.slice(0, incomePageSize),
+    [incomeRows, incomePageSize]
+  );
+
   // Filas combinadas de egresos P&L
   const expenseRows = useMemo(() => {
     const rows: Array<{
@@ -680,6 +710,15 @@ export default function FinancePage({
       : rows;
   }, [expensesInPeriod, paidOrdersInPeriod, openCreditOrdersInPeriod, expenseFilter, expenseSearch]);
 
+  const filteredExpenseTotal = useMemo(
+    () => expenseRows.reduce((acc, r) => acc + r.totalOutflow, 0),
+    [expenseRows]
+  );
+  const visibleExpenseRows = useMemo(
+    () => expenseRows.slice(0, expensePageSize),
+    [expenseRows, expensePageSize]
+  );
+
   // Filtro de filas para la tabla de conciliación
   const visibleReconcileCandidates = useMemo(() => {
     let list = reconcileCandidates;
@@ -707,6 +746,15 @@ export default function FinancePage({
     return list.sort((a, b) => (a.dateStr < b.dateStr ? 1 : -1));
   }, [reconcileCandidates, reconcileAccountFilter, reconcileStatusFilter, reconcileSearch]);
 
+  const filteredReconcileTotal = useMemo(
+    () => visibleReconcileCandidates.reduce((acc, c) => acc + c.amount, 0),
+    [visibleReconcileCandidates]
+  );
+  const paginatedReconcileCandidates = useMemo(
+    () => visibleReconcileCandidates.slice(0, reconcilePageSize),
+    [visibleReconcileCandidates, reconcilePageSize]
+  );
+
   const periodRangeText = useMemo(() => {
     if (!periodFrom || !periodTo) return "Todo el historial acumulado";
     return `Del ${formatBogotaDate(periodFrom)} al ${formatBogotaDate(periodTo)}`;
@@ -721,16 +769,15 @@ export default function FinancePage({
           className={`finance-subnav-btn${activeTab === "pnl" ? " active" : ""}`}
           onClick={() => setActiveTab("pnl")}
         >
-          Estado de Resultados y Utilidad
+          <TrendingUp size={16} /> Estado de Resultados (P&L)
         </button>
         <button
           type="button"
           className={`finance-subnav-btn${activeTab === "reconciliation" ? " active" : ""}`}
           onClick={() => setActiveTab("reconciliation")}
         >
-          Conciliación y Cuadre de Cuentas
+          <ShieldCheck size={16} /> Arqueo y Conciliación de Cuentas
         </button>
-
       </div>
 
       {/* Cabecera con regreso rápido y selector de período */}
@@ -879,6 +926,10 @@ export default function FinancePage({
                 <h2>Punteo de Pagos Recibidos ({visibleReconcileCandidates.length})</h2>
                 <span>Verifica cada venta o abono contra tus comprobantes o extractos</span>
               </div>
+              <div className="finance-table-sum-badge">
+                <span>Total a puntear:</span>
+                <strong>{money(filteredReconcileTotal)}</strong>
+              </div>
             </div>
 
             <div className="finance-filter-bar">
@@ -971,7 +1022,7 @@ export default function FinancePage({
                   <span className="cell-right">Monto</span>
                   <span className="cell-center">Estado</span>
                 </div>
-                {visibleReconcileCandidates.map((candidate) => (
+                {paginatedReconcileCandidates.map((candidate) => (
                   <div className="table-row finance-reconcile-row" key={`${candidate.type}-${candidate.id}`}>
                     <span className="finance-date">{formatBogotaDate(candidate.dateStr)}</span>
                     <div className="finance-row-main">
@@ -1022,6 +1073,25 @@ export default function FinancePage({
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {visibleReconcileCandidates.length > paginatedReconcileCandidates.length && (
+              <div className="finance-load-more">
+                <button
+                  type="button"
+                  className="finance-load-more-btn"
+                  onClick={() => setReconcilePageSize((prev) => prev + 30)}
+                >
+                  <ChevronDown size={16} /> Cargar 30 pagos más (Mostrando {paginatedReconcileCandidates.length} de {visibleReconcileCandidates.length})
+                </button>
+                <button
+                  type="button"
+                  className="finance-show-all-btn"
+                  onClick={() => setReconcilePageSize(visibleReconcileCandidates.length)}
+                >
+                  Ver todos ({visibleReconcileCandidates.length})
+                </button>
               </div>
             )}
           </section>
@@ -1102,11 +1172,142 @@ export default function FinancePage({
       )}
 
       {/* ========================================================
-          VISTA 2: ESTADO DE RESULTADOS Y UTILIDAD (P&L)
+          VISTA 2: ESTADO DE RESULTADOS (P&L)
          ======================================================== */}
 
       {activeTab === "pnl" && (
         <>
+          {/* Cascada de Estado de Resultados (P&L) */}
+          <section className="pnl-waterfall-card" aria-label="Estructura contable P&L">
+            <div className="pnl-waterfall-header">
+              <div className="pnl-waterfall-title-group">
+                <span className="pnl-waterfall-tag">ESTRUCTURA CONTABLE</span>
+                <h2>Cascada de Resultados (P&L)</h2>
+                <span className="pnl-waterfall-subtitle">
+                  Flujo ordenado desde los ingresos brutos cobrados hasta la utilidad libre de la empresa
+                </span>
+              </div>
+              <div className="pnl-waterfall-status">
+                <span className={`pnl-margin-pill ${netProfit >= 0 ? "is-positive" : "is-negative"}`}>
+                  {netProfit >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+                  Margen Neto: {netMargin}%
+                </span>
+              </div>
+            </div>
+
+            {/* Pasos de la Cascada P&L */}
+            <div className="pnl-waterfall-steps">
+              {/* Paso 1: Ingresos Operacionales */}
+              <div className="pnl-step pnl-step--income">
+                <div className="pnl-step-badge">
+                  <span>+</span> Ingresos
+                </div>
+                <div className="pnl-step-content">
+                  <span className="pnl-step-label">Ingresos Operacionales</span>
+                  <strong className="pnl-step-value profit-good">+{money(totalRevenue)}</strong>
+                  <span className="pnl-step-detail">
+                    {paidOrdersInPeriod.length} ventas contado · {creditOrdersWithAbonosInPeriod.length} abonos
+                  </span>
+                </div>
+              </div>
+
+              <div className="pnl-step-operator" aria-hidden="true">
+                <Minus size={18} />
+              </div>
+
+              {/* Paso 2: Costos Directos */}
+              <div className="pnl-step pnl-step--cogs">
+                <div className="pnl-step-badge">
+                  <span>−</span> Costos Directos
+                </div>
+                <div className="pnl-step-content">
+                  <span className="pnl-step-label">Costos Directos (COGS)</span>
+                  <strong className="pnl-step-value">−{money(directCosts)}</strong>
+                  <span className="pnl-step-detail">
+                    {money(salesCost)} mercancía · {money(deliveryCost)} fletes
+                  </span>
+                </div>
+              </div>
+
+              <div className="pnl-step-operator" aria-hidden="true">
+                <Equal size={18} />
+              </div>
+
+              {/* Paso 3: Utilidad Bruta */}
+              <div className="pnl-step pnl-step--gross">
+                <div className="pnl-step-badge">
+                  <span>=</span> Margen Bruto
+                </div>
+                <div className="pnl-step-content">
+                  <span className="pnl-step-label">Utilidad Bruta</span>
+                  <strong className="pnl-step-value">{money(grossProfit)}</strong>
+                  <span className="pnl-step-detail">
+                    {grossMargin}% sobre ventas
+                  </span>
+                </div>
+              </div>
+
+              <div className="pnl-step-operator" aria-hidden="true">
+                <Minus size={18} />
+              </div>
+
+              {/* Paso 4: Gastos Operativos */}
+              <div className="pnl-step pnl-step--expenses">
+                <div className="pnl-step-badge">
+                  <span>−</span> Gastos Operativos
+                </div>
+                <div className="pnl-step-content">
+                  <span className="pnl-step-label">Gastos Operativos</span>
+                  <strong className="pnl-step-value profit-loss">−{money(operatingExpenses)}</strong>
+                  <span className="pnl-step-detail">
+                    {expensesInPeriod.length} {expensesInPeriod.length === 1 ? "gasto registrado" : "gastos registrados"} (pauta, admin)
+                  </span>
+                </div>
+              </div>
+
+              <div className="pnl-step-operator" aria-hidden="true">
+                <Equal size={18} />
+              </div>
+
+              {/* Paso 5: Utilidad Neta */}
+              <div className={`pnl-step pnl-step--net ${netProfit >= 0 ? "is-profit" : "is-loss"}`}>
+                <div className="pnl-step-badge">
+                  <span>=</span> Utilidad Neta
+                </div>
+                <div className="pnl-step-content">
+                  <span className="pnl-step-label">Utilidad Neta Real</span>
+                  <strong className="pnl-step-value">
+                    {metrics && metrics.missing_cost_items > 0 ? "Incompleta" : money(netProfit)}
+                  </strong>
+                  <span className="pnl-step-detail">
+                    {netMargin}% ganancia libre en caja
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Barra Visual de Distribución de Ingresos */}
+            {totalRevenue > 0 && (
+              <div className="pnl-distribution-wrap">
+                <div className="pnl-distribution-header">
+                  <span>Distribución de cada $100 cobrados:</span>
+                  <div className="pnl-distribution-legend">
+                    <span className="legend-item"><span className="legend-dot dot-cogs" /> Mercancía ({cogsPercent}%)</span>
+                    <span className="legend-item"><span className="legend-dot dot-delivery" /> Fletes ({deliveryPercent}%)</span>
+                    <span className="legend-item"><span className="legend-dot dot-expenses" /> Gastos ({expensePercent}%)</span>
+                    <span className="legend-item"><span className="legend-dot dot-net" /> Utilidad Real ({profitPercent}%)</span>
+                  </div>
+                </div>
+                <div className="pnl-distribution-bar" role="progressbar" aria-label="Distribución de ingresos">
+                  <div className="bar-segment bar-cogs" style={{ width: `${cogsPercent}%` }} title={`Mercancía: ${money(salesCost)} (${cogsPercent}%)`} />
+                  <div className="bar-segment bar-delivery" style={{ width: `${deliveryPercent}%` }} title={`Fletes: ${money(deliveryCost)} (${deliveryPercent}%)`} />
+                  <div className="bar-segment bar-expenses" style={{ width: `${expensePercent}%` }} title={`Gastos: ${money(operatingExpenses)} (${expensePercent}%)`} />
+                  <div className="bar-segment bar-net" style={{ width: `${profitPercent}%` }} title={`Utilidad Neta: ${money(netProfit)} (${profitPercent}%)`} />
+                </div>
+              </div>
+            )}
+          </section>
+
           {/* Tarjetas principales de Resumen Financiero */}
           <section className="finance-hero-grid" aria-label="Indicadores financieros principales">
             {/* 1. Ingresos Cobrados */}
@@ -1144,18 +1345,18 @@ export default function FinancePage({
               </div>
             </article>
 
-            {/* 2. Dinero Total Invertido */}
+            {/* 2. Costos Directos (COGS) */}
             <article className="finance-kpi-card finance-kpi-card--invested">
               <div className="finance-kpi-head">
                 <span className="finance-kpi-icon">
                   <Package size={18} />
                 </span>
-                <span className="finance-kpi-label">Dinero Total Invertido</span>
+                <span className="finance-kpi-label">Costos Directos (COGS)</span>
               </div>
-              <strong className="finance-kpi-value">{money(totalInvested)}</strong>
+              <strong className="finance-kpi-value">{money(directCosts)}</strong>
               <div className="finance-kpi-badge-slot">
                 <span className="finance-kpi-tag finance-kpi-tag--neutral">
-                  Mercancía + Logística + Gastos
+                  Mercancía + Logística
                 </span>
               </div>
               <div className="finance-kpi-Sublist">
@@ -1168,8 +1369,8 @@ export default function FinancePage({
                   <strong>{money(deliveryCost)}</strong>
                 </div>
                 <div>
-                  <span>Pauta y gastos ({expensesInPeriod.length})</span>
-                  <strong>{money(operatingExpenses)}</strong>
+                  <span>Total costo directo</span>
+                  <strong>{money(directCosts)}</strong>
                 </div>
               </div>
             </article>
@@ -1247,7 +1448,9 @@ export default function FinancePage({
                     previous={Number(metrics.previous.sales_profit)}
                   />
                 ) : (
-                  <span className="finance-kpi-tag finance-kpi-tag--success">Ganancia libre</span>
+                  <span className="finance-kpi-tag finance-kpi-tag--success">
+                    {netMargin}% ganancia libre
+                  </span>
                 )}
               </div>
               <div className="finance-kpi-Sublist">
@@ -1329,7 +1532,10 @@ export default function FinancePage({
                 <h2>Detalle de Ingresos Cobrados ({incomeRows.length})</h2>
                 <span>Ventas pagadas de contado y abonos de créditos que ya entraron a caja</span>
               </div>
-              <DollarSign size={18} />
+              <div className="finance-table-sum-badge profit-good">
+                <span>Total ingresos en vista:</span>
+                <strong>+{money(filteredIncomeRevenue)}</strong>
+              </div>
             </div>
 
             <div className="finance-filter-bar">
@@ -1385,7 +1591,7 @@ export default function FinancePage({
                   <span>Reembolso a ti</span>
                   <span>Utilidad Empresa</span>
                 </div>
-                {incomeRows.map((row) => (
+                {visibleIncomeRows.map((row) => (
                   <div className="table-row finance-income-row" key={row.id}>
                     <span className="finance-date">{formatBogotaDate(row.dateStr)}</span>
                     <div className="finance-row-main">
@@ -1466,6 +1672,25 @@ export default function FinancePage({
                 ))}
               </div>
             )}
+
+            {incomeRows.length > visibleIncomeRows.length && (
+              <div className="finance-load-more">
+                <button
+                  type="button"
+                  className="finance-load-more-btn"
+                  onClick={() => setIncomePageSize((prev) => prev + 25)}
+                >
+                  <ChevronDown size={16} /> Cargar 25 transacciones más (Mostrando {visibleIncomeRows.length} de {incomeRows.length})
+                </button>
+                <button
+                  type="button"
+                  className="finance-show-all-btn"
+                  onClick={() => setIncomePageSize(incomeRows.length)}
+                >
+                  Ver todas ({incomeRows.length})
+                </button>
+              </div>
+            )}
           </section>
 
           {/* Bloque 3: Detalle de Egresos */}
@@ -1475,7 +1700,10 @@ export default function FinancePage({
                 <h2>Detalle de Egresos y Costos ({expenseRows.length})</h2>
                 <span>Gastos operativos registrados y costos cubiertos de productos y domicilios</span>
               </div>
-              <Wallet size={18} />
+              <div className="finance-table-sum-badge profit-loss">
+                <span>Total egresos en vista:</span>
+                <strong>−{money(filteredExpenseTotal)}</strong>
+              </div>
             </div>
 
             <div className="finance-filter-bar">
@@ -1537,7 +1765,7 @@ export default function FinancePage({
                   <span>Domicilio</span>
                   <span>Costo / Salida</span>
                 </div>
-                {expenseRows.map((row) => (
+                {visibleExpenseRows.map((row) => (
                   <div className="table-row finance-expense-row" key={row.id}>
                     <span className="finance-date">{formatBogotaDate(row.dateStr)}</span>
                     <span>
@@ -1558,6 +1786,25 @@ export default function FinancePage({
                     <span className="finance-num profit-loss">-{money(row.totalOutflow)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {expenseRows.length > visibleExpenseRows.length && (
+              <div className="finance-load-more">
+                <button
+                  type="button"
+                  className="finance-load-more-btn"
+                  onClick={() => setExpensePageSize((prev) => prev + 25)}
+                >
+                  <ChevronDown size={16} /> Cargar 25 egresos más (Mostrando {visibleExpenseRows.length} de {expenseRows.length})
+                </button>
+                <button
+                  type="button"
+                  className="finance-show-all-btn"
+                  onClick={() => setExpensePageSize(expenseRows.length)}
+                >
+                  Ver todos ({expenseRows.length})
+                </button>
               </div>
             )}
           </section>
