@@ -5032,8 +5032,17 @@ footer a { color: #111; }
 }
 
 .finance-page {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.finance-page > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .finance-toolbar {
@@ -5041,14 +5050,42 @@ footer a { color: #111; }
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
 }
 
 .finance-toolbar-left {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.finance-toolbar .metrics-period {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.finance-toolbar .metrics-period-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+
+.finance-toolbar .period-segmented-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
 
 .finance-period-caption {
@@ -5062,23 +5099,26 @@ footer a { color: #111; }
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .finance-hero-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
+  width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 1200px) {
   .finance-hero-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 640px) {
   .finance-hero-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -5367,33 +5407,8 @@ footer a { color: #111; }
 }
 
 /* =========================================================
-   ESTADO DE RESULTADOS (P&L) - CASCADA Y BARRA FINANCIERA
+   ESTADO DE RESULTADOS (P&L) - ESTRUCTURA Y BARRA FINANCIERA
    ========================================================= */
-
-.pnl-waterfall-card {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  background: #ffffff;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 22px 24px;
-  box-shadow: 0 4px 18px rgba(44, 36, 32, 0.04);
-}
-
-.pnl-waterfall-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.pnl-waterfall-title-group {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
 
 .pnl-waterfall-tag {
   font-size: 10.5px;
@@ -5401,19 +5416,6 @@ footer a { color: #111; }
   letter-spacing: 0.08em;
   color: var(--gold, #c5a059);
   text-transform: uppercase;
-}
-
-.pnl-waterfall-title-group h2 {
-  margin: 0;
-  font-size: clamp(17px, 1.8vw, 21px);
-  font-weight: 700;
-  color: #1a2e22;
-}
-
-.pnl-waterfall-subtitle {
-  font-size: 12.5px;
-  color: var(--muted);
-  line-height: 1.4;
 }
 
 .pnl-margin-pill {
@@ -5437,119 +5439,6 @@ footer a { color: #111; }
   background: #fef2f2;
   color: #dc2626;
   border: 1px solid #fecaca;
-}
-
-.pnl-waterfall-steps {
-  display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 14px;
-  border-radius: 14px;
-  background: #faf8f5;
-  border: 1px solid rgba(44, 36, 32, 0.06);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.pnl-step {
-  flex: 1 1 0;
-  min-width: 140px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: #ffffff;
-  border: 1px solid rgba(44, 36, 32, 0.08);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.pnl-step:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.04);
-}
-
-.pnl-step-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-}
-
-.pnl-step-badge span {
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.pnl-step-content {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.pnl-step-label {
-  font-size: 11.5px;
-  color: var(--muted);
-  font-weight: 500;
-}
-
-.pnl-step-value {
-  font-size: clamp(15px, 1.3vw, 18px);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: #1a2e22;
-  white-space: nowrap;
-}
-
-.pnl-step-detail {
-  font-size: 11px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.pnl-step-operator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #94a3b8;
-  flex-shrink: 0;
-  padding: 0 2px;
-}
-
-.pnl-step--gross {
-  background: #fdfbf7;
-  border-color: #ebdcc2;
-}
-
-.pnl-step--gross .pnl-step-value {
-  color: #855d14;
-}
-
-.pnl-step--net.is-profit {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-}
-
-.pnl-step--net.is-profit .pnl-step-value {
-  color: #15803d;
-}
-
-.pnl-step--net.is-loss {
-  background: #fef2f2;
-  border-color: #fecaca;
-}
-
-.pnl-step--net.is-loss .pnl-step-value {
-  color: #dc2626;
 }
 
 .pnl-distribution-wrap {
@@ -6012,24 +5901,6 @@ footer a { color: #111; }
 }
 
 @media (max-width: 860px) {
-  .pnl-waterfall-card {
-    padding: 16px;
-    gap: 14px;
-  }
-  .pnl-waterfall-steps {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 10px;
-  }
-  .pnl-step {
-    min-width: 100%;
-    padding: 12px;
-  }
-  .pnl-step-operator {
-    transform: rotate(90deg);
-    padding: 2px 0;
-  }
   .pnl-distribution-header {
     flex-direction: column;
     align-items: flex-start;

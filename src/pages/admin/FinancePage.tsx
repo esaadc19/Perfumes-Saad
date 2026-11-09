@@ -1177,138 +1177,7 @@ export default function FinancePage({
 
       {activeTab === "pnl" && (
         <>
-          {/* Cascada de Estado de Resultados (P&L) */}
-          <section className="pnl-waterfall-card" aria-label="Estructura contable P&L">
-            <div className="pnl-waterfall-header">
-              <div className="pnl-waterfall-title-group">
-                <span className="pnl-waterfall-tag">ESTRUCTURA CONTABLE</span>
-                <h2>Cascada de Resultados (P&L)</h2>
-                <span className="pnl-waterfall-subtitle">
-                  Flujo ordenado desde los ingresos brutos cobrados hasta la utilidad libre de la empresa
-                </span>
-              </div>
-              <div className="pnl-waterfall-status">
-                <span className={`pnl-margin-pill ${netProfit >= 0 ? "is-positive" : "is-negative"}`}>
-                  {netProfit >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
-                  Margen Neto: {netMargin}%
-                </span>
-              </div>
-            </div>
-
-            {/* Pasos de la Cascada P&L */}
-            <div className="pnl-waterfall-steps">
-              {/* Paso 1: Ingresos Operacionales */}
-              <div className="pnl-step pnl-step--income">
-                <div className="pnl-step-badge">
-                  <span>+</span> Ingresos
-                </div>
-                <div className="pnl-step-content">
-                  <span className="pnl-step-label">Ingresos Operacionales</span>
-                  <strong className="pnl-step-value profit-good">+{money(totalRevenue)}</strong>
-                  <span className="pnl-step-detail">
-                    {paidOrdersInPeriod.length} ventas contado · {creditOrdersWithAbonosInPeriod.length} abonos
-                  </span>
-                </div>
-              </div>
-
-              <div className="pnl-step-operator" aria-hidden="true">
-                <Minus size={18} />
-              </div>
-
-              {/* Paso 2: Costos Directos */}
-              <div className="pnl-step pnl-step--cogs">
-                <div className="pnl-step-badge">
-                  <span>−</span> Costos Directos
-                </div>
-                <div className="pnl-step-content">
-                  <span className="pnl-step-label">Costos Directos (COGS)</span>
-                  <strong className="pnl-step-value">−{money(directCosts)}</strong>
-                  <span className="pnl-step-detail">
-                    {money(salesCost)} mercancía · {money(deliveryCost)} fletes
-                  </span>
-                </div>
-              </div>
-
-              <div className="pnl-step-operator" aria-hidden="true">
-                <Equal size={18} />
-              </div>
-
-              {/* Paso 3: Utilidad Bruta */}
-              <div className="pnl-step pnl-step--gross">
-                <div className="pnl-step-badge">
-                  <span>=</span> Margen Bruto
-                </div>
-                <div className="pnl-step-content">
-                  <span className="pnl-step-label">Utilidad Bruta</span>
-                  <strong className="pnl-step-value">{money(grossProfit)}</strong>
-                  <span className="pnl-step-detail">
-                    {grossMargin}% sobre ventas
-                  </span>
-                </div>
-              </div>
-
-              <div className="pnl-step-operator" aria-hidden="true">
-                <Minus size={18} />
-              </div>
-
-              {/* Paso 4: Gastos Operativos */}
-              <div className="pnl-step pnl-step--expenses">
-                <div className="pnl-step-badge">
-                  <span>−</span> Gastos Operativos
-                </div>
-                <div className="pnl-step-content">
-                  <span className="pnl-step-label">Gastos Operativos</span>
-                  <strong className="pnl-step-value profit-loss">−{money(operatingExpenses)}</strong>
-                  <span className="pnl-step-detail">
-                    {expensesInPeriod.length} {expensesInPeriod.length === 1 ? "gasto registrado" : "gastos registrados"} (pauta, admin)
-                  </span>
-                </div>
-              </div>
-
-              <div className="pnl-step-operator" aria-hidden="true">
-                <Equal size={18} />
-              </div>
-
-              {/* Paso 5: Utilidad Neta */}
-              <div className={`pnl-step pnl-step--net ${netProfit >= 0 ? "is-profit" : "is-loss"}`}>
-                <div className="pnl-step-badge">
-                  <span>=</span> Utilidad Neta
-                </div>
-                <div className="pnl-step-content">
-                  <span className="pnl-step-label">Utilidad Neta Real</span>
-                  <strong className="pnl-step-value">
-                    {metrics && metrics.missing_cost_items > 0 ? "Incompleta" : money(netProfit)}
-                  </strong>
-                  <span className="pnl-step-detail">
-                    {netMargin}% ganancia libre en caja
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Barra Visual de Distribución de Ingresos */}
-            {totalRevenue > 0 && (
-              <div className="pnl-distribution-wrap">
-                <div className="pnl-distribution-header">
-                  <span>Distribución de cada $100 cobrados:</span>
-                  <div className="pnl-distribution-legend">
-                    <span className="legend-item"><span className="legend-dot dot-cogs" /> Mercancía ({cogsPercent}%)</span>
-                    <span className="legend-item"><span className="legend-dot dot-delivery" /> Fletes ({deliveryPercent}%)</span>
-                    <span className="legend-item"><span className="legend-dot dot-expenses" /> Gastos ({expensePercent}%)</span>
-                    <span className="legend-item"><span className="legend-dot dot-net" /> Utilidad Real ({profitPercent}%)</span>
-                  </div>
-                </div>
-                <div className="pnl-distribution-bar" role="progressbar" aria-label="Distribución de ingresos">
-                  <div className="bar-segment bar-cogs" style={{ width: `${cogsPercent}%` }} title={`Mercancía: ${money(salesCost)} (${cogsPercent}%)`} />
-                  <div className="bar-segment bar-delivery" style={{ width: `${deliveryPercent}%` }} title={`Fletes: ${money(deliveryCost)} (${deliveryPercent}%)`} />
-                  <div className="bar-segment bar-expenses" style={{ width: `${expensePercent}%` }} title={`Gastos: ${money(operatingExpenses)} (${expensePercent}%)`} />
-                  <div className="bar-segment bar-net" style={{ width: `${profitPercent}%` }} title={`Utilidad Neta: ${money(netProfit)} (${profitPercent}%)`} />
-                </div>
-              </div>
-            )}
-          </section>
-
-          {/* Tarjetas principales de Resumen Financiero */}
+          {/* 1. Tarjetas Principales de Resumen Financiero */}
           <section className="finance-hero-grid" aria-label="Indicadores financieros principales">
             {/* 1. Ingresos Cobrados */}
             <article className="finance-kpi-card finance-kpi-card--income">
@@ -1369,8 +1238,8 @@ export default function FinancePage({
                   <strong>{money(deliveryCost)}</strong>
                 </div>
                 <div>
-                  <span>Total costo directo</span>
-                  <strong>{money(directCosts)}</strong>
+                  <span>Utilidad bruta</span>
+                  <strong style={{ color: "#855d14" }}>{money(grossProfit)} ({grossMargin}%)</strong>
                 </div>
               </div>
             </article>
@@ -1470,59 +1339,154 @@ export default function FinancePage({
             </article>
           </section>
 
-          {/* Bloque 1.5: Blindaje Financiero & Metas Estratégicas */}
-          <section className="finance-strategic-grid">
-            {/* Termómetro Fondo de Reserva */}
-            <article className="finance-strategic-card">
-              <div className="finance-strategic-head">
-                <span className="finance-strategic-title">
-                  <ShieldCheck size={18} />
-                  Fondo de Reserva de Capital
+          {/* 2. Sección Central: Estado de Resultados Detallado + Blindaje Estratégico */}
+          <section className="finance-statement-grid">
+            {/* Columna Izquierda: Cascada Contable Oficial (P&L Statement) */}
+            <article className="admin-card finance-detail-card">
+              <div className="card-title">
+                <div>
+                  <span className="pnl-waterfall-tag">ESTRUCTURA CONTABLE AUDITADA</span>
+                  <h2>Estado de Resultados (P&L)</h2>
+                  <span>Flujo financiero ordenado desde ventas brutas hasta la utilidad libre</span>
+                </div>
+                <span className={`pnl-margin-pill ${netProfit >= 0 ? "is-positive" : "is-negative"}`}>
+                  {netProfit >= 0 ? <TrendingUp size={15} /> : <TrendingDown size={15} />}
+                  {netMargin}% Margen Neto
                 </span>
-                <span className={`finance-strategic-badge ${reserveProgressPercent < 50 ? "badge--warning" : ""}`}>
-                  {reserveProgressPercent}% alcanzado
-                </span>
               </div>
-              <div className="finance-strategic-metrics">
-                <strong className="finance-strategic-value">{money(currentReserveFund)}</strong>
-                <span className="finance-strategic-goal">Meta: {money(RESERVE_GOAL)}</span>
+
+              <div className="finance-waterfall">
+                <div className="finance-line">
+                  <div className="finance-line-info">
+                    <ArrowUpRight size={18} style={{ color: "#166534" }} />
+                    <div>
+                      <strong>(+) Ingresos Operacionales</strong>
+                      <small>{paidOrdersInPeriod.length} ventas contado · {creditOrdersWithAbonosInPeriod.length} abonos de cartera</small>
+                    </div>
+                  </div>
+                  <strong className="finance-line-amount positive">+{money(totalRevenue)}</strong>
+                </div>
+
+                <div className="finance-line">
+                  <div className="finance-line-info">
+                    <Package size={18} style={{ color: "#2563eb" }} />
+                    <div>
+                      <strong>(−) Costos Directos de Venta (COGS)</strong>
+                      <small>{money(salesCost)} mercancía · {money(deliveryCost)} fletes</small>
+                    </div>
+                  </div>
+                  <strong className="finance-line-amount negative">−{money(directCosts)}</strong>
+                </div>
+
+                <div className="finance-line finance-line--subtotal">
+                  <div className="finance-line-info">
+                    <Equal size={18} style={{ color: "#b45309" }} />
+                    <div>
+                      <strong>(=) Utilidad Bruta Operacional</strong>
+                      <small>{grossMargin}% de margen bruto sobre ingresos</small>
+                    </div>
+                  </div>
+                  <strong className="finance-line-amount" style={{ color: "#b45309" }}>{money(grossProfit)}</strong>
+                </div>
+
+                <div className="finance-line">
+                  <div className="finance-line-info">
+                    <Minus size={18} style={{ color: "#dc2626" }} />
+                    <div>
+                      <strong>(−) Gastos Operativos</strong>
+                      <small>{expensesInPeriod.length} {expensesInPeriod.length === 1 ? "gasto registrado" : "gastos registrados"} (pauta, admin, software)</small>
+                    </div>
+                  </div>
+                  <strong className="finance-line-amount negative">−{money(operatingExpenses)}</strong>
+                </div>
+
+                <div className={`finance-line finance-line--total ${netProfit < 0 ? "is-loss" : ""}`}>
+                  <div className="finance-line-info">
+                    {netProfit >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                    <div>
+                      <strong>(=) UTILIDAD NETA REAL EN CAJA</strong>
+                      <small>{netMargin}% de ganancia limpia después de todos los costos y gastos</small>
+                    </div>
+                  </div>
+                  <strong className="finance-line-amount">{money(netProfit)}</strong>
+                </div>
               </div>
-              <div className="finance-progress-bar-bg" role="progressbar" aria-valuenow={reserveProgressPercent} aria-valuemin={0} aria-valuemax={100}>
-                <div className="finance-progress-bar-fill" style={{ width: `${reserveProgressPercent}%` }} />
-              </div>
-              <p className="finance-strategic-desc">
-                {reserveMissing > 0
-                  ? `Faltan ${money(reserveMissing)} de utilidad neta para completar el colchón intocable de $1.000.000 COP y blindar al 100% las compras de inventario.`
-                  : "¡Fondo de reserva completado! La empresa cuenta con el colchón necesario para operar sin necesidad de adelantos personales."}
-              </p>
+
+              {totalRevenue > 0 && (
+                <div className="pnl-distribution-wrap">
+                  <div className="pnl-distribution-header">
+                    <span>Distribución de cada $100 cobrados:</span>
+                    <div className="pnl-distribution-legend">
+                      <span className="legend-item"><span className="legend-dot dot-cogs" /> Mercancía ({cogsPercent}%)</span>
+                      <span className="legend-item"><span className="legend-dot dot-delivery" /> Fletes ({deliveryPercent}%)</span>
+                      <span className="legend-item"><span className="legend-dot dot-expenses" /> Gastos ({expensePercent}%)</span>
+                      <span className="legend-item"><span className="legend-dot dot-net" /> Utilidad Real ({profitPercent}%)</span>
+                    </div>
+                  </div>
+                  <div className="pnl-distribution-bar" role="progressbar" aria-label="Distribución de ingresos">
+                    <div className="bar-segment bar-cogs" style={{ width: `${cogsPercent}%` }} title={`Mercancía: ${money(salesCost)} (${cogsPercent}%)`} />
+                    <div className="bar-segment bar-delivery" style={{ width: `${deliveryPercent}%` }} title={`Fletes: ${money(deliveryCost)} (${deliveryPercent}%)`} />
+                    <div className="bar-segment bar-expenses" style={{ width: `${expensePercent}%` }} title={`Gastos: ${money(operatingExpenses)} (${expensePercent}%)`} />
+                    <div className="bar-segment bar-net" style={{ width: `${profitPercent}%` }} title={`Utilidad Neta: ${money(netProfit)} (${profitPercent}%)`} />
+                  </div>
+                </div>
+              )}
             </article>
 
-            {/* Proyección Quincenal de Cartera */}
-            <article className="finance-strategic-card">
-              <div className="finance-strategic-head">
-                <span className="finance-strategic-title">
-                  <CalendarDays size={18} />
-                  Recaudo Próxima Quincena ({fortnightProjection.targetDateLabel})
-                </span>
-                <span className="finance-strategic-badge">
-                  {fortnightProjection.pendingCount} {fortnightProjection.pendingCount === 1 ? "crédito" : "créditos"}
-                </span>
-              </div>
-              <div className="finance-strategic-metrics">
-                <strong className="finance-strategic-value">{money(fortnightProjection.totalPendingRecaudo)}</strong>
-                <span className="finance-strategic-goal">Por cobrar</span>
-              </div>
-              <div className="finance-strategic-subitems">
-                <div>
-                  <span style={{ color: "var(--muted)" }}>👛 Reembolso a tu bolsillo personal:</span>
-                  <strong style={{ color: "#b45309" }}>{money(fortnightProjection.personalReimbursement)}</strong>
+            {/* Columna Derecha: Paneles de Control de Capital y Blindaje */}
+            <div className="finance-side-panels">
+              {/* Termómetro Fondo de Reserva */}
+              <article className="finance-strategic-card">
+                <div className="finance-strategic-head">
+                  <span className="finance-strategic-title">
+                    <ShieldCheck size={18} />
+                    Fondo de Reserva de Capital
+                  </span>
+                  <span className={`finance-strategic-badge ${reserveProgressPercent < 50 ? "badge--warning" : ""}`}>
+                    {reserveProgressPercent}% alcanzado
+                  </span>
                 </div>
-                <div>
-                  <span style={{ color: "var(--muted)" }}>📈 Utilidad líquida esperada:</span>
-                  <strong style={{ color: "#059669" }}>{money(fortnightProjection.estimatedLiquidProfit)}</strong>
+                <div className="finance-strategic-metrics">
+                  <strong className="finance-strategic-value">{money(currentReserveFund)}</strong>
+                  <span className="finance-strategic-goal">Meta: {money(RESERVE_GOAL)}</span>
                 </div>
-              </div>
-            </article>
+                <div className="finance-progress-bar-bg" role="progressbar" aria-valuenow={reserveProgressPercent} aria-valuemin={0} aria-valuemax={100}>
+                  <div className="finance-progress-bar-fill" style={{ width: `${reserveProgressPercent}%` }} />
+                </div>
+                <p className="finance-strategic-desc">
+                  {reserveMissing > 0
+                    ? `Faltan ${money(reserveMissing)} de utilidad neta para completar el colchón intocable de $1.000.000 COP y blindar al 100% las compras de inventario.`
+                    : "¡Fondo de reserva completado! La empresa cuenta con el colchón necesario para operar sin necesidad de adelantos personales."}
+                </p>
+              </article>
+
+              {/* Proyección Quincenal de Cartera */}
+              <article className="finance-strategic-card">
+                <div className="finance-strategic-head">
+                  <span className="finance-strategic-title">
+                    <CalendarDays size={18} />
+                    Recaudo Próxima Quincena ({fortnightProjection.targetDateLabel})
+                  </span>
+                  <span className="finance-strategic-badge">
+                    {fortnightProjection.pendingCount} {fortnightProjection.pendingCount === 1 ? "crédito" : "créditos"}
+                  </span>
+                </div>
+                <div className="finance-strategic-metrics">
+                  <strong className="finance-strategic-value">{money(fortnightProjection.totalPendingRecaudo)}</strong>
+                  <span className="finance-strategic-goal">Por cobrar</span>
+                </div>
+                <div className="finance-strategic-subitems">
+                  <div>
+                    <span style={{ color: "var(--muted)" }}>👛 Reembolso a tu bolsillo personal:</span>
+                    <strong style={{ color: "#b45309" }}>{money(fortnightProjection.personalReimbursement)}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--muted)" }}>📈 Utilidad líquida esperada:</span>
+                    <strong style={{ color: "#059669" }}>{money(fortnightProjection.estimatedLiquidProfit)}</strong>
+                  </div>
+                </div>
+              </article>
+            </div>
           </section>
 
           {/* Bloque 2: Detalle de Ingresos */}
