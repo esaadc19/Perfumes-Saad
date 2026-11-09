@@ -3318,6 +3318,14 @@ function Admin({
               wasteError={wasteError}
               canOpenOrders={canOpenOrders}
               onSectionChange={setSection}
+              onCreateOrder={() => {
+                if (customers.length === 0) {
+                  void getAdminCustomers()
+                    .then((custs) => setCustomers(custs))
+                    .catch((e) => console.warn("No se pudieron pre-cargar clientes:", e));
+                }
+                setOrderEditor({ order: null });
+              }}
               reportLoading={reportLoading}
               reportError={reportError}
               reportResult={reportResult}

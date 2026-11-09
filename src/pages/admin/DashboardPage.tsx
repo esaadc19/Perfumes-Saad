@@ -59,6 +59,7 @@ interface DashboardPageProps {
   wasteError: string | null;
   canOpenOrders: boolean;
   onSectionChange: (section: AdminSection) => void;
+  onCreateOrder?: () => void;
   reportLoading: boolean;
   reportError: string | null;
   reportResult: ReportResult | null;
@@ -78,6 +79,7 @@ export default function DashboardPage({
   onPeriodCustomRangeChange,
   onPeriodToggleAllTime,
   onSectionChange,
+  onCreateOrder,
   reportLoading,
   reportError,
   reportResult,
@@ -320,7 +322,13 @@ export default function DashboardPage({
             <button
               type="button"
               className="fintech-action-btn fintech-action-btn--secondary"
-              onClick={() => onSectionChange("transactions")}
+              onClick={() => {
+                if (onCreateOrder) {
+                  onCreateOrder();
+                } else {
+                  onSectionChange("transactions");
+                }
+              }}
             >
               <ShoppingBag size={15} />
               <span>Registrar Venta</span>
