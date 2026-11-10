@@ -3694,6 +3694,13 @@ function Admin({
               });
             }}
             onStatusChange={(order, status, paymentStatus) => void saveOrderStatus(order, status, paymentStatus)}
+            periodPreset={periodPreset}
+            periodCustomFrom={periodCustomFrom}
+            periodCustomTo={periodCustomTo}
+            isPeriodAllTime={isPeriodAllTime}
+            onPeriodPresetChange={handlePeriodPresetChange}
+            onPeriodCustomRangeChange={handlePeriodCustomRangeChange}
+            onPeriodToggleAllTime={handlePeriodToggleAllTime}
           />
           </Suspense>
         )}

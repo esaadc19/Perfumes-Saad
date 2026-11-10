@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
+  Calendar,
   Check,
   Package,
   Pencil,
@@ -12,11 +13,18 @@ import {
   Truck,
 } from "lucide-react";
 import type { AdminOrder, SalesAdvisor } from "../../services/admin";
-import { getOrderFinancialBreakdown } from "../../lib/order-finance";
+import { isDateInPeriod, toBogotaDateStr, getOrderFinancialBreakdown } from "../../lib/order-finance";
+import {
+  type PeriodPreset,
+  resolvePeriodFilter,
+  getBogotaDate,
+  startOfMonth,
+} from "../../services/admin-periods";
 import Metric from "../../components/admin/Metric";
 import Pagination from "../../components/admin/Pagination";
 import AdminButton from "../../components/admin/AdminButton";
 import EmptyState from "../../components/admin/EmptyState";
+import PeriodFilterSwitch from "../../components/admin/PeriodFilterSwitch";
 
 type OrderStatus = "pending_confirmation" | "confirmed" | "cancelled";
 type PaymentStatus = "pending" | "paid" | "refunded" | "credit" | "partial";
@@ -41,6 +49,13 @@ export default function OrdersPage({
   onDeleteOrder,
   onStatusChange,
   salesAdvisors = [],
+  periodPreset = "mes",
+  periodCustomFrom = "",
+  periodCustomTo = "",
+  isPeriodAllTime = false,
+  onPeriodPresetChange,
+  onPeriodCustomRangeChange,
+  onPeriodToggleAllTime,
 }: {
   orders: AdminOrder[];
   loading: boolean;
@@ -53,10 +68,69 @@ export default function OrdersPage({
   onDeleteOrder: (order: AdminOrder) => void;
   onStatusChange: (order: AdminOrder, status: OrderStatus, paymentStatus: PaymentStatus) => void;
   salesAdvisors?: SalesAdvisor[];
+  periodPreset?: PeriodPreset;
+  periodCustomFrom?: string;
+  periodCustomTo?: string;
+  isPeriodAllTime?: boolean;
+  onPeriodPresetChange?: (preset: PeriodPreset) => void;
+  onPeriodCustomRangeChange?: (from: string, to: string) => void;
+  onPeriodToggleAllTime?: () => void;
 }) {
   const [filter, setFilter] = useState<string>(showPendingOnly ? "pending" : "all");
   const [advisorFilter, setAdvisorFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
+
+  // Estados locales en caso de usarse sin callbacks de App
+  const [localPreset, setLocalPreset] = useState<PeriodPreset>("mes");
+  const [localCustomFrom, setLocalCustomFrom] = useState<string>(() => startOfMonth(getBogotaDate()));
+  const [localCustomTo, setLocalCustomTo] = useState<string>(() => getBogotaDate());
+  const [localIsAllTime, setLocalIsAllTime] = useState(false);
+
+  const activePreset = onPeriodPresetChange ? periodPreset : localPreset;
+  const activeCustomFrom = onPeriodCustomRangeChange ? periodCustomFrom : localCustomFrom;
+  const activeCustomTo = onPeriodCustomRangeChange ? periodCustomTo : localCustomTo;
+  const activeIsAllTime = onPeriodToggleAllTime ? isPeriodAllTime : localIsAllTime;
+
+  const handlePresetChange = (preset: PeriodPreset) => {
+    if (onPeriodPresetChange) {
+      onPeriodPresetChange(preset);
+    } else {
+      setLocalIsAllTime(false);
+      setLocalPreset(preset);
+    }
+  };
+
+  const handleCustomRangeChange = (from: string, to: string) => {
+    if (onPeriodCustomRangeChange) {
+      onPeriodCustomRangeChange(from, to);
+    } else {
+      setLocalIsAllTime(false);
+      setLocalPreset("rango");
+      setLocalCustomFrom(from);
+      setLocalCustomTo(to);
+    }
+  };
+
+  const handleToggleAllTime = () => {
+    if (onPeriodToggleAllTime) {
+      onPeriodToggleAllTime();
+    } else {
+      setLocalIsAllTime((prev) => !prev);
+    }
+  };
+
+  const activePeriodFilter = useMemo(() => {
+    return resolvePeriodFilter(activePreset, activeCustomFrom, activeCustomTo, activeIsAllTime);
+  }, [activePreset, activeCustomFrom, activeCustomTo, activeIsAllTime]);
+
+  // Filtrado de pedidos según el período activo de fechas
+  const dateFilteredOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const isPaid = order.payment_status === "paid";
+      const dateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
+      return isDateInPeriod(dateStr, activePeriodFilter.from, activePeriodFilter.to);
+    });
+  }, [orders, activePeriodFilter.from, activePeriodFilter.to]);
 
   const advisorOptions = useMemo(() => {
     const list: Array<{ id: string; name: string }> = [];
@@ -83,35 +157,39 @@ export default function OrdersPage({
   }, [salesAdvisors, orders]);
 
   const query = search.trim().toLowerCase();
-  const visibleOrders = orders.filter((order) => {
-    const matchesSearch = [
-      order.customers?.full_name,
-      order.customers?.email,
-      order.customers?.phone,
-      order.id,
-      ...order.order_items.map((item) => item.product_name_snapshot),
-    ].some((value) => value?.toLowerCase().includes(query));
-    const matchesStatus = filter === "all" ||
-      (filter === "pending"
-        ? order.payment_status === "pending" && order.status === "confirmed"
-        : filter === "credit"
-        ? order.payment_status === "credit"
-        : filter === "partial"
-        ? order.payment_status === "partial" || (order.payment_status === "credit" && getOrderFinancialBreakdown(order).collectedRevenue > 0)
-        : filter === "refunded"
-        ? order.payment_status === "refunded"
-        : filter === "paid"
-        ? order.payment_status === "paid"
-        : order.payment_status === filter);
-    const matchesAdvisor = advisorFilter === "all" ||
-      (advisorFilter === "none"
-        ? !order.sales_advisor_id
-        : order.sales_advisor_id === advisorFilter);
-    return matchesSearch && matchesStatus && matchesAdvisor;
-  });
+  const visibleOrders = useMemo(() => {
+    return dateFilteredOrders.filter((order) => {
+      const matchesSearch = [
+        order.customers?.full_name,
+        order.customers?.email,
+        order.customers?.phone,
+        order.id,
+        ...order.order_items.map((item) => item.product_name_snapshot),
+      ].some((value) => value?.toLowerCase().includes(query));
+      const matchesStatus = filter === "all" ||
+        (filter === "pending"
+          ? order.payment_status === "pending" && order.status === "confirmed"
+          : filter === "credit"
+          ? order.payment_status === "credit"
+          : filter === "partial"
+          ? order.payment_status === "partial" || (order.payment_status === "credit" && getOrderFinancialBreakdown(order).collectedRevenue > 0)
+          : filter === "refunded"
+          ? order.payment_status === "refunded"
+          : filter === "paid"
+          ? order.payment_status === "paid"
+          : order.payment_status === filter);
+      const matchesAdvisor = advisorFilter === "all" ||
+        (advisorFilter === "none"
+          ? !order.sales_advisor_id
+          : order.sales_advisor_id === advisorFilter);
+      return matchesSearch && matchesStatus && matchesAdvisor;
+    });
+  }, [dateFilteredOrders, query, filter, advisorFilter]);
+
   useEffect(() => {
     setPage(1);
-  }, [filter, advisorFilter, query]);
+  }, [filter, advisorFilter, query, activePeriodFilter]);
+
   const PAGE_SIZE = 10;
   const pageCount = Math.max(1, Math.ceil(visibleOrders.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -119,26 +197,48 @@ export default function OrdersPage({
     (currentPage - 1) * PAGE_SIZE,
     currentPage * PAGE_SIZE
   );
-  const completedOrders = orders.filter((order) => order.payment_status === "paid");
-  const breakdowns = orders.map(getOrderFinancialBreakdown);
-  const activeSales = breakdowns.filter((b) => b.isActiveSale);
-  const revenue = activeSales.reduce((sum, b) => sum + b.collectedRevenue, 0);
-  const missingCostItems = orders
-    .filter((order) => {
-      const b = getOrderFinancialBreakdown(order);
-      return b.isActiveSale;
-    })
-    .reduce(
-      (sum, order) =>
-        sum +
-        order.order_items.reduce(
-          (itemSum, item) => itemSum + (item.unit_cost_snapshot === null ? item.quantity : 0),
-          0
-        ),
-      0
-    );
-  const productCost = activeSales.reduce((sum, b) => sum + b.coveredProductCost, 0);
-  const deliveryCost = activeSales.reduce((sum, b) => sum + b.coveredDeliveryCost, 0);
+
+  const completedOrders = useMemo(() => {
+    return dateFilteredOrders.filter((order) => order.payment_status === "paid");
+  }, [dateFilteredOrders]);
+
+  const breakdowns = useMemo(() => {
+    return dateFilteredOrders.map(getOrderFinancialBreakdown);
+  }, [dateFilteredOrders]);
+
+  const activeSales = useMemo(() => {
+    return breakdowns.filter((b) => b.isActiveSale);
+  }, [breakdowns]);
+
+  const revenue = useMemo(() => {
+    return activeSales.reduce((sum, b) => sum + b.collectedRevenue, 0);
+  }, [activeSales]);
+
+  const missingCostItems = useMemo(() => {
+    return dateFilteredOrders
+      .filter((order) => {
+        const b = getOrderFinancialBreakdown(order);
+        return b.isActiveSale;
+      })
+      .reduce(
+        (sum, order) =>
+          sum +
+          order.order_items.reduce(
+            (itemSum, item) => itemSum + (item.unit_cost_snapshot === null ? item.quantity : 0),
+            0
+          ),
+        0
+      );
+  }, [dateFilteredOrders]);
+
+  const productCost = useMemo(() => {
+    return activeSales.reduce((sum, b) => sum + b.coveredProductCost, 0);
+  }, [activeSales]);
+
+  const deliveryCost = useMemo(() => {
+    return activeSales.reduce((sum, b) => sum + b.coveredDeliveryCost, 0);
+  }, [activeSales]);
+
   const netProfit = missingCostItems > 0 ? null : revenue - productCost - deliveryCost;
   const initialLoading = loading && orders.length === 0;
   const normalizeOrderStatus = (status: string): OrderStatus =>
@@ -148,17 +248,31 @@ export default function OrdersPage({
 
   return (
     <section className="admin-card">
-      <div className="card-title order-toolbar">
-        <p className="table-note">Cada abono suma al valor vendido, cubre primero el costo hasta su tope y el excedente suma a tu utilidad.</p>
-        <label className="admin-search">
-          <Search size={16} />
-          <input
-            aria-label="Buscar pedidos"
-            placeholder="Cliente, perfume o número de pedido"
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
+      <div className="order-header-row">
+        <div className="order-header-info">
+          <p className="table-note">
+            Cada abono suma al valor vendido, cubre primero el costo hasta su tope y el excedente suma a tu utilidad.
+          </p>
+          <div className="order-period-caption" role="status" aria-label="Período de pedidos">
+            <Calendar size={13} aria-hidden="true" />
+            <span>{activePeriodFilter.label}</span>
+            <span className="order-period-count">
+              · <strong>{dateFilteredOrders.length}</strong> {dateFilteredOrders.length === 1 ? "pedido en período" : "pedidos en período"}
+            </span>
+          </div>
+        </div>
+
+        <div className="order-header-period">
+          <PeriodFilterSwitch
+            preset={activePreset}
+            customFrom={activeCustomFrom}
+            customTo={activeCustomTo}
+            isAllTime={activeIsAllTime}
+            onPresetChange={handlePresetChange}
+            onCustomRangeChange={handleCustomRangeChange}
+            onToggleAllTime={handleToggleAllTime}
           />
-        </label>
+        </div>
       </div>
       {initialLoading && (
         <div className="section-loading" role="status">
@@ -185,6 +299,16 @@ export default function OrdersPage({
         <Metric title="Ventas completas" value={String(completedOrders.length)} numericValue={completedOrders.length} icon={<Check />} />
       </div>
       <div className="order-filters-row" role="region" aria-label="Filtros de pedidos">
+        <label className="admin-search order-search-field">
+          <Search size={16} />
+          <input
+            aria-label="Buscar pedidos"
+            placeholder="Cliente, perfume o número de pedido"
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+          />
+        </label>
+
         <div className="order-filter-group">
           <label className="order-filter-item">
             <span>Asesor</span>
@@ -210,7 +334,10 @@ export default function OrdersPage({
               onChange={(event) => setFilter(event.target.value)}
               aria-label="Filtrar por estado de pago"
             >
-              <option value="all">Todos</option>
+              <option value="all">Todos los estados</option>
+              <option value="paid">Pagados</option>
+              <option value="pending">Pendientes de confirmación</option>
+              <option value="credit">A crédito</option>
               <option value="partial">Pago parcial</option>
               <option value="refunded">Reembolsados</option>
             </select>

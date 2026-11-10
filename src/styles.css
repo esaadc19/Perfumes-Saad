@@ -6271,6 +6271,77 @@ footer a { color: #111; }
   color: #1a2e22;
 }
 
+/* Header con selector de período en Pedidos */
+.order-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.order-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 540px;
+}
+
+.order-period-caption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 5px 12px;
+  border-radius: 9px;
+  width: fit-content;
+}
+
+.order-period-caption svg {
+  color: #0252b4;
+  flex-shrink: 0;
+}
+
+.order-period-count {
+  color: #64748b;
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+.order-header-period {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.order-search-field {
+  flex: 1 1 280px;
+  max-width: 380px;
+}
+
+@media (max-width: 768px) {
+  .order-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .order-header-period {
+    align-items: stretch;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .order-search-field {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
 
 /* ==========================================================================
    DECANTS (10 ML) SECTION & DUAL CHARTS
