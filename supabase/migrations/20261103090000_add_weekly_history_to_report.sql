@@ -187,8 +187,8 @@ begin
   from public.order_items oi
   join public.orders o on o.id = oi.order_id
   where o.payment_status = 'paid'
-    and o.paid_at >= (date_trunc('month', local_today) - interval '1 month')
-    and o.paid_at <  date_trunc('month', local_today)
+    and o.paid_at >= (date_trunc('month', local_today) - interval '1 month')::timestamp at time zone 'America/Bogota'
+    and o.paid_at <  (date_trunc('month', local_today))::timestamp at time zone 'America/Bogota'
   group by oi.product_name_snapshot
   order by sum(oi.quantity) desc
   limit 1;
@@ -209,10 +209,11 @@ begin
     select oi.product_name_snapshot,
            sum(oi.quantity)::integer as total_qty,
            coalesce(sum(oi.unit_price * oi.quantity), 0) as total_rev,
-           max(p.olfactive_family) as olfactive_family
+           max(p.family) as olfactive_family
     from public.order_items oi
     join public.orders o on o.id = oi.order_id
-    left join public.products p on p.id = oi.product_id
+    left join public.product_variants pv on pv.id = oi.variant_id
+    left join public.products p on p.id = pv.product_id
     where o.payment_status = 'paid'
       and o.paid_at >= v_from::timestamp at time zone 'America/Bogota'
       and o.paid_at <  v_to::timestamp at time zone 'America/Bogota'
