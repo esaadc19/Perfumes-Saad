@@ -279,6 +279,16 @@ function App() {
   }, []);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [userRole, setUserRole] = useState<"customer" | "admin" | "asesor" | null>(null);
+  const userRef = useRef<AuthUser | null>(null);
+  const userRoleRef = useRef<"customer" | "admin" | "asesor" | null>(null);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    userRoleRef.current = userRole;
+  }, [userRole]);
   // `admin` y `asesor` pueden entrar al panel. Lo que puede VER dentro
   // lo decide la tabla de permisos por seccion, no el rol.
   const isStaff = userRole === "admin" || userRole === "asesor";
@@ -511,29 +521,43 @@ function App() {
     const syncSession = async (session: Session | null) => {
       const currentLookup = ++lookup;
       if (!active) return;
-      setUser(session?.user ?? null);
-      if (!session?.user) {
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      userRef.current = nextUser;
+
+      if (!nextUser) {
         setUserRole(null);
+        userRoleRef.current = null;
         setAuthLoading(false);
         return;
       }
 
-      setUserRole(null);
-      setAuthLoading(true);
+      // Si el usuario ya está autenticado y conocemos su rol, evitamos poner userRole en null
+      // y authLoading en true. Hacerlo desmonta todo el panel <Admin> cada vez que la pestaña
+      // recupera foco o Supabase refresca el token, reseteando la página a cero.
+      const alreadyHasRole = userRoleRef.current !== null && userRef.current?.id === nextUser.id;
+      if (!alreadyHasRole) {
+        setUserRole(null);
+        setAuthLoading(true);
+      }
+
       const { data, error: roleError } = await client
         .from("profiles")
         .select("role")
-        .eq("id", session.user.id)
+        .eq("id", nextUser.id)
         .maybeSingle();
       if (!active || currentLookup !== lookup) return;
       if (roleError) {
         console.error("No se pudo verificar el rol de la cuenta:", roleError);
-        setLoginFeedback("No se pudo verificar el rol de la cuenta. Vuelve a iniciar sesión.");
-        setUserRole(null);
+        if (!alreadyHasRole) {
+          setLoginFeedback("No se pudo verificar el rol de la cuenta. Vuelve a iniciar sesión.");
+          setUserRole(null);
+          userRoleRef.current = null;
+        }
       } else {
-        setUserRole(
-          data?.role === "admin" ? "admin" : data?.role === "asesor" ? "asesor" : "customer"
-        );
+        const nextRole = data?.role === "admin" ? "admin" : data?.role === "asesor" ? "asesor" : "customer";
+        setUserRole(nextRole);
+        userRoleRef.current = nextRole;
       }
       setAuthLoading(false);
     };
@@ -542,6 +566,12 @@ function App() {
       if (event === "PASSWORD_RECOVERY") {
         setPasswordRecovery(true);
         setShowLogin(true);
+      }
+      // Si el token solo se refrescó en segundo plano para el mismo usuario ya cargado, no recrear sesión
+      if (event === "TOKEN_REFRESHED" && session?.user && session.user.id === userRef.current?.id && userRoleRef.current !== null) {
+        setUser(session.user);
+        userRef.current = session.user;
+        return;
       }
       window.setTimeout(() => void syncSession(session), 0);
     });
@@ -1880,11 +1910,54 @@ function Admin({
     label: string;
   } | null>(null);
   const [metrics, setMetrics] = useState<AdminDashboardMetrics | null>(null);
-  /** Rango del dashboard: preset y fechas personalizadas */
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("mes");
-  const [periodCustomFrom, setPeriodCustomFrom] = useState<string>(() => startOfMonth(getBogotaDate()));
-  const [periodCustomTo, setPeriodCustomTo] = useState<string>(() => getBogotaDate());
-  const [isPeriodAllTime, setIsPeriodAllTime] = useState(false);
+  /** Rango del dashboard: preset y fechas personalizadas con persistencia en sessionStorage */
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>(() => {
+    try {
+      const saved = window.sessionStorage.getItem("saad-admin-period-preset");
+      if (saved === "semana" || saved === "mes" || saved === "ano" || saved === "rango") {
+        return saved as PeriodPreset;
+      }
+    } catch {
+      // ignore storage error
+    }
+    return "mes";
+  });
+  const [periodCustomFrom, setPeriodCustomFrom] = useState<string>(() => {
+    try {
+      const saved = window.sessionStorage.getItem("saad-admin-period-from");
+      if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) return saved;
+    } catch {
+      // ignore
+    }
+    return startOfMonth(getBogotaDate());
+  });
+  const [periodCustomTo, setPeriodCustomTo] = useState<string>(() => {
+    try {
+      const saved = window.sessionStorage.getItem("saad-admin-period-to");
+      if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) return saved;
+    } catch {
+      // ignore
+    }
+    return getBogotaDate();
+  });
+  const [isPeriodAllTime, setIsPeriodAllTime] = useState<boolean>(() => {
+    try {
+      return window.sessionStorage.getItem("saad-admin-period-alltime") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem("saad-admin-period-preset", periodPreset);
+      window.sessionStorage.setItem("saad-admin-period-from", periodCustomFrom);
+      window.sessionStorage.setItem("saad-admin-period-to", periodCustomTo);
+      window.sessionStorage.setItem("saad-admin-period-alltime", String(isPeriodAllTime));
+    } catch {
+      // ignore
+    }
+  }, [periodPreset, periodCustomFrom, periodCustomTo, isPeriodAllTime]);
 
   const activePeriodFilter = useMemo(() => {
     return resolvePeriodFilter(periodPreset, periodCustomFrom, periodCustomTo, isPeriodAllTime);
@@ -2272,7 +2345,7 @@ function Admin({
       setSectionError(null);
       try {
         if (section === "overview") {
-          const [metricsResult, ordersResult, advisorsResult] = await Promise.all([
+          const [metricsResult, ordersResult, advisorsResult, expenseResult] = await Promise.all([
             getAdminDashboardMetrics(
               activePeriodFilter.days,
               activePeriodFilter.from,
@@ -2280,6 +2353,7 @@ function Admin({
             ),
             getAdminOrders(),
             getSalesAdvisors(),
+            getExpenses().catch(() => []),
           ]);
           if (active) {
             metricsResult.period_from = activePeriodFilter.from;
@@ -2291,6 +2365,7 @@ function Admin({
               sales_advisor_name: order.sales_advisor_name || (order.sales_advisor_id ? advisorMap.get(order.sales_advisor_id) ?? null : null),
             }));
             setOrders(enrichedOrders);
+            setExpenses(expenseResult);
           }
         } else if (section === "finance") {
           const [metricsResult, ordersResult, advisorsResult, expenseResult, creditOrdersResult] = await Promise.all([
