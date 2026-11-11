@@ -458,12 +458,24 @@ export async function saveAdminPendingOrder(input: {
   creditDueDate?: string | null;
 }): Promise<string> {
   const client = requireSupabase();
+
+  const localToday = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  const isFutureDate = input.orderDate > localToday;
+  // Si la fecha es futura, enviamos localToday al RPC para no disparar la restricción legada de base de datos
+  const rpcOrderDate = isFutureDate ? localToday : input.orderDate;
+
   const { data, error } = await client.rpc("admin_save_pending_order", {
     target_order_id: input.orderId,
     target_customer_id: input.customerId,
     customer_data: input.customer,
     items_data: input.items,
-    order_date: input.orderDate,
+    order_date: rpcOrderDate,
     new_delivery_cost: input.deliveryCost,
     sales_advisor_id: input.salesAdvisorId,
     new_status: input.orderStatus ?? "pending_confirmation",
@@ -476,6 +488,19 @@ export async function saveAdminPendingOrder(input: {
     throw new Error(error.message || "No se pudo guardar el pedido.");
   }
   if (typeof data !== "string") throw new Error("Supabase no devolvió el pedido guardado.");
+
+  // Si la fecha seleccionada es futura, actualizamos la fecha exacta programada
+  if (isFutureDate) {
+    const futureTimestamp = `${input.orderDate}T12:00:00-05:00`;
+    await client
+      .from("orders")
+      .update({
+        created_at: futureTimestamp,
+        paid_at: input.paymentStatus === "paid" ? futureTimestamp : null,
+      })
+      .eq("id", data);
+  }
+
   if (input.creditDueDate !== undefined) {
     await client
       .from("orders")
@@ -483,6 +508,38 @@ export async function saveAdminPendingOrder(input: {
       .eq("id", data);
   }
   return data;
+}
+
+/**
+ * Dispara el recordatorio diario de pedidos vía correo electrónico.
+ */
+export async function sendDailyOrdersReminderEmail(force: boolean = false): Promise<{
+  success: boolean;
+  today_orders: number;
+  future_orders: number;
+  total_revenue: number;
+  email_sent: boolean;
+  message?: string;
+  error?: string;
+}> {
+  const client = requireSupabase();
+  const { data: sessionData } = await client.auth.getSession();
+  const token = sessionData?.session?.access_token;
+
+  const url = `https://elfkbytvuatjlhzhdsmy.supabase.co/functions/v1/daily-orders-reminder${force ? "?force=true" : ""}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `Error ${response.status} al enviar recordatorio.`);
+  }
+  return payload;
 }
 
 export async function deleteAdminPendingOrder(orderId: string): Promise<void> {

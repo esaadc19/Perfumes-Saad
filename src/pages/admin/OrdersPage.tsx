@@ -2,17 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
+  Bell,
   Calendar,
   Check,
   Package,
   Pencil,
   ReceiptText,
   Search,
+  Send,
   Trash2,
   TrendingUp,
   Truck,
 } from "lucide-react";
-import type { AdminOrder, SalesAdvisor } from "../../services/admin";
+import {
+  type AdminOrder,
+  type SalesAdvisor,
+  sendDailyOrdersReminderEmail,
+} from "../../services/admin";
 import { isDateInPeriod, toBogotaDateStr, getOrderFinancialBreakdown } from "../../lib/order-finance";
 import {
   type PeriodPreset,
@@ -80,6 +86,11 @@ export default function OrdersPage({
   const [advisorFilter, setAdvisorFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
 
+  const localToday = useMemo(() => getBogotaDate(), []);
+  const [quickDateFilter, setQuickDateFilter] = useState<"period" | "today" | "future">("period");
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [reminderStatus, setReminderStatus] = useState<string | null>(null);
+
   // Estados locales en caso de usarse sin callbacks de App
   const [localPreset, setLocalPreset] = useState<PeriodPreset>("mes");
   const [localCustomFrom, setLocalCustomFrom] = useState<string>(() => startOfMonth(getBogotaDate()));
@@ -91,7 +102,47 @@ export default function OrdersPage({
   const activeCustomTo = onPeriodCustomRangeChange ? periodCustomTo : localCustomTo;
   const activeIsAllTime = onPeriodToggleAllTime ? isPeriodAllTime : localIsAllTime;
 
+  // Pedidos programados o entregados en la fecha de hoy
+  const todayOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const isPaid = order.payment_status === "paid";
+      const dateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
+      return dateStr === localToday && order.status !== "cancelled";
+    });
+  }, [orders, localToday]);
+
+  // Pedidos agendados para fechas futuras
+  const futureOrders = useMemo(() => {
+    return orders.filter((order) => {
+      const isPaid = order.payment_status === "paid";
+      const dateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
+      return dateStr > localToday && order.status !== "cancelled";
+    });
+  }, [orders, localToday]);
+
+  const todayOrdersRevenue = useMemo(() => {
+    return todayOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+  }, [todayOrders]);
+
+  const handleSendReminder = async () => {
+    setSendingReminder(true);
+    setReminderStatus(null);
+    try {
+      const res = await sendDailyOrdersReminderEmail(true);
+      if (res.email_sent) {
+        setReminderStatus(`✓ Correo enviado con éxito a tu bandeja (${res.today_orders} pedidos de hoy, ${res.future_orders} futuros).`);
+      } else {
+        setReminderStatus(res.message || "Recordatorio procesado sin pedidos pendientes.");
+      }
+    } catch (e) {
+      setReminderStatus(e instanceof Error ? e.message : "No se pudo enviar el correo de recordatorio.");
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
   const handlePresetChange = (preset: PeriodPreset) => {
+    setQuickDateFilter("period");
     if (onPeriodPresetChange) {
       onPeriodPresetChange(preset);
     } else {
@@ -101,6 +152,7 @@ export default function OrdersPage({
   };
 
   const handleCustomRangeChange = (from: string, to: string) => {
+    setQuickDateFilter("period");
     if (onPeriodCustomRangeChange) {
       onPeriodCustomRangeChange(from, to);
     } else {
@@ -112,6 +164,7 @@ export default function OrdersPage({
   };
 
   const handleToggleAllTime = () => {
+    setQuickDateFilter("period");
     if (onPeriodToggleAllTime) {
       onPeriodToggleAllTime();
     } else {
@@ -123,14 +176,20 @@ export default function OrdersPage({
     return resolvePeriodFilter(activePreset, activeCustomFrom, activeCustomTo, activeIsAllTime);
   }, [activePreset, activeCustomFrom, activeCustomTo, activeIsAllTime]);
 
-  // Filtrado de pedidos según el período activo de fechas
+  // Filtrado de pedidos según el filtro rápido (hoy/futuros) o el período activo
   const dateFilteredOrders = useMemo(() => {
+    if (quickDateFilter === "today") {
+      return todayOrders;
+    }
+    if (quickDateFilter === "future") {
+      return futureOrders;
+    }
     return orders.filter((order) => {
       const isPaid = order.payment_status === "paid";
       const dateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
       return isDateInPeriod(dateStr, activePeriodFilter.from, activePeriodFilter.to);
     });
-  }, [orders, activePeriodFilter.from, activePeriodFilter.to]);
+  }, [orders, activePeriodFilter.from, activePeriodFilter.to, quickDateFilter, todayOrders, futureOrders]);
 
   const advisorOptions = useMemo(() => {
     const list: Array<{ id: string; name: string }> = [];
@@ -255,9 +314,15 @@ export default function OrdersPage({
           </p>
           <div className="order-period-caption" role="status" aria-label="Período de pedidos">
             <Calendar size={13} aria-hidden="true" />
-            <span>{activePeriodFilter.label}</span>
+            <span>
+              {quickDateFilter === "today"
+                ? "🔔 Pedidos programados para HOY"
+                : quickDateFilter === "future"
+                ? "📅 Pedidos programados a FUTURO"
+                : activePeriodFilter.label}
+            </span>
             <span className="order-period-count">
-              · <strong>{dateFilteredOrders.length}</strong> {dateFilteredOrders.length === 1 ? "pedido en período" : "pedidos en período"}
+              · <strong>{dateFilteredOrders.length}</strong> {dateFilteredOrders.length === 1 ? "pedido" : "pedidos"}
             </span>
           </div>
         </div>
@@ -273,6 +338,72 @@ export default function OrdersPage({
             onToggleAllTime={handleToggleAllTime}
           />
         </div>
+      </div>
+
+      {/* Banner de Recordatorio Diario de Pedidos */}
+      <div className="order-daily-reminder-card">
+        <div className="order-reminder-header">
+          <div className="order-reminder-title-box">
+            <span className="order-reminder-pill">
+              <Bell size={13} /> Recordatorio Diario de Operaciones
+            </span>
+            <h3 className="order-reminder-heading">
+              {todayOrders.length > 0 ? (
+                <>Tienes <strong>{todayOrders.length} {todayOrders.length === 1 ? "pedido" : "pedidos"} para hoy</strong> ({money(todayOrdersRevenue)})</>
+              ) : (
+                <>No tienes pedidos para entrega hoy</>
+              )}
+              {futureOrders.length > 0 && (
+                <span className="order-reminder-future-count"> · 📅 {futureOrders.length} pedidos agendados a futuro</span>
+              )}
+            </h3>
+            <p className="order-reminder-sub">
+              {todayOrders.length > 0
+                ? "Alista tus perfumes en bolsas de lujo SAAD (botellas) o estuches de fomi (decants). Confirma entrega antes de salir."
+                : "Puedes agendar pedidos para fechas futuras seleccionando cualquier fecha en el formulario de creación."}
+            </p>
+          </div>
+
+          <div className="order-reminder-actions">
+            <button
+              type="button"
+              className={`order-quick-filter-btn ${quickDateFilter === "period" ? "active" : ""}`}
+              onClick={() => setQuickDateFilter("period")}
+            >
+              Período activo
+            </button>
+            <button
+              type="button"
+              className={`order-quick-filter-btn order-quick-filter-btn--today ${quickDateFilter === "today" ? "active" : ""}`}
+              onClick={() => setQuickDateFilter("today")}
+            >
+              🔔 Hoy ({todayOrders.length})
+            </button>
+            <button
+              type="button"
+              className={`order-quick-filter-btn order-quick-filter-btn--future ${quickDateFilter === "future" ? "active" : ""}`}
+              onClick={() => setQuickDateFilter("future")}
+            >
+              📅 Futuros ({futureOrders.length})
+            </button>
+            <button
+              type="button"
+              className="order-send-email-btn"
+              onClick={handleSendReminder}
+              disabled={sendingReminder}
+              title="Envía el resumen de pedidos del día a tu correo electrónico registrado"
+            >
+              {sendingReminder ? "Enviando…" : <><Send size={13} /> Enviar a mi correo</>}
+            </button>
+          </div>
+        </div>
+
+        {reminderStatus && (
+          <div className="order-reminder-status-msg" role="status">
+            <span>{reminderStatus}</span>
+            <button type="button" onClick={() => setReminderStatus(null)} aria-label="Cerrar mensaje">×</button>
+          </div>
+        )}
       </div>
       {initialLoading && (
         <div className="section-loading" role="status">
@@ -372,10 +503,26 @@ export default function OrdersPage({
         {paginatedOrders.map((order) => {
           const b = getOrderFinancialBreakdown(order);
           const showNumbers = b.isPaid || b.isOpenCredit;
+          const isPaid = order.payment_status === "paid";
+          const orderDateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
+          const isToday = orderDateStr === localToday;
+          const isFuture = orderDateStr > localToday;
           return (
             <div className="table-row transaction-row" key={order.id}>
               <div className="profile-cell" aria-readonly="true">
-                <strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong>
+                  {isToday && (
+                    <span className="order-timing-badge order-timing-badge--today" title="Pedido para entrega hoy">
+                      🔔 Entrega hoy
+                    </span>
+                  )}
+                  {isFuture && (
+                    <span className="order-timing-badge order-timing-badge--future" title="Pedido agendado para entrega futura">
+                      📅 Programado ({new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota", day: "numeric", month: "short" })})
+                    </span>
+                  )}
+                </div>
                 <span>{order.order_items.map((item) =>
                   `${item.product_name_snapshot} ${item.size_ml} ml ×${item.quantity}`
                 ).join(" · ") || order.customers?.phone || "Sin detalle"}</span>

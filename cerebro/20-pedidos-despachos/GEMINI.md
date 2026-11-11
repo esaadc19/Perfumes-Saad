@@ -66,6 +66,12 @@ El perfume es un producto delicado (frascos de vidrio y líquidos presurizados) 
 ### La Promesa de "Mismo Día" en Barranquilla
 Entregar el mismo día es la mayor ventaja competitiva de Perfumes SAAD frente a compras en tiendas de Bogotá, Medellín o plataformas web. El cliente no tiene que esperar días para estrenar su fragancia.
 
+### Pedidos Programados para Fechas Futuras
+Muchos clientes apartan perfumes para fechas especiales (cumpleaños, aniversarios, pagos de quincena los 15 o 30).
+- El sistema permite registrar pedidos con **fecha futura** seleccionando la fecha pactada en el modal de creación de pedido.
+- **Recordatorio Diario Automático:** Cada día a las 8:00 AM (Col), una rutina automática (`daily-orders-reminder`) compila y envía un correo ejecutivo con los pedidos a entregar ese día y los agendados en los próximos 7 días.
+- **Banner en Panel:** En la sección de pedidos (`/pedidos`), un banner destacado muestra cuántos pedidos corresponden a hoy y a fechas futuras, con filtros directos de un clic.
+
 ---
 
 ## Tareas del Área

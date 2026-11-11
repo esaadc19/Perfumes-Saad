@@ -44,6 +44,34 @@ type OrderItem = {
   unitCost: string;
 };
 
+function getBogotaOffsetDate(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+function getDaysDiff(targetStr: string, baseStr: string): number {
+  const [tY, tM, tD] = targetStr.split("-").map(Number);
+  const [bY, bM, bD] = baseStr.split("-").map(Number);
+  const target = new Date(tY, tM - 1, tD).getTime();
+  const base = new Date(bY, bM - 1, bD).getTime();
+  return Math.max(1, Math.round((target - base) / (1000 * 60 * 60 * 24)));
+}
+
+function formatReadableDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Intl.DateTimeFormat("es-CO", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(y, m - 1, d));
+}
+
 export default function OrderEditorModal({
   order,
   customers,
@@ -289,17 +317,65 @@ export default function OrderEditorModal({
               </button>
             </div>
           </div>
-          <label className="auth-label order-date-field">
-            Fecha del pedido
-            <input
-              type="date"
-              value={orderDate}
-              max={localToday}
-              disabled={saving}
-              onChange={(event) => setOrderDate(event.target.value)}
-              required
-            />
-          </label>
+          <div className="order-date-field-container">
+            <label className="auth-label order-date-field" style={{ marginBottom: 0 }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <Calendar size={14} /> Fecha del pedido / entrega programada
+              </span>
+              <input
+                type="date"
+                value={orderDate}
+                disabled={saving}
+                onChange={(event) => setOrderDate(event.target.value)}
+                required
+              />
+            </label>
+            <div className="order-date-shortcuts">
+              <button
+                type="button"
+                className={`order-date-pill ${orderDate === localToday ? "active" : ""}`}
+                disabled={saving}
+                onClick={() => setOrderDate(localToday)}
+              >
+                Hoy
+              </button>
+              <button
+                type="button"
+                className={`order-date-pill ${orderDate === getBogotaOffsetDate(1) ? "active" : ""}`}
+                disabled={saving}
+                onClick={() => setOrderDate(getBogotaOffsetDate(1))}
+              >
+                Mañana
+              </button>
+              <button
+                type="button"
+                className={`order-date-pill ${orderDate === getBogotaOffsetDate(3) ? "active" : ""}`}
+                disabled={saving}
+                onClick={() => setOrderDate(getBogotaOffsetDate(3))}
+              >
+                En 3 días
+              </button>
+              {upcomingQuincenas[0] && (
+                <button
+                  type="button"
+                  className={`order-date-pill ${orderDate === upcomingQuincenas[0].dateStr ? "active" : ""}`}
+                  disabled={saving}
+                  onClick={() => setOrderDate(upcomingQuincenas[0].dateStr)}
+                >
+                  {upcomingQuincenas[0].label}
+                </button>
+              )}
+            </div>
+            {orderDate > localToday && (
+              <div className="order-future-notice" role="status">
+                <span className="order-future-notice-icon">📅</span>
+                <span>
+                  <strong>Pedido programado:</strong> Quedará agendado para el{" "}
+                  <strong>{formatReadableDate(orderDate)}</strong> (en {getDaysDiff(orderDate, localToday)} días). El sistema te lo recordará en el correo de ese día y en el panel.
+                </span>
+              </div>
+            )}
+          </div>
         </div>
         {customerMode === "registered" ? (
           <label className="auth-label">

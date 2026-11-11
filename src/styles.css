@@ -6342,6 +6342,249 @@ footer a { color: #111; }
   }
 }
 
+/* Atajos de fecha y aviso de pedido futuro en OrderEditorModal */
+.order-date-field-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-date-shortcuts {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.order-date-pill {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.order-date-pill:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.order-date-pill.active {
+  background: #09090b;
+  color: #ffffff;
+  border-color: #09090b;
+  font-weight: 600;
+}
+
+.order-future-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #4338ca;
+  line-height: 1.4;
+}
+
+.order-future-notice-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+/* Banner de Recordatorio Diario de Pedidos */
+.order-daily-reminder-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #0284c7;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.order-reminder-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.order-reminder-title-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 600px;
+}
+
+.order-reminder-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #0284c7;
+  width: fit-content;
+}
+
+.order-reminder-heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.order-reminder-future-count {
+  font-weight: 400;
+  color: #6366f1;
+}
+
+.order-reminder-sub {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.order-reminder-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.order-quick-filter-btn {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.order-quick-filter-btn:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.order-quick-filter-btn.active {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+  font-weight: 600;
+}
+
+.order-quick-filter-btn--today.active {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.order-quick-filter-btn--future.active {
+  background: #6366f1;
+  border-color: #6366f1;
+  color: #ffffff;
+}
+
+.order-send-email-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid #0284c7;
+  background: rgba(2, 132, 199, 0.08);
+  color: #0284c7;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.order-send-email-btn:hover:not(:disabled) {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.order-send-email-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.order-reminder-status-msg {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #166534;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.order-reminder-status-msg button {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #166534;
+  line-height: 1;
+}
+
+/* Badges de temporización en la fila de pedidos */
+.order-timing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.order-timing-badge--today {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+.order-timing-badge--future {
+  background: #eef2ff;
+  color: #4f46e5;
+  border: 1px solid #c7d2fe;
+}
+
+@media (max-width: 768px) {
+  .order-daily-reminder-card {
+    padding: 14px 16px;
+  }
+  .order-reminder-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .order-reminder-actions {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 
 /* ==========================================================================
    DECANTS (10 ML) SECTION & DUAL CHARTS
