@@ -2034,7 +2034,6 @@ function Admin({
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
   const [productSearch, setProductSearch] = useState("");
   const [productStockFilter, setProductStockFilter] = useState<"all" | "available" | "sold-out">("all");
-  const [productBrandFilter, setProductBrandFilter] = useState("all");
   const [productPriceFilter, setProductPriceFilter] = useState({
     costMin: "",
     costMax: "",
@@ -2133,7 +2132,6 @@ function Admin({
   const visibleProducts = products.filter((product) => {
     if (Boolean(product.archived) !== showArchivedProducts) return false;
     if (!`${product.brand} ${product.name} ${product.sku ?? ""}`.toLowerCase().includes(productSearch.toLowerCase())) return false;
-    if (!showArchivedProducts && productBrandFilter !== "all" && product.brand !== productBrandFilter) return false;
     if (!showArchivedProducts && productStockFilter !== "all") {
       const matchesStock = productStockFilter === "available"
         ? product.variants.some((variant) => variant.stock > 0)
@@ -3573,8 +3571,6 @@ function Admin({
               onToggleArchived={() => setShowArchivedProducts((current) => !current)}
               productSearch={productSearch}
               onProductSearchChange={setProductSearch}
-              productBrandFilter={productBrandFilter}
-              onProductBrandFilterChange={setProductBrandFilter}
               productStockFilter={productStockFilter}
               onProductStockFilterChange={setProductStockFilter}
               productPriceFilter={productPriceFilter}

@@ -58,10 +58,11 @@ export const ADMIN_SECTION_TITLES: Record<AdminSection, string> = {
   settings: "Configuración",
 };
 
-const PATH_TO_SECTION = new Map<string, AdminSection>([
-  ...ADMIN_SECTIONS.map((section) => [ADMIN_SECTION_PATHS[section], section] as [string, AdminSection]),
-  ["/productos", "products"], // Alias retrocompatible
-]);
+const PATH_TO_SECTION = new Map<string, AdminSection>(
+  ADMIN_SECTIONS.map((section) => [ADMIN_SECTION_PATHS[section], section])
+);
+// Alias retrocompatible: /productos sigue abriendo la sección de inventario
+PATH_TO_SECTION.set("/productos", "products");
 
 const normalizePath = (pathname: string) => {
   const withoutTrailingSlash = pathname.replace(/\/+$/, "");
