@@ -346,3 +346,98 @@ export async function parseCustomerImportFile(file: File): Promise<ImportedCusto
   }
   throw new Error("Formato no compatible. Selecciona un archivo CSV o Excel .xlsx.");
 }
+
+
+export function exportProductsToCsv(products: Product[]): string {
+  const headers = [
+    "brand",
+    "name",
+    "sku",
+    "gender",
+    "category",
+    "size_ml",
+    "price",
+    "cost",
+    "stock",
+    "description",
+    "family",
+    "image_url",
+    "image_urls",
+  ];
+
+  const escapeCsv = (val: unknown): string => {
+    if (val == null) return "";
+    const str = String(val).replace(/\r\n/g, " ").replace(/\n/g, " ").replace(/\r/g, " ").trim();
+    if (str.includes(",") || str.includes('"') || str.includes(";")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const rows: string[] = [headers.join(",")];
+
+  for (const product of products) {
+    if (product.archived) continue;
+    const variants = product.variants && product.variants.length > 0 ? product.variants : [];
+    const imageUrl = product.image || "";
+    const imageUrls = product.images && product.images.length > 0 ? product.images.join("|") : imageUrl;
+
+    if (variants.length === 0) {
+      rows.push(
+        [
+          escapeCsv(product.brand),
+          escapeCsv(product.name),
+          escapeCsv(product.sku ?? ""),
+          escapeCsv(product.gender),
+          escapeCsv(product.category),
+          "100",
+          "0",
+          "0",
+          "0",
+          escapeCsv(product.description ?? ""),
+          escapeCsv(product.family ?? ""),
+          escapeCsv(imageUrl),
+          escapeCsv(imageUrls),
+        ].join(",")
+      );
+      continue;
+    }
+
+    for (const variant of variants) {
+      rows.push(
+        [
+          escapeCsv(product.brand),
+          escapeCsv(product.name),
+          escapeCsv(product.sku ?? ""),
+          escapeCsv(product.gender),
+          escapeCsv(product.category),
+          escapeCsv(variant.size),
+          escapeCsv(variant.price),
+          escapeCsv(variant.cost != null ? variant.cost : ""),
+          escapeCsv(variant.stock),
+          escapeCsv(product.description ?? ""),
+          escapeCsv(product.family ?? ""),
+          escapeCsv(imageUrl),
+          escapeCsv(imageUrls),
+        ].join(",")
+      );
+    }
+  }
+
+  return "\uFEFF" + rows.join("\r\n");
+}
+
+export function downloadProductsCsv(products: Product[], filename?: string): void {
+  const content = exportProductsToCsv(products);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const finalName = filename || `inventario-perfumes-saad-${dateStr}.csv`;
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", finalName);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}

@@ -3043,6 +3043,17 @@ function Admin({
     }
   };
 
+  const exportInventoryCsv = async () => {
+    try {
+      const { downloadProductsCsv } = await import("./services/product-import");
+      downloadProductsCsv(products);
+      notifySuccess("Base de inventario descargada en CSV.");
+    } catch (err) {
+      console.error("No se pudo exportar el inventario:", err);
+      notifyError("No se pudo exportar el inventario.");
+    }
+  };
+
   const importCustomersFromFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const input = event.currentTarget;
     const file = input.files?.[0];
@@ -3253,6 +3264,15 @@ function Admin({
                   title="Importar archivo"
                 >
                   <Upload size={16} /> {importingProducts ? "Importando..." : "Importar archivo"}
+                </AdminButton>
+                <AdminButton
+                  tone="secondary"
+                  compact
+                  type="button"
+                  onClick={() => void exportInventoryCsv()}
+                  title="Descargar base de inventario completa en CSV compatible para importar"
+                >
+                  <Download size={16} /> Exportar inventario
                 </AdminButton>
                 <a
                   className="secondary template-download product-template-action"

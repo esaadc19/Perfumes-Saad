@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BarChart3,
   Check,
+  Download,
   Package,
   Pencil,
   ReceiptText,
@@ -279,6 +280,18 @@ export default function ProductsPage({
               disabled={archivedProductsCount === 0 && !showArchivedProducts}
             >
               {showArchivedProducts ? "Volver a inventario" : `Archivados (${archivedProductsCount})`}
+            </button>
+            <button
+              className="secondary archived-products-toggle"
+              type="button"
+              onClick={async () => {
+                const { downloadProductsCsv } = await import("../../services/product-import");
+                downloadProductsCsv(products && products.length > 0 ? products : visibleProducts);
+              }}
+              title="Descargar base de inventario en formato CSV compatible con la plantilla"
+              style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}
+            >
+              <Download size={14} /> Exportar base
             </button>
             {!showArchivedProducts && (
               <>
