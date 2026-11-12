@@ -198,11 +198,11 @@ export default function ExpensesPage({
             <option value="otro">Otro</option>
           </select>
         </label>
-        <label>{form.recurring ? "Primer vencimiento" : "Fecha"}
+        <label>{form.recurring ? "Fecha del pago realizado" : "Fecha"}
           <input type="date" value={form.date} onChange={(event) => onFormChange({ ...form, date: event.target.value })} required />
         </label>
         <label className="expense-recurring-toggle">
-          <span>¿Es un gasto recurrente?</span>
+          <span>¿Es un gasto recurrente / suscripción?</span>
           <input
             type="checkbox"
             checked={form.recurring}
@@ -225,12 +225,12 @@ export default function ExpensesPage({
           </label>
         )}
         <AdminButton type="submit" disabled={saving}>
-          {saving ? "Guardando..." : form.recurring ? "Crear recordatorio" : "Agregar gasto"}
+          {saving ? "Guardando..." : form.recurring ? "Registrar y programar" : "Agregar gasto"}
         </AdminButton>
       </form>
       {form.recurring && (
         <p className="profile-notice">
-          La fecha indicada será el primer vencimiento. Verás los próximos pagos aquí y el correo se enviará el día del vencimiento y cada día que siga pendiente.
+          Se registrará el gasto en tu contabilidad y gastos operativos actuales, y se programará el recordatorio automático para el siguiente vencimiento.
         </p>
       )}
       {recurringExpenses.length > 0 && (

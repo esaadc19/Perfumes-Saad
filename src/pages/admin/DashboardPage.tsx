@@ -165,6 +165,15 @@ export default function DashboardPage({
       const cat = (e.category || "").toLowerCase().trim();
       const amount = Number(e.amount ?? 0);
       if (
+        cat.includes("fijo") ||
+        cat.includes("administrativ") ||
+        cat.includes("servici") ||
+        cat.includes("alquiler") ||
+        cat.includes("nomina") ||
+        cat.includes("nómina")
+      ) {
+        admin += amount;
+      } else if (
         salesCategories.has(cat) ||
         cat.includes("market") ||
         cat.includes("paut") ||

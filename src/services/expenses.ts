@@ -69,26 +69,60 @@ export async function getRecurringExpenses(): Promise<RecurringExpense[]> {
 export async function createExpense(expense: NewExpense): Promise<void> {
   if (!supabase) throw new Error("Supabase no está configurado.");
 
-  const { error } = expense.recurrence_frequency
-    ? await supabase.from("recurring_expenses").insert({
-        name: expense.name,
-        amount: expense.amount,
-        category: expense.category,
-        frequency: expense.recurrence_frequency,
-        next_due_date: expense.expense_date,
-        payment_method: expense.payment_method || "efectivo",
-      })
-    : await supabase.from("expenses").insert({
-        name: expense.name,
-        amount: expense.amount,
-        category: expense.category,
-        expense_date: expense.expense_date,
-        payment_method: expense.payment_method || "efectivo",
-      });
+  if (expense.recurrence_frequency) {
+    // 1. Registrar el pago realizado en los gastos operativos del periodo
+    const { error: expError } = await supabase.from("expenses").insert({
+      name: expense.name,
+      amount: expense.amount,
+      category: expense.category,
+      expense_date: expense.expense_date,
+      payment_method: expense.payment_method || "efectivo",
+    });
 
-  if (error) {
-    console.error("Error creando gasto:", error);
-    throw error;
+    if (expError) {
+      console.error("Error creando gasto inicial:", expError);
+      throw expError;
+    }
+
+    // 2. Calcular la próxima fecha de vencimiento según la periodicidad
+    const [year, month, day] = expense.expense_date.split("-").map(Number);
+    const dateObj = new Date(year, month - 1, day);
+    if (expense.recurrence_frequency === "weekly") {
+      dateObj.setDate(dateObj.getDate() + 7);
+    } else if (expense.recurrence_frequency === "yearly") {
+      dateObj.setFullYear(dateObj.getFullYear() + 1);
+    } else {
+      dateObj.setMonth(dateObj.getMonth() + 1);
+    }
+    const nextDue = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
+
+    // 3. Crear el recordatorio recurrente para el próximo ciclo
+    const { error: recError } = await supabase.from("recurring_expenses").insert({
+      name: expense.name,
+      amount: expense.amount,
+      category: expense.category,
+      frequency: expense.recurrence_frequency,
+      next_due_date: nextDue,
+      payment_method: expense.payment_method || "efectivo",
+    });
+
+    if (recError) {
+      console.error("Error programando gasto recurrente:", recError);
+      throw recError;
+    }
+  } else {
+    const { error } = await supabase.from("expenses").insert({
+      name: expense.name,
+      amount: expense.amount,
+      category: expense.category,
+      expense_date: expense.expense_date,
+      payment_method: expense.payment_method || "efectivo",
+    });
+
+    if (error) {
+      console.error("Error creando gasto:", error);
+      throw error;
+    }
   }
 }
 
@@ -192,10 +226,11 @@ export async function deleteExpense(id: string): Promise<void> {
 }
 
 export const EXPENSE_CATEGORIES = [
-  "General",
-  "Alquiler",
+  "Gastos Fijos",
   "Servicios",
   "Marketing",
+  "General",
+  "Alquiler",
   "Transporte",
   "Insumos",
   "Nómina",
