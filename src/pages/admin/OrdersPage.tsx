@@ -492,7 +492,7 @@ export default function OrdersPage({
       {missingCostItems > 0 && (
         <p className="profile-notice" role="status">
           <AlertTriangle size={17} />
-          Faltan costos para {missingCostItems} unidad(es) vendida(s). Completa el costo unitario desde Productos para calcular la ganancia neta.
+          Faltan costos para {missingCostItems} unidad(es) vendida(s). Completa el costo unitario desde Inventario para calcular la ganancia neta.
         </p>
       )}
       <div className="admin-table">

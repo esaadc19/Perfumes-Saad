@@ -28,7 +28,7 @@ export const ADMIN_SECTION_PATHS: Record<AdminSection, string> = {
   overview: "/dashboard",
   cerebro: "/cerebro",
   finance: "/utilidad",
-  products: "/productos",
+  products: "/inventario",
   promotions: "/promociones",
   transactions: "/pedidos",
   collect: "/cobrar",
@@ -45,7 +45,7 @@ export const ADMIN_SECTION_TITLES: Record<AdminSection, string> = {
   overview: "Dashboard",
   cerebro: "Cerebro de la Empresa",
   finance: "Estado de Resultados",
-  products: "Productos",
+  products: "Inventario",
   promotions: "Promociones",
   transactions: "Pedidos",
   collect: "Cobrar",
@@ -58,9 +58,10 @@ export const ADMIN_SECTION_TITLES: Record<AdminSection, string> = {
   settings: "Configuración",
 };
 
-const PATH_TO_SECTION = new Map<string, AdminSection>(
-  ADMIN_SECTIONS.map((section) => [ADMIN_SECTION_PATHS[section], section])
-);
+const PATH_TO_SECTION = new Map<string, AdminSection>([
+  ...ADMIN_SECTIONS.map((section) => [ADMIN_SECTION_PATHS[section], section] as [string, AdminSection]),
+  ["/productos", "products"], // Alias retrocompatible
+]);
 
 const normalizePath = (pathname: string) => {
   const withoutTrailingSlash = pathname.replace(/\/+$/, "");

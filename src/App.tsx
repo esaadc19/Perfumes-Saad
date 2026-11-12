@@ -2034,6 +2034,7 @@ function Admin({
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
   const [productSearch, setProductSearch] = useState("");
   const [productStockFilter, setProductStockFilter] = useState<"all" | "available" | "sold-out">("all");
+  const [productBrandFilter, setProductBrandFilter] = useState("all");
   const [productPriceFilter, setProductPriceFilter] = useState({
     costMin: "",
     costMax: "",
@@ -2132,6 +2133,7 @@ function Admin({
   const visibleProducts = products.filter((product) => {
     if (Boolean(product.archived) !== showArchivedProducts) return false;
     if (!`${product.brand} ${product.name} ${product.sku ?? ""}`.toLowerCase().includes(productSearch.toLowerCase())) return false;
+    if (!showArchivedProducts && productBrandFilter !== "all" && product.brand !== productBrandFilter) return false;
     if (!showArchivedProducts && productStockFilter !== "all") {
       const matchesStock = productStockFilter === "available"
         ? product.variants.some((variant) => variant.stock > 0)
@@ -2155,8 +2157,8 @@ function Admin({
     }
     return true;
   }).sort((left, right) =>
-    productNameCollator.compare(left.name, right.name) ||
-    productNameCollator.compare(left.brand, right.brand)
+    productNameCollator.compare(left.brand, right.brand) ||
+    productNameCollator.compare(left.name, right.name)
   );
   const totalStock = products.reduce(
     (sum, p) => sum + (p.archived ? 0 : p.variants.reduce((s, v) => s + v.stock, 0)),
@@ -2246,7 +2248,7 @@ function Admin({
     // El CRM es una app aparte servida en `/crm`, no una sección de este panel:
     // se abre en otra pestaña en vez de renderizarse dentro del admin.
     { id: "crm", title: "CRM", group: "VENTAS", icon: <KanbanSquare size={18} />, external: true },
-    { id: "products", title: "Productos", group: "INVENTARIO", icon: <Package size={18} /> },
+    { id: "products", title: "Inventario", group: "INVENTARIO", icon: <Package size={18} /> },
     { id: "promotions", title: "Promociones", group: "INVENTARIO", icon: <Tag size={18} /> },
     { id: "expenses", title: "Gastos", group: "INVENTARIO", icon: <CreditCard size={18} /> },
     { id: "advisors", title: "Asesores", group: "ADMINISTRACIÓN", icon: <UserCheck size={18} /> },
@@ -3560,7 +3562,7 @@ function Admin({
           </Suspense>
         )}
         {section === "products" && (
-          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando productos…</span></div>}>
+          <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando inventario…</span></div>}>
             <ProductsPage
               products={products}
               visibleProducts={visibleProducts}
@@ -3571,6 +3573,8 @@ function Admin({
               onToggleArchived={() => setShowArchivedProducts((current) => !current)}
               productSearch={productSearch}
               onProductSearchChange={setProductSearch}
+              productBrandFilter={productBrandFilter}
+              onProductBrandFilterChange={setProductBrandFilter}
               productStockFilter={productStockFilter}
               onProductStockFilterChange={setProductStockFilter}
               productPriceFilter={productPriceFilter}

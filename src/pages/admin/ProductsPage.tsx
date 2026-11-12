@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -17,7 +17,7 @@ import type { Product, ProductVariant } from "../../services/products";
 import type { Promotion } from "../../services/promotions";
 import type { ProductPriceFilterState, ProductStockFilter } from "./types";
 
-const PRODUCT_BATCH_SIZE = 12;
+const PRODUCT_BATCH_SIZE = 30;
 
 interface ProductsPageProps {
   products?: Product[];
@@ -29,6 +29,8 @@ interface ProductsPageProps {
   onToggleArchived: () => void;
   productSearch: string;
   onProductSearchChange: (value: string) => void;
+  productBrandFilter?: string;
+  onProductBrandFilterChange?: (brand: string) => void;
   productStockFilter: ProductStockFilter;
   onProductStockFilterChange: (value: ProductStockFilter) => void;
   productPriceFilter: ProductPriceFilterState;
@@ -68,6 +70,8 @@ export default function ProductsPage({
   onToggleArchived,
   productSearch,
   onProductSearchChange,
+  productBrandFilter = "all",
+  onProductBrandFilterChange,
   productStockFilter,
   onProductStockFilterChange,
   productPriceFilter,
@@ -101,12 +105,23 @@ export default function ProductsPage({
   const displayedProducts = visibleProducts.slice(0, visibleLimit);
   const remainingProducts = visibleProducts.length - displayedProducts.length;
 
+  const availableBrands = useMemo(() => {
+    const list = products && products.length > 0 ? products : visibleProducts;
+    const brandsSet = new Set<string>();
+    for (const p of list) {
+      const b = p.brand?.trim();
+      if (b) brandsSet.add(b);
+    }
+    return Array.from(brandsSet).sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+  }, [products, visibleProducts]);
+
   // Al cambiar la busqueda o un filtro volvemos al primer lote: el usuario
   // esta mirando un conjunto nuevo, no la posicion anterior.
   useEffect(() => {
     setVisibleLimit(PRODUCT_BATCH_SIZE);
   }, [
     productSearch,
+    productBrandFilter,
     showArchivedProducts,
     productStockFilter,
     productPriceFilter.costMin,
@@ -114,6 +129,22 @@ export default function ProductsPage({
     productPriceFilter.priceMin,
     productPriceFilter.priceMax,
   ]);
+
+  const groupedProducts = useMemo(() => {
+    const groups: { brand: string; products: Product[]; totalStock: number }[] = [];
+    let currentGroup: { brand: string; products: Product[]; totalStock: number } | null = null;
+
+    for (const product of displayedProducts) {
+      const brand = product.brand?.trim() || "Sin marca";
+      if (!currentGroup || currentGroup.brand.toLowerCase() !== brand.toLowerCase()) {
+        currentGroup = { brand, products: [], totalStock: 0 };
+        groups.push(currentGroup);
+      }
+      currentGroup.products.push(product);
+      currentGroup.totalStock += product.variants.reduce((acc, v) => acc + (Math.max(0, Number(v.stock) || 0)), 0);
+    }
+    return groups;
+  }, [displayedProducts]);
 
   const inventoryMetrics = useMemo(() => {
     const list = products && products.length > 0 ? products : visibleProducts;
@@ -235,10 +266,25 @@ export default function ProductsPage({
               onClick={onToggleArchived}
               disabled={archivedProductsCount === 0 && !showArchivedProducts}
             >
-              {showArchivedProducts ? "Volver a productos" : `Archivados (${archivedProductsCount})`}
+              {showArchivedProducts ? "Volver al inventario" : `Archivados (${archivedProductsCount})`}
             </button>
             {!showArchivedProducts && (
               <>
+                <label className="product-filter-select">
+                  <span>Marca</span>
+                  <select
+                    value={productBrandFilter}
+                    onChange={(event) => onProductBrandFilterChange?.(event.target.value)}
+                    aria-label="Filtrar inventario por marca"
+                  >
+                    <option value="all">Todas ({availableBrands.length})</option>
+                    {availableBrands.map((brandName) => (
+                      <option key={brandName} value={brandName}>
+                        {brandName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="product-filter-select">
                   <span>Disponibilidad</span>
                   <select
@@ -300,7 +346,7 @@ export default function ProductsPage({
           <div className="section-loading" role="status">
             <span className="loading-spinner" aria-hidden="true" />
             <div>
-              <strong>Cargando productos…</strong>
+              <strong>Cargando inventario…</strong>
               <span>Estamos reuniendo el catálogo, las presentaciones y el stock.</span>
             </div>
           </div>
@@ -310,11 +356,25 @@ export default function ProductsPage({
           <div className="table-row product-row header">
             <span>Producto</span><span>Presentación y costo unitario</span><span className="cell-center">Stock total</span><span className="cell-center">Disponibilidad</span><span className="cell-center">Acciones</span>
           </div>
-          {displayedProducts.map((product) => {
-            const stock = product.variants.reduce((s, v) => s + v.stock, 0);
-            const available = !product.archived && product.active !== false && stock > 0;
-            return (
-              <div className="table-row product-row" key={product.id}>
+          {groupedProducts.map((group) => (
+            <Fragment key={group.brand}>
+              <div className="product-brand-separator-row" role="region" aria-label={`Marca ${group.brand}`}>
+                <div className="product-brand-separator-content">
+                  <span className="product-brand-pill">Marca</span>
+                  <h4 className="product-brand-title">{group.brand}</h4>
+                  <span className="product-brand-badge">
+                    {group.products.length} {group.products.length === 1 ? "referencia" : "referencias"}
+                  </span>
+                  <span className="product-brand-stock-total">
+                    {group.totalStock} {group.totalStock === 1 ? "unidad" : "unidades"} en stock
+                  </span>
+                </div>
+              </div>
+              {group.products.map((product) => {
+                const stock = product.variants.reduce((s, v) => s + v.stock, 0);
+                const available = !product.archived && product.active !== false && stock > 0;
+                return (
+                  <div className="table-row product-row" key={product.id}>
                 <div className="product-cell">
                   <img src={product.image} alt="" loading="lazy" decoding="async" />
                   <div className="product-cell-copy">
@@ -449,6 +509,8 @@ export default function ProductsPage({
               </div>
             );
           })}
+        </Fragment>
+      ))}
           {visibleProducts.length === 0 && (
             <p className="insight">
               {showArchivedProducts
