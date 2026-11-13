@@ -32,7 +32,7 @@ import AdminButton from "../../components/admin/AdminButton";
 import EmptyState from "../../components/admin/EmptyState";
 import PeriodFilterSwitch from "../../components/admin/PeriodFilterSwitch";
 
-type OrderStatus = "pending_confirmation" | "confirmed" | "cancelled";
+type OrderStatus = "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled";
 type PaymentStatus = "pending" | "paid" | "refunded" | "credit" | "partial";
 
 function money(value: number) {
@@ -300,8 +300,17 @@ export default function OrdersPage({
 
   const netProfit = missingCostItems > 0 ? null : revenue - productCost - deliveryCost;
   const initialLoading = loading && orders.length === 0;
-  const normalizeOrderStatus = (status: string): OrderStatus =>
-    status === "confirmed" || status === "cancelled" ? status : "pending_confirmation";
+  const normalizeOrderStatus = (status: string): OrderStatus => {
+    if (
+      status === "confirmed" ||
+      status === "shipped" ||
+      status === "delivered" ||
+      status === "cancelled"
+    ) {
+      return status;
+    }
+    return "pending_confirmation";
+  };
   const normalizePaymentStatus = (status: string): PaymentStatus =>
     status === "paid" || status === "refunded" || status === "credit" || status === "partial" ? status : "pending";
 
@@ -650,14 +659,11 @@ export default function OrdersPage({
               </span>
               <div className="order-status-cell">
                 <label className="order-status-select">
-                  <span>Pedido</span>
+                  <span>Estado del pedido</span>
                   <select
                     aria-label={`Estado del pedido ${order.id.slice(0, 8)}`}
                     value={normalizeOrderStatus(order.status)}
-                    disabled={savingOrderId === order.id || order.payment_status === "paid"}
-                    title={order.payment_status === "paid"
-                      ? "La venta completada debe reembolsarse antes de editar el pedido."
-                      : "Cambiar el estado no impide completar la venta."}
+                    disabled={savingOrderId === order.id}
                     onChange={(event) => onStatusChange(
                       order,
                       event.target.value as OrderStatus,
@@ -666,13 +672,15 @@ export default function OrdersPage({
                   >
                     <option value="pending_confirmation">Por confirmar</option>
                     <option value="confirmed">Confirmado</option>
+                    <option value="shipped">Enviado</option>
+                    <option value="delivered">Entregado</option>
                     <option value="cancelled">Cancelado</option>
                   </select>
                 </label>
                 <label className="order-status-select">
-                  <span>Pago</span>
+                  <span>Estado de pago</span>
                   <select
-                    aria-label={`Pago del pedido ${order.id.slice(0, 8)}`}
+                    aria-label={`Estado de pago del pedido ${order.id.slice(0, 8)}`}
                     value={normalizePaymentStatus(order.payment_status)}
                     disabled={savingOrderId === order.id}
                     onChange={(event) => onStatusChange(
@@ -681,22 +689,11 @@ export default function OrdersPage({
                       event.target.value as PaymentStatus
                     )}
                   >
-                    {order.payment_status !== "paid" && order.payment_status !== "refunded" && <option value="pending">Pendiente</option>}
-                    {order.payment_status !== "refunded" && <option value="paid">Pagado · completar venta</option>}
-                    {(order.payment_status === "paid" || order.payment_status === "refunded") && <option value="refunded">Reembolsado</option>}
-                    {order.payment_status !== "paid" && order.payment_status !== "refunded" && order.payment_status !== "credit" && order.payment_status !== "partial" && (
-                      <>
-                        <option value="credit">Crédito</option>
-                        <option value="partial">Pago parcial</option>
-                      </>
-                    )}
-                    {(order.payment_status === "credit" || order.payment_status === "partial") && (
-                      <>
-                        {order.payment_status === "credit" && <option value="credit">Crédito</option>}
-                        <option value="partial">Pago parcial</option>
-                        <option value="paid">Marcar pagado</option>
-                      </>
-                    )}
+                    <option value="pending">Pendiente</option>
+                    <option value="paid">Pagado · completar venta</option>
+                    <option value="credit">Crédito</option>
+                    <option value="partial">Pago parcial</option>
+                    <option value="refunded">Reembolsado</option>
                   </select>
                 </label>
               </div>

@@ -555,8 +555,8 @@ export async function deleteAdminPendingOrder(orderId: string): Promise<void> {
 
 export async function updateAdminOrderStatus(
   orderId: string,
-  status: "pending_confirmation" | "confirmed" | "cancelled",
-  paymentStatus: "pending" | "paid" | "refunded"
+  status: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled",
+  paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial"
 ): Promise<void> {
   const client = requireSupabase();
   const { error } = await client.rpc("admin_update_order_transaction", {
@@ -619,7 +619,7 @@ export async function updateAdminProfileRole(
 // Crédito
 export async function updateAdminOrderWithCredit(
   orderId: string,
-  status: "pending_confirmation" | "confirmed" | "cancelled",
+  status: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled",
   paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial",
   creditDueDate?: string,
   creditLimitSnapshot?: number

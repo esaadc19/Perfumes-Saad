@@ -2704,7 +2704,7 @@ function Admin({
 
   const saveOrderStatus = async (
     order: AdminOrder,
-    status: "pending_confirmation" | "confirmed" | "cancelled",
+    status: "pending_confirmation" | "confirmed" | "shipped" | "delivered" | "cancelled",
     paymentStatus: "pending" | "paid" | "refunded" | "credit" | "partial"
   ) => {
     setSavingOrderId(order.id);
@@ -2730,7 +2730,10 @@ function Admin({
 
       await updateAdminOrderWithCredit(order.id, status, paymentStatus, creditDueDate, creditLimitSnapshot);
       
-      const finalStatus = paymentStatus === "paid" ? "confirmed" : status;
+      const finalStatus =
+        paymentStatus === "paid" && status === "pending_confirmation"
+          ? "confirmed"
+          : status;
       setOrders((current) => current.map((item) => item.id === order.id
         ? {
             ...item,
