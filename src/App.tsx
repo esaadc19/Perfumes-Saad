@@ -2747,11 +2747,14 @@ function Admin({
         : item
       ));
       setSectionRevision((current) => current + 1);
+      notifySuccess("Estado del pedido actualizado correctamente.");
     } catch (updateError) {
       console.error("No se pudo actualizar el estado del pedido:", updateError);
-      setSectionError(updateError instanceof Error
+      const msg = updateError instanceof Error
         ? updateError.message
-        : "No se pudo actualizar el pedido. Revisa tus permisos.");
+        : "No se pudo actualizar el pedido. Revisa tus permisos.";
+      setSectionError(msg);
+      notifyError(msg);
     } finally {
       setSavingOrderId(null);
     }
