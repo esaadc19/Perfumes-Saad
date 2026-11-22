@@ -42,6 +42,7 @@ import type { AdminSection } from "../../lib/admin-routes";
 import {
   togglePaymentReconciliation,
   batchReconcilePayments,
+  type AdminCustomer,
   type AdminDashboardMetrics,
   type AdminOrder,
 } from "../../services/admin";
@@ -60,6 +61,7 @@ interface FinancePageProps {
   orders: AdminOrder[];
   expenses: Expense[];
   creditOrders: CreditOrderSummary[];
+  customers?: AdminCustomer[];
   loading: boolean;
   metricsPeriod?: number | null;
   periodPreset: PeriodPreset;
@@ -74,7 +76,7 @@ interface FinancePageProps {
 }
 
 type TabView = "pnl" | "reconciliation";
-type IncomeFilter = "all" | "paid_orders" | "credit_abonos";
+type IncomeFilter = "all" | "cash_orders" | "credit_orders" | "paid_orders" | "credit_abonos";
 type ExpenseFilter = "all" | "operating" | "product_cost" | "credit_cost";
 
 export default function FinancePage({
@@ -82,6 +84,7 @@ export default function FinancePage({
   orders,
   expenses,
   creditOrders,
+  customers = [],
   loading,
   metricsPeriod,
   periodPreset,
@@ -122,6 +125,40 @@ export default function FinancePage({
   const periodFrom = metrics?.period_from ?? null;
   const periodTo = metrics?.period_to ?? null;
 
+  // Mapa de pedidos a crédito y sus cobros
+  const creditOrdersMap = useMemo(() => {
+    const map = new Map<string, CreditOrderSummary>();
+    for (const co of creditOrders) {
+      map.set(co.order_id, co);
+    }
+    return map;
+  }, [creditOrders]);
+
+  // Set de IDs de clientes con crédito habilitado o condiciones quincenal/mensual
+  const creditCustomerIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of customers) {
+      if (c.credit_enabled || Boolean(c.credit_terms)) {
+        set.add(c.id);
+      }
+    }
+    return set;
+  }, [customers]);
+
+  // Función para clasificar si un pedido corresponde a modalidad a crédito / por cuotas
+  const isOrderCreditOrCuotas = useMemo(() => {
+    return (order: AdminOrder): boolean => {
+      if (creditOrdersMap.has(order.id)) return true;
+      if (order.credit_due_date !== null) return true;
+      if (order.credit_limit_snapshot !== null && order.credit_limit_snapshot > 0) return true;
+      if (order.payment_status === "credit" || order.payment_status === "partial") return true;
+      if (order.customer_id && creditCustomerIds.has(order.customer_id)) {
+        if (order.cost_funded_by === "personal" || order.credit_due_date !== null) return true;
+      }
+      return false;
+    };
+  }, [creditOrdersMap, creditCustomerIds]);
+
   // 1. Pedidos pagados en el periodo
   const paidOrdersInPeriod = useMemo(() => {
     return orders.filter((order) => {
@@ -131,14 +168,29 @@ export default function FinancePage({
     });
   }, [orders, periodFrom, periodTo]);
 
-  // 2. Pedidos a credito abiertos en el periodo
+  // 1a. Ventas de contado puro (sin historial ni condiciones de crédito/cuotas)
+  const cashPaidOrders = useMemo(() => {
+    return paidOrdersInPeriod.filter((order) => !isOrderCreditOrCuotas(order));
+  }, [paidOrdersInPeriod, isOrderCreditOrCuotas]);
+
+  // 1b. Ventas a crédito / por cuotas que ya fueron saldadas en el período
+  const creditSettledOrders = useMemo(() => {
+    return paidOrdersInPeriod.filter((order) => isOrderCreditOrCuotas(order));
+  }, [paidOrdersInPeriod, isOrderCreditOrCuotas]);
+
+  // 2. Pedidos a credito abiertos en el periodo (o que recibieron abonos en el período)
   const openCreditOrdersInPeriod = useMemo(() => {
     return orders.filter((order) => {
       if (order.payment_status !== "credit" && order.payment_status !== "partial") return false;
       const createdDate = toBogotaDateStr(order.created_at);
-      return isDateInPeriod(createdDate, periodFrom, periodTo);
+      if (isDateInPeriod(createdDate, periodFrom, periodTo)) return true;
+      const co = creditOrdersMap.get(order.id);
+      if (co?.payments?.some((p) => isDateInPeriod(toBogotaDateStr(p.paid_at), periodFrom, periodTo))) {
+        return true;
+      }
+      return false;
     });
-  }, [orders, periodFrom, periodTo]);
+  }, [orders, creditOrdersMap, periodFrom, periodTo]);
 
   // Pedidos a credito con abonos > 0 en el periodo
   const creditOrdersWithAbonosInPeriod = useMemo(() => {
@@ -156,6 +208,14 @@ export default function FinancePage({
   }, [expenses, periodFrom, periodTo]);
 
   // Totales de P&L
+  const cashPaidOrdersTotal = useMemo(
+    () => cashPaidOrders.reduce((sum, o) => sum + Number(o.total), 0),
+    [cashPaidOrders]
+  );
+  const creditSettledOrdersTotal = useMemo(
+    () => creditSettledOrders.reduce((sum, o) => sum + Number(o.total), 0),
+    [creditSettledOrders]
+  );
   const paidOrdersTotal = useMemo(
     () => paidOrdersInPeriod.reduce((sum, o) => sum + Number(o.total), 0),
     [paidOrdersInPeriod]
@@ -168,6 +228,7 @@ export default function FinancePage({
       ),
     [creditOrdersWithAbonosInPeriod]
   );
+  const totalCreditRevenue = creditSettledOrdersTotal + abonosTotal;
 
   const totalRevenue = metrics ? Number(metrics.sales_revenue) : paidOrdersTotal + abonosTotal;
   const salesCost = metrics ? Number(metrics.sales_cost) : 0;
@@ -523,6 +584,8 @@ export default function FinancePage({
     const rows: Array<{
       id: string;
       type: "paid_order" | "credit_abono";
+      modality: "cash" | "credit_settled" | "credit_abono";
+      badgeLabel: string;
       dateStr: string;
       sortTime: number;
       title: string;
@@ -535,8 +598,9 @@ export default function FinancePage({
       reimbursement: number;
     }> = [];
 
-    if (incomeFilter === "all" || incomeFilter === "paid_orders") {
-      for (const order of paidOrdersInPeriod) {
+    // 1. Ventas pagadas de contado
+    if (incomeFilter === "all" || incomeFilter === "cash_orders" || incomeFilter === "paid_orders") {
+      for (const order of cashPaidOrders) {
         const b = getOrderFinancialBreakdown(order);
         const customerName = order.customers?.full_name?.trim() || "Cliente";
         const orderCode = `#${order.id.slice(0, 8).toUpperCase()}`;
@@ -549,6 +613,8 @@ export default function FinancePage({
         rows.push({
           id: `order-${order.id}`,
           type: "paid_order",
+          modality: "cash",
+          badgeLabel: "Venta de contado",
           dateStr: toBogotaDateStr(timestamp),
           sortTime: new Date(timestamp).getTime(),
           title: `${orderCode} · ${customerName}`,
@@ -563,23 +629,41 @@ export default function FinancePage({
       }
     }
 
-    if (incomeFilter === "all" || incomeFilter === "credit_abonos") {
-      for (const order of creditOrdersWithAbonosInPeriod) {
+    // 2. Ventas a crédito / por cuotas ya saldadas en el período
+    if (incomeFilter === "all" || incomeFilter === "credit_orders" || incomeFilter === "credit_abonos") {
+      for (const order of creditSettledOrders) {
         const b = getOrderFinancialBreakdown(order);
         const customerName = order.customers?.full_name?.trim() || "Cliente";
         const orderCode = `#${order.id.slice(0, 8).toUpperCase()}`;
         const itemsSummary = order.order_items
           .map((item) => `${item.product_name_snapshot} ${item.size_ml}ml ×${item.quantity}`)
           .join(", ");
+        const timestamp = order.paid_at ?? order.created_at;
         const isPersonal = order.cost_funded_by === "personal";
+        const co = creditOrdersMap.get(order.id);
+        const paymentsCount = co?.payments?.length ?? 0;
+
+        let badgeLabel = "Venta por cuotas (saldada)";
+        let subtitle = itemsSummary || "Sin productos detallados";
+        if (paymentsCount > 1) {
+          badgeLabel = `Venta por cuotas (saldada · ${paymentsCount} cuotas)`;
+          subtitle = `${itemsSummary} · Saldado en ${paymentsCount} cuotas (${co!.payments.map((p) => money(p.amount)).join(" + ")})`;
+        } else if (paymentsCount === 1) {
+          badgeLabel = "Venta por cuotas (saldada · 1 pago)";
+          subtitle = `${itemsSummary} · Cuota única de ${money(co!.payments[0].amount)} recibida`;
+        } else if (order.credit_due_date) {
+          subtitle = `${itemsSummary} · Venta a cuotas acordada (Vencía ${formatBogotaDate(order.credit_due_date)})`;
+        }
 
         rows.push({
-          id: `credit-order-${order.id}`,
-          type: "credit_abono",
-          dateStr: toBogotaDateStr(order.created_at),
-          sortTime: new Date(order.created_at).getTime(),
+          id: `order-settled-${order.id}`,
+          type: "paid_order",
+          modality: "credit_settled",
+          badgeLabel,
+          dateStr: toBogotaDateStr(timestamp),
+          sortTime: new Date(timestamp).getTime(),
           title: `${orderCode} · ${customerName}`,
-          subtitle: `${itemsSummary} · Abonado ${money(b.collectedRevenue)} de ${money(b.orderTotal)}`,
+          subtitle,
           advisor: order.sales_advisor_name ?? null,
           revenue: b.collectedRevenue,
           orderTotal: b.orderTotal,
@@ -590,16 +674,60 @@ export default function FinancePage({
       }
     }
 
+    // 3. Abonos de pedidos a crédito en curso
+    if (incomeFilter === "all" || incomeFilter === "credit_orders" || incomeFilter === "credit_abonos") {
+      for (const order of creditOrdersWithAbonosInPeriod) {
+        const b = getOrderFinancialBreakdown(order);
+        const customerName = order.customers?.full_name?.trim() || "Cliente";
+        const orderCode = `#${order.id.slice(0, 8).toUpperCase()}`;
+        const itemsSummary = order.order_items
+          .map((item) => `${item.product_name_snapshot} ${item.size_ml}ml ×${item.quantity}`)
+          .join(", ");
+        const isPersonal = order.cost_funded_by === "personal";
+        const co = creditOrdersMap.get(order.id);
+        const latestPayment = co?.payments?.[co.payments.length - 1];
+        const payDate = latestPayment?.paid_at ?? order.created_at;
+
+        rows.push({
+          id: `credit-order-${order.id}`,
+          type: "credit_abono",
+          modality: "credit_abono",
+          badgeLabel: "Abono de cuota",
+          dateStr: toBogotaDateStr(payDate),
+          sortTime: new Date(payDate).getTime(),
+          title: `${orderCode} · ${customerName}`,
+          subtitle: `${itemsSummary} · Abonado ${money(b.collectedRevenue)} de ${money(b.orderTotal)} (Resta ${money(b.creditBalance)})`,
+          advisor: order.sales_advisor_name ?? null,
+          revenue: b.collectedRevenue,
+          orderTotal: b.orderTotal,
+          profit: b.realizedProfit,
+          costFundedBy: isPersonal ? "personal" : "business",
+          reimbursement: isPersonal ? b.coveredCost : 0,
+        });
+      }
+    }
+
+    // Ordenar cronológicamente (más recientes primero)
+    rows.sort((a, b) => b.sortTime - a.sortTime);
+
     const q = incomeSearch.trim().toLowerCase();
     return q
       ? rows.filter(
           (row) =>
             row.title.toLowerCase().includes(q) ||
             row.subtitle.toLowerCase().includes(q) ||
+            row.badgeLabel.toLowerCase().includes(q) ||
             (row.advisor && row.advisor.toLowerCase().includes(q))
         )
       : rows;
-  }, [paidOrdersInPeriod, creditOrdersWithAbonosInPeriod, incomeFilter, incomeSearch]);
+  }, [
+    cashPaidOrders,
+    creditSettledOrders,
+    creditOrdersWithAbonosInPeriod,
+    creditOrdersMap,
+    incomeFilter,
+    incomeSearch,
+  ]);
 
   const filteredIncomeRevenue = useMemo(
     () => incomeRows.reduce((acc, r) => acc + r.revenue, 0),
@@ -1200,12 +1328,12 @@ export default function FinancePage({
               </div>
               <div className="finance-kpi-Sublist">
                 <div>
-                  <span>Ventas de contado ({paidOrdersInPeriod.length})</span>
-                  <strong>{money(paidOrdersTotal)}</strong>
+                  <span>Ventas de contado ({cashPaidOrders.length})</span>
+                  <strong>{money(cashPaidOrdersTotal)}</strong>
                 </div>
                 <div>
-                  <span>Abonos de créditos ({creditOrdersWithAbonosInPeriod.length})</span>
-                  <strong>{money(abonosTotal)}</strong>
+                  <span>Por cuotas / crédito ({creditSettledOrders.length + creditOrdersWithAbonosInPeriod.length})</span>
+                  <strong>{money(totalCreditRevenue)}</strong>
                 </div>
                 <div>
                   <span>Total cobros</span>
@@ -1361,7 +1489,7 @@ export default function FinancePage({
                     <ArrowUpRight size={18} style={{ color: "#166534" }} />
                     <div>
                       <strong>(+) Ingresos Operacionales</strong>
-                      <small>{paidOrdersInPeriod.length} ventas contado · {creditOrdersWithAbonosInPeriod.length} abonos de cartera</small>
+                      <small>{cashPaidOrders.length} ventas contado · {creditSettledOrders.length + creditOrdersWithAbonosInPeriod.length} por cuotas / crédito</small>
                     </div>
                   </div>
                   <strong className="finance-line-amount positive">+{money(totalRevenue)}</strong>
@@ -1509,21 +1637,21 @@ export default function FinancePage({
                   className={incomeFilter === "all" ? "selected" : ""}
                   onClick={() => setIncomeFilter("all")}
                 >
-                  Todos ({paidOrdersInPeriod.length + creditOrdersWithAbonosInPeriod.length})
+                  Todos ({cashPaidOrders.length + creditSettledOrders.length + creditOrdersWithAbonosInPeriod.length})
                 </button>
                 <button
                   type="button"
-                  className={incomeFilter === "paid_orders" ? "selected" : ""}
-                  onClick={() => setIncomeFilter("paid_orders")}
+                  className={incomeFilter === "cash_orders" || incomeFilter === "paid_orders" ? "selected" : ""}
+                  onClick={() => setIncomeFilter("cash_orders")}
                 >
-                  Ventas pagadas ({paidOrdersInPeriod.length})
+                  Ventas de contado ({cashPaidOrders.length})
                 </button>
                 <button
                   type="button"
-                  className={incomeFilter === "credit_abonos" ? "selected" : ""}
-                  onClick={() => setIncomeFilter("credit_abonos")}
+                  className={incomeFilter === "credit_orders" || incomeFilter === "credit_abonos" ? "selected" : ""}
+                  onClick={() => setIncomeFilter("credit_orders")}
                 >
-                  Abonos de créditos ({creditOrdersWithAbonosInPeriod.length})
+                  Por cuotas / crédito ({creditSettledOrders.length + creditOrdersWithAbonosInPeriod.length})
                 </button>
               </div>
 
@@ -1560,8 +1688,8 @@ export default function FinancePage({
                     <span className="finance-date">{formatBogotaDate(row.dateStr)}</span>
                     <div className="finance-row-main">
                       <strong>{row.title}</strong>
-                      <span className="finance-badge-type">
-                        {row.type === "paid_order" ? "Venta de contado" : "Abono de cartera"}
+                      <span className={`finance-badge-type finance-badge-type--${row.modality}`}>
+                        {row.badgeLabel}
                       </span>
                     </div>
                     <div className="finance-row-main">

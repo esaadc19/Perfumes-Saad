@@ -3458,6 +3458,7 @@ function Admin({
               orders={orders}
               expenses={expenses}
               creditOrders={creditOrders}
+              customers={customers}
               loading={sectionLoading}
               metricsPeriod={metricsPeriod}
               periodPreset={periodPreset}
