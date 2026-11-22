@@ -1651,6 +1651,7 @@ function App() {
           promotions={promotions}
           onPromotionsChange={setPromotions}
           currentUserId={user?.id ?? ""}
+          currentUser={user}
           allowedSections={allowedSections}
           permissionsLoaded={permissionsLoaded}
           onImportProducts={handleProductImport}
@@ -1816,6 +1817,7 @@ function Admin({
   onPromotionsChange,
   onProductsRefresh,
   currentUserId,
+  currentUser,
   allowedSections,
   permissionsLoaded,
   onImportProducts,
@@ -1847,6 +1849,7 @@ function Admin({
   onPromotionsChange: (promotions: Promotion[]) => void;
   onProductsRefresh: () => Promise<void>;
   currentUserId: string;
+  currentUser?: AuthUser | null;
   /**
    * Secciones del panel que esta cuenta puede ver. `null` = todavia no
    * se consulto. Un arreglo vacio = la cuenta no tiene ninguna.
@@ -3155,6 +3158,12 @@ function Admin({
   );
   const pageTitle = visibleSections.find((item) => item.id === section)?.title ?? "Dashboard";
   const canOpenOrders = visibleSections.some((item) => item.id === "transactions");
+  const currentProfile = profiles.find((item) => item.id === currentUserId);
+  const currentUserName =
+    currentProfile?.full_name ||
+    (currentUser?.user_metadata?.full_name as string | undefined) ||
+    currentUser?.email ||
+    "";
 
   // Una cuenta sin secciones asignadas no ve un panel vacio: ve un aviso
   // que le dice que hacer. Un panel en blanco parece un error de la app y
@@ -3391,6 +3400,7 @@ function Admin({
         {section === "overview" && metrics && (
           <Suspense fallback={<div className="loading-state" role="status"><span className="loading-spinner" aria-hidden="true" /><span>Cargando dashboard…</span></div>}>
             <DashboardPage
+              userName={currentUserName}
               metrics={metrics}
               orders={orders}
               products={products}

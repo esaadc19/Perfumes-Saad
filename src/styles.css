@@ -9188,5 +9188,180 @@ footer a { color: #111; }
   }
 }
 
+/* ========================================================
+   BANNER INSPIRACIONAL Y SALUDO DEL DASHBOARD
+   ======================================================== */
+.dashboard-inspirational-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #fdfbf7 60%, #faf6ee 100%);
+  border: 1px solid rgba(180, 83, 9, 0.16);
+  border-left: 4px solid #b45309;
+  border-radius: 14px;
+  padding: 16px 22px;
+  box-shadow: 0 4px 18px -4px rgba(44, 36, 32, 0.04), 0 1px 3px rgba(44, 36, 32, 0.02);
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.dashboard-inspirational-banner::before {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 130px;
+  height: 130px;
+  background: radial-gradient(circle, rgba(217, 119, 6, 0.07) 0%, transparent 70%);
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.inspirational-banner-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.inspirational-greeting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.inspirational-emoji {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.inspirational-greeting-text {
+  margin: 0;
+  font-family: "Playfair Display", Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1c1917;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.inspirational-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  background: rgba(180, 83, 9, 0.08);
+  border: 1px solid rgba(180, 83, 9, 0.18);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #92400e;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.inspirational-sparkle-icon {
+  color: #b45309;
+}
+
+.inspirational-quote-block {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  min-width: 0;
+}
+
+.inspirational-quote-block.is-changing {
+  opacity: 0.15;
+  transform: translateY(2px);
+}
+
+.inspirational-quote-mark {
+  color: #b45309;
+  opacity: 0.7;
+  flex-shrink: 0;
+  transform: translateY(2px);
+}
+
+.inspirational-quote-text {
+  margin: 0;
+  font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14.5px;
+  font-weight: 500;
+  font-style: italic;
+  color: #44403c;
+  line-height: 1.45;
+  display: inline;
+}
+
+.inspirational-quote-author {
+  font-size: 13px;
+  font-weight: 600;
+  color: #b45309;
+  font-style: normal;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.inspirational-banner-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.inspirational-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid rgba(180, 83, 9, 0.22);
+  color: #78350f;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.inspirational-refresh-btn:hover {
+  background: #fef8ee;
+  border-color: #b45309;
+  color: #b45309;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px -1px rgba(180, 83, 9, 0.12);
+}
+
+.inspirational-refresh-btn:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .dashboard-inspirational-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 14px 16px;
+    gap: 12px;
+  }
+  .inspirational-greeting-text {
+    font-size: 19px;
+  }
+  .inspirational-quote-text {
+    font-size: 13.5px;
+  }
+  .inspirational-banner-actions {
+    align-self: flex-end;
+  }
+}
+
+
 
 

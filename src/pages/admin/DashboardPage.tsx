@@ -25,12 +25,14 @@ import type { ReportResult } from "./types";
 import DecantsSection from "../../components/admin/DecantsSection";
 import FullBottlesSection from "../../components/admin/FullBottlesSection";
 import PeriodFilterSwitch from "../../components/admin/PeriodFilterSwitch";
+import InspirationalBanner from "../../components/admin/InspirationalBanner";
 import { type PeriodPreset } from "../../services/admin-periods";
 import { getPeriodRange } from "../../lib/decants-metrics";
 
 export type DashboardDetail = "sold-out" | "low-stock" | "pending" | "profitability" | null;
 
 interface DashboardPageProps {
+  userName?: string;
   metrics: AdminDashboardMetrics;
   orders: AdminOrder[];
   products: Product[];
@@ -67,6 +69,7 @@ interface DashboardPageProps {
 }
 
 export default function DashboardPage({
+  userName,
   metrics,
   orders,
   expenses = [],
@@ -286,6 +289,11 @@ export default function DashboardPage({
           />
         </div>
       </header>
+
+      {/* ========================================================
+          BANNER DE BIENVENIDA Y FRASE INSPIRACIONAL
+         ======================================================== */}
+      <InspirationalBanner userName={userName} />
 
       {/* ========================================================
           2. PANEL FINTECH PRINCIPAL (SOLO LO PEDIDO)
