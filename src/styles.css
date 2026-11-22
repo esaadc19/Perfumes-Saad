@@ -9538,6 +9538,40 @@ footer a { color: #111; }
   }
 }
 
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.hero-promo-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 169, 110, 0.7);
+  background: linear-gradient(135deg, #2c2420 0%, #1a1614 100%);
+  color: #fdfcfa;
+  font-size: 13.5px;
+  transition: transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out);
+}
+
+.hero-promo-banner:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(44, 36, 32, 0.2);
+}
+
+.hero-promo-banner svg {
+  color: var(--dorado);
+  flex-shrink: 0;
+}
+
+.hero-promo-banner strong {
+  color: var(--dorado);
+}
+
 
 
 
