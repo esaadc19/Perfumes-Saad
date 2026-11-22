@@ -37,6 +37,16 @@ export type FunnelRow = {
   stepConversion: number | null;
 };
 
+export type FollowUpItem = {
+  orderId: string;
+  kind: "postventa" | "recompra";
+  daysAgo: number;
+  customerName: string;
+  phone: string;
+  total: number;
+  whatsappUrl: string;
+};
+
 export type DashboardData = {
   stages: Stage[];
   funnel: FunnelRow[];
@@ -55,6 +65,8 @@ export type DashboardData = {
   /** Tareas pendientes que vencen hoy. */
   tasksToday: number;
   tasksOverdue: number;
+  /** Pedidos en ventana de seguimiento (Día 4 post-venta y Día 40 recompra). */
+  followUps: FollowUpItem[];
   /** Cifras de la tienda; null si el usuario no es admin. */
   store: {
     salesRevenue: number;
@@ -172,6 +184,8 @@ export async function loadDashboard(range: Range): Promise<DashboardData> {
         : "No se pudieron leer las cifras de la tienda.";
   }
 
+  const followUps = await fetchFollowUps();
+
   return {
     stages,
     funnel: rows,
@@ -185,9 +199,74 @@ export async function loadDashboard(range: Range): Promise<DashboardData> {
     openConversations: openConversations.length,
     tasksToday,
     tasksOverdue,
+    followUps,
     store,
     storeError,
   };
+}
+
+function buildWhatsappUrl(phone: string, text: string): string {
+  const digits = phone.replace(/\D/g, "");
+  const normalized = digits.length === 10 ? `57${digits}` : digits;
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(text)}`;
+}
+
+async function fetchFollowUps(): Promise<FollowUpItem[]> {
+  try {
+    const sinceIso = new Date(Date.now() - 46 * 86400000).toISOString();
+    const { data, error } = await requireSupabase()
+      .from("orders")
+      .select("id, status, created_at, total, customers(full_name, phone)")
+      .in("status", ["Entregado", "Pagado"])
+      .gte("created_at", sinceIso)
+      .order("created_at", { ascending: false });
+    if (error || !data) return [];
+
+    const nowMs = Date.now();
+    const items: FollowUpItem[] = [];
+    for (const row of data as Array<{
+      id: string;
+      status: string;
+      created_at: string;
+      total: number;
+      customers: { full_name: string | null; phone: string | null } | Array<{ full_name: string | null; phone: string | null }> | null;
+    }>) {
+      const customer = Array.isArray(row.customers) ? row.customers[0] : row.customers;
+      const phone = customer?.phone?.trim() ?? "";
+      if (!phone) continue;
+
+      const daysAgo = Math.floor((nowMs - new Date(row.created_at).getTime()) / 86400000);
+      const customerName = customer?.full_name?.trim() || "Cliente";
+      const firstName = customerName.split(/\s+/)[0] || customerName;
+
+      if (daysAgo >= 3 && daysAgo <= 5) {
+        const msg = `Hola ${firstName}, ¿cómo te fue con tu perfume de Perfumes SAAD? ¿Qué tal la fijación y los cumplidos que te han hecho?`;
+        items.push({
+          orderId: row.id,
+          kind: "postventa",
+          daysAgo,
+          customerName,
+          phone,
+          total: num(row.total),
+          whatsappUrl: buildWhatsappUrl(phone, msg),
+        });
+      } else if (daysAgo >= 38 && daysAgo <= 45) {
+        const msg = `Hola ${firstName}, tu perfume de Perfumes SAAD ya debe estar por terminarse. Escríbeme si quieres conocer las nuevas referencias con precio especial VIP.`;
+        items.push({
+          orderId: row.id,
+          kind: "recompra",
+          daysAgo,
+          customerName,
+          phone,
+          total: num(row.total),
+          whatsappUrl: buildWhatsappUrl(phone, msg),
+        });
+      }
+    }
+    return items;
+  } catch {
+    return [];
+  }
 }
 
 type DealRow = {

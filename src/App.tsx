@@ -337,6 +337,21 @@ function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const campaign = params.get("utm_campaign")?.trim();
+      const source = params.get("utm_source")?.trim();
+      if (campaign || source) {
+        const tag = [source, campaign].filter(Boolean).join(" / ");
+        sessionStorage.setItem("perfumes-saad-utm", tag);
+      }
+    } catch {
+      // sessionStorage no disponible
+    }
+  }, []);
+
   // La tienda necesita las promociones activas aunque el visitante no haya
   // abierto el panel: la sección de ofertas del catálogo se alimenta de aquí.
   useEffect(() => {

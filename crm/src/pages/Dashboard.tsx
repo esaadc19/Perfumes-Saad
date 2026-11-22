@@ -189,6 +189,57 @@ export default function Dashboard() {
       </div>
 
       <div style={{ marginTop: 14 }}>
+        <Card
+          title="Seguimientos de hoy (Día 4 y Día 40)"
+          caption="Clientes en ventana de post-venta o recompra listos para escribirles por WhatsApp"
+          actions={
+            data.followUps.length > 0 ? (
+              <Badge tone="info">{data.followUps.length} pendientes</Badge>
+            ) : null
+          }
+        >
+          {data.followUps.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 13, color: "var(--crm-text-soft)" }}>
+              No hay pedidos en ventana de Día 4 (3–5 días) ni Día 40 (38–45 días) por hoy.
+            </p>
+          ) : (
+            <ul className="crm-todo-list">
+              {data.followUps.map((item) => (
+                <li key={item.orderId}>
+                  <Badge tone={item.kind === "postventa" ? "info" : "success"}>
+                    {item.kind === "postventa" ? `Día ${item.daysAgo} · Post-venta` : `Día ${item.daysAgo} · Recompra`}
+                  </Badge>
+                  <span>
+                    <strong>{item.customerName}</strong> · {formatMoney(item.total)}
+                  </span>
+                  <a
+                    className="crm-todo-list__aside"
+                    href={item.whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      background: "rgba(26, 46, 34, 0.1)",
+                      color: "var(--crm-accent, #1a2e22)",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                      fontSize: 12,
+                    }}
+                  >
+                    <MessageCircle size={13} /> WhatsApp
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+
+      <div style={{ marginTop: 14 }}>
         <Card title="Embudo" caption="Dónde se traban los clientes">
           <Funnel rows={data.funnel} />
         </Card>

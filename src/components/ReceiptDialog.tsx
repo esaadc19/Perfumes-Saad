@@ -69,8 +69,15 @@ export default function ReceiptDialog({
     [cart]
   );
   const previewTotal = previewPrice.total;
+  const utmTag = useMemo(() => {
+    try {
+      return sessionStorage.getItem("perfumes-saad-utm") ?? "";
+    } catch {
+      return "";
+    }
+  }, []);
   const whatsappMessage = receipt
-    ? `${whatsappGreeting}\n\n${receipt.message}`
+    ? `${whatsappGreeting}\n\n${receipt.message}${utmTag ? `\nRef: ${utmTag}` : ""}`
     : "";
 
   useEffect(() => {
@@ -373,8 +380,15 @@ export default function ReceiptDialog({
             </article>
             {receipt ? (
               <div className="receipt-actions">
+                <a
+                  className="primary"
+                  href={`https://wa.me/${whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent(whatsappMessage)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Send size={17} /> Enviar pedido por WhatsApp
+                </a>
                 <button className="secondary" onClick={() => window.print()}><Printer size={17} /> Imprimir recibo</button>
-                <span className="receipt-auto-send"><Send size={15} /> Pedido enviado a WhatsApp automáticamente</span>
               </div>
             ) : (
               <p className="receipt-print-hint"><Printer size={15} /> Vista previa estilo recibo térmico</p>
