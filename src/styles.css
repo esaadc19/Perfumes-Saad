@@ -9393,6 +9393,151 @@ footer a { color: #111; }
   }
 }
 
+/* Cintillo de promociones activas sobre el catálogo */
+.promo-spotlight-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.promo-spotlight-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 169, 110, 0.55);
+  background: linear-gradient(135deg, #2c2420 0%, #1a1614 100%);
+  color: #fdfcfa;
+  font-size: 13.5px;
+  transition: transform 0.18s var(--ease-out), box-shadow 0.18s var(--ease-out), border-color 0.18s var(--ease-out);
+}
+
+.promo-spotlight-pill:hover {
+  transform: translateY(-1px);
+  border-color: var(--dorado);
+  box-shadow: 0 6px 16px rgba(44, 36, 32, 0.16);
+}
+
+.promo-spotlight-pill svg {
+  color: var(--dorado);
+  flex-shrink: 0;
+}
+
+.promo-spotlight-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  text-align: left;
+}
+
+.promo-spotlight-text strong {
+  color: var(--dorado);
+  font-weight: 600;
+}
+
+.promo-spotlight-text span {
+  color: rgba(253, 252, 250, 0.85);
+  font-size: 12.5px;
+}
+
+.promo-spotlight-cta {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(201, 169, 110, 0.18);
+  color: var(--dorado);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.promo-spotlight-pill.active {
+  border-color: var(--dorado);
+  box-shadow: 0 0 0 2px rgba(201, 169, 110, 0.35);
+}
+
+.promo-spotlight-pill.active .promo-spotlight-cta {
+  background: var(--dorado);
+  color: #1a1614;
+}
+
+/* Barras de progreso en el carrito (promociones y envío gratis) */
+.cart-progress-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cart-progress-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--soft);
+  font-size: 12.5px;
+  color: var(--negro);
+}
+
+.cart-progress-card.promo {
+  border-color: rgba(201, 169, 110, 0.45);
+  background: #fbf7ef;
+}
+
+.cart-progress-card.reached {
+  border-color: rgba(26, 46, 34, 0.3);
+  background: #eff5f1;
+  color: var(--verde);
+}
+
+.cart-progress-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+  line-height: 1.35;
+}
+
+.cart-progress-head svg {
+  flex-shrink: 0;
+  color: var(--cuero);
+}
+
+.cart-progress-card.promo .cart-progress-head svg {
+  color: #9e7634;
+}
+
+.cart-progress-card.reached .cart-progress-head svg {
+  color: var(--verde);
+}
+
+.cart-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(44, 36, 32, 0.1);
+  overflow: hidden;
+}
+
+.cart-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b88c46 0%, #c9a96e 100%);
+  transition: width 0.25s var(--ease-out);
+}
+
+.cart-progress-card.reached .cart-progress-fill {
+  background: var(--verde);
+}
+
+@media (max-width: 600px) {
+  .promo-spotlight-pill {
+    width: 100%;
+    justify-content: space-between;
+    border-radius: 14px;
+  }
+}
+
 
 
 

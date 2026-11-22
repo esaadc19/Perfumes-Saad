@@ -167,6 +167,7 @@ import {
   Tag,
   TrendingUp,
   Trash2,
+  Truck,
   Wallet,
   Upload,
   User,
@@ -966,6 +967,36 @@ function App() {
   };
 
   const total = cartPrice.total;
+  const FREE_SHIPPING_THRESHOLD = 250000;
+
+  const cartPromoProgress = useMemo(() => {
+    const groups = new Map<string, { promotion: Promotion; quantity: number }>();
+    for (const item of cart) {
+      const promo = item.product.promotion;
+      if (!promo?.active || !isVariantPromotionEligible(item.product, item.variant)) continue;
+      const key = promo.allow_mixed ? promo.id : `${promo.id}:${item.product.id}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.quantity += item.quantity;
+      } else {
+        groups.set(key, { promotion: promo, quantity: item.quantity });
+      }
+    }
+    const pending: Array<{ promotion: Promotion; current: number; required: number; missing: number }> = [];
+    for (const { promotion, quantity } of groups.values()) {
+      const required = Math.max(promotion.required_quantity, 1);
+      const remainder = quantity % required;
+      if (remainder > 0) {
+        pending.push({
+          promotion,
+          current: remainder,
+          required,
+          missing: required - remainder,
+        });
+      }
+    }
+    return pending;
+  }, [cart]);
 
   return (
     <div className="app">
@@ -1100,6 +1131,35 @@ function App() {
                   {filteredProducts.length} producto{filteredProducts.length === 1 ? "" : "s"}
                 </span>
               </div>
+
+              {activePromotions.some((p) => (promotionProductCounts[p.id] ?? 0) > 0) && (
+                <div className="promo-spotlight-bar" role="region" aria-label="Promociones activas">
+                  {activePromotions
+                    .filter((p) => (promotionProductCounts[p.id] ?? 0) > 0)
+                    .map((promotion) => {
+                      const count = promotionProductCounts[promotion.id] ?? 0;
+                      const isSelected = offerFilter === promotion.id;
+                      return (
+                        <button
+                          key={promotion.id}
+                          type="button"
+                          className={isSelected ? "promo-spotlight-pill active" : "promo-spotlight-pill"}
+                          aria-pressed={isSelected}
+                          onClick={() => setOfferFilter(isSelected ? "none" : promotion.id)}
+                        >
+                          <Tag size={15} aria-hidden="true" />
+                          <span className="promo-spotlight-text">
+                            <strong>{promotion.name}</strong>
+                            <span>{promotion.required_quantity} por {money(promotion.bundle_price)}</span>
+                          </span>
+                          <span className="promo-spotlight-cta">
+                            {isSelected ? "Mostrando · Quitar" : `Ver ${count} en promo`}
+                          </span>
+                        </button>
+                      );
+                    })}
+                </div>
+              )}
 
               <div className="catalog-layout">
                 <aside className="catalog-sidebar" aria-label="Filtros del catálogo">
@@ -1543,6 +1603,48 @@ function App() {
                   </div>
                 ) : (
                   <>
+                    <div className="cart-progress-stack">
+                      {cartPromoProgress.map(({ promotion, current, required, missing }) => (
+                        <div className="cart-progress-card promo" key={promotion.id} role="status">
+                          <div className="cart-progress-head">
+                            <Tag size={14} aria-hidden="true" />
+                            <span>
+                              Te {missing === 1 ? "falta" : "faltan"} <strong>{missing} {missing === 1 ? "unidad" : "unidades"}</strong> para{" "}
+                              <strong>{promotion.name}</strong> ({required} por {money(promotion.bundle_price)})
+                            </span>
+                          </div>
+                          <div className="cart-progress-track" aria-hidden="true">
+                            <div
+                              className="cart-progress-fill"
+                              style={{ width: `${Math.min(100, Math.round((current / required) * 100))}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+
+                      <div
+                        className={total >= FREE_SHIPPING_THRESHOLD ? "cart-progress-card reached" : "cart-progress-card"}
+                        role="status"
+                      >
+                        <div className="cart-progress-head">
+                          <Truck size={14} aria-hidden="true" />
+                          <span>
+                            {total >= FREE_SHIPPING_THRESHOLD ? (
+                              <>¡Ya tienes <strong>envío gratis</strong> en tu pedido!</>
+                            ) : (
+                              <>Te faltan <strong>{money(FREE_SHIPPING_THRESHOLD - total)}</strong> para <strong>envío gratis</strong></>
+                            )}
+                          </span>
+                        </div>
+                        <div className="cart-progress-track" aria-hidden="true">
+                          <div
+                            className="cart-progress-fill"
+                            style={{ width: `${Math.min(100, Math.round((total / FREE_SHIPPING_THRESHOLD) * 100))}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {cartPrice.discount > 0 && (
                       <p className="cart-promotion-note" role="status">
                         Descuento promocional aplicado al pedido: <strong>-{money(cartPrice.discount)}</strong>
