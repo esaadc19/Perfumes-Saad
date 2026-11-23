@@ -25,9 +25,13 @@ El decant cumple dos propósitos estratégicos en el negocio:
 - **Fijación de precio:** El valor del decant **no es plano**; varía proporcionalmente según el costo y exclusividad de la botella original.
 
 ### 2. Tarifas de Envío y Domicilios
-- **Envío GRATIS:** Aplica para compras iguales o superiores a **$250.000 COP**.
-- **Domicilio local (Barranquilla y Soledad):** Para pedidos menores a $250.000 COP, el costo oscila entre **$10.000 y $12.000 COP**, según la zona/barrio.
-- **Envíos nacionales:** Tarifa estándar de **$25.000 COP** para envíos fuera de Barranquilla (vía transportadora).
+- **Barranquilla y Soledad (Local):**
+  - **Envío GRATIS:** Compras iguales o superiores a **$250.000 COP**.
+  - **Menores a $250.000 COP:** Entre **$10.000 y $12.000 COP**, según la zona/barrio.
+- **Envíos nacionales (fuera de Barranquilla):**
+  - **Envío GRATIS:** Compras iguales o superiores a **$320.000 COP**.
+  - **Entre $250.000 y $319.999 COP:** Tarifa subsidiada al 50% (**$12.500 COP**).
+  - **Menores a $250.000 COP:** Tarifa estándar de **$25.000 COP** (vía transportadora).
 
 ### 3. Política de Crédito (Venta a Fiado)
 - **A quién se le fía:** Estrictamente a **amigos cercanos, familiares y compañeros de trabajo**.

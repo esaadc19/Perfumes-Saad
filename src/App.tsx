@@ -478,6 +478,7 @@ function App() {
   // "none" = sin filtro, "all" = cualquier producto en oferta y cualquier
   // otro valor es el id de una promoción concreta.
   const [offerFilter, setOfferFilter] = useState("none");
+  const [formatFilter, setFormatFilter] = useState<"all" | "decants" | "bottles">("all");
   const [catalogFiltersOpen, setCatalogFiltersOpen] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -858,18 +859,24 @@ function App() {
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       if (p.active === false || p.variants.length === 0) return false;
+      const lowerSearch = search.toLowerCase().trim();
       const matchesSearch =
-        `${p.brand} ${p.name}`.toLowerCase().includes(search.toLowerCase());
+        `${p.brand} ${p.name}`.toLowerCase().includes(lowerSearch)
+        || (lowerSearch.includes("decant") && p.variants.some((v) => v.size <= 15));
       const matchesBrand = brandFilter === "Todas" || p.brand === brandFilter;
       const matchesCategory = category === "Todos" || p.category === category;
       const matchesGender = genderFilter === "Todos" || p.gender === genderFilter;
+      const matchesFormat = formatFilter === "all"
+        || (formatFilter === "decants"
+          ? p.variants.some((v) => v.size <= 15)
+          : p.variants.some((v) => v.size > 15));
       const matchesOffer = offerFilter === "none"
         || (offerFilter === "all"
           ? productHasActivePromotion(p)
           : productHasActivePromotion(p) && p.promotion?.id === offerFilter);
-      return matchesSearch && matchesBrand && matchesCategory && matchesGender && matchesOffer;
+      return matchesSearch && matchesBrand && matchesCategory && matchesGender && matchesFormat && matchesOffer;
     });
-  }, [products, search, brandFilter, category, genderFilter, offerFilter]);
+  }, [products, search, brandFilter, category, genderFilter, formatFilter, offerFilter]);
   const heroProduct = useMemo(() => {
     const candidates = products.filter((product) =>
       product.active !== false
@@ -912,10 +919,23 @@ function App() {
     () => Object.values(promotionProductCounts).reduce((sum, count) => sum + count, 0),
     [promotionProductCounts]
   );
+  const decantProductCount = useMemo(() => {
+    return products.filter((p) => p.active !== false && p.variants.some((v) => v.size <= 15)).length;
+  }, [products]);
+  const bottleProductCount = useMemo(() => {
+    return products.filter((p) => p.active !== false && p.variants.some((v) => v.size > 15)).length;
+  }, [products]);
+  const minDecantPrice = useMemo(() => {
+    const prices = products
+      .filter((p) => p.active !== false)
+      .flatMap((p) => p.variants.filter((v) => v.size <= 15).map((v) => v.price));
+    return prices.length > 0 ? Math.min(...prices) : 40000;
+  }, [products]);
   const activeFilterCount = [
     brandFilter !== "Todas",
     category !== "Todos",
     genderFilter !== "Todos",
+    formatFilter !== "all",
     offerFilter !== "none",
   ].filter(Boolean).length;
   const selectedPromotion = offerFilter !== "none" && offerFilter !== "all"
@@ -925,6 +945,7 @@ function App() {
     setBrandFilter("Todas");
     setCategory("Todos");
     setGenderFilter("Todos");
+    setFormatFilter("all");
     setOfferFilter("none");
   };
   const cartPrice = useMemo(() => calculatePromotionPrice(cart.map((item) => ({
@@ -940,7 +961,11 @@ function App() {
   const openProduct = (product: Product) => {
     setSelectedProduct(product);
     setSelectedImageIndex(0);
+    const preferredVariant = formatFilter === "decants"
+      ? (product.variants.find((v) => v.size <= 15 && v.stock > 0) ?? product.variants.find((v) => v.size <= 15))
+      : null;
     setSelectedVariantId(
+      preferredVariant?.id ??
       product.variants.find((variant) =>
         variant.id === catalogVariantIds[product.id] && variant.stock > 0
       )?.id ?? product.variants.find((variant) => variant.stock > 0)?.id ?? product.variants[0].id
@@ -1038,6 +1063,18 @@ function App() {
               <button onClick={() => setCategory("Diseñador")}>Diseñador</button>
               <button onClick={() => setCategory("Árabes")}>Árabes</button>
               <button onClick={() => setCategory("Nicho")}>Nicho</button>
+              <button
+                type="button"
+                className={formatFilter === "decants" ? "nav-link-decants active" : "nav-link-decants"}
+                onClick={() => {
+                  setFormatFilter((curr) => curr === "decants" ? "all" : "decants");
+                  document.getElementById("catalogo")?.scrollIntoView({
+                    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+                  });
+                }}
+              >
+                ✨ Decants 10ml
+              </button>
             </nav>
 
             <button className="brand" onClick={() => setCategory("Todos")} aria-label={storeSettings.store_name}>
@@ -1172,8 +1209,25 @@ function App() {
                 </span>
               </div>
 
-              {activePromotions.some((p) => (promotionProductCounts[p.id] ?? 0) > 0) && (
-                <div className="promo-spotlight-bar" role="region" aria-label="Promociones activas">
+              {(decantProductCount > 0 || activePromotions.some((p) => (promotionProductCounts[p.id] ?? 0) > 0)) && (
+                <div className="promo-spotlight-bar" role="region" aria-label="Formatos destacados y promociones">
+                  {decantProductCount > 0 && (
+                    <button
+                      type="button"
+                      className={formatFilter === "decants" ? "promo-spotlight-pill promo-spotlight-pill--decant active" : "promo-spotlight-pill promo-spotlight-pill--decant"}
+                      aria-pressed={formatFilter === "decants"}
+                      onClick={() => setFormatFilter(formatFilter === "decants" ? "all" : "decants")}
+                    >
+                      <Sparkles size={15} aria-hidden="true" />
+                      <span className="promo-spotlight-text">
+                        <strong>Decants (10 ml)</strong>
+                        <span>Muestras de lujo desde {money(minDecantPrice)}</span>
+                      </span>
+                      <span className="promo-spotlight-cta">
+                        {formatFilter === "decants" ? "Mostrando · Quitar" : `Ver ${decantProductCount} decants`}
+                      </span>
+                    </button>
+                  )}
                   {activePromotions
                     .filter((p) => (promotionProductCounts[p.id] ?? 0) > 0)
                     .map((promotion) => {
@@ -1226,6 +1280,27 @@ function App() {
                         {activeFilterCount > 0 && (
                           <button type="button" onClick={clearCatalogFilters}>Limpiar</button>
                         )}
+                      </div>
+
+                      <div className="filter-group">
+                        <span className="filter-label" id="filtro-formato">Formato</span>
+                        <div className="filter-choice-list" role="group" aria-labelledby="filtro-formato">
+                          {[
+                            { id: "all", label: "Todos" },
+                            { id: "decants", label: `✨ Decants (${decantProductCount})` },
+                            { id: "bottles", label: `Botellas (${bottleProductCount})` },
+                          ].map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              className={formatFilter === item.id ? "filter-choice active" : "filter-choice"}
+                              aria-pressed={formatFilter === item.id}
+                              onClick={() => setFormatFilter(item.id as "all" | "decants" | "bottles")}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       <div className="filter-group">
@@ -1348,6 +1423,11 @@ function App() {
                           Para: {genderFilter} <X size={12} />
                         </button>
                       )}
+                      {formatFilter !== "all" && (
+                        <button type="button" onClick={() => setFormatFilter("all")}>
+                          Formato: {formatFilter === "decants" ? "Decants (10 ml)" : "Botellas completas"} <X size={12} />
+                        </button>
+                      )}
                       {offerFilter !== "none" && (
                         <button type="button" onClick={() => setOfferFilter("none")}>
                           {offerFilter === "all"
@@ -1372,9 +1452,14 @@ function App() {
                     ) : filteredProducts.map((product) => {
                       const firstAvailable =
                         product.variants.find((v) => v.stock > 0) ?? product.variants[0];
+                      const preferredVariant = formatFilter === "decants"
+                        ? (product.variants.find((v) => v.size <= 15 && v.stock > 0) ?? product.variants.find((v) => v.size <= 15))
+                        : formatFilter === "bottles"
+                        ? (product.variants.find((v) => v.size > 15 && v.stock > 0) ?? product.variants.find((v) => v.size > 15))
+                        : null;
                       const cardVariant = product.variants.find((variant) =>
                         variant.id === catalogVariantIds[product.id]
-                      ) ?? firstAvailable;
+                      ) ?? preferredVariant ?? firstAvailable;
                       const hasPromotion = productHasActivePromotion(product);
                       const cardVariantHasPromotion = isVariantPromotionEligible(product, cardVariant);
                       return (
@@ -1408,7 +1493,7 @@ function App() {
                                     [product.id]: variant.id,
                                   }))}
                                 >
-                                  <span>{variant.size} ml</span>
+                                  <span>{variant.size <= 15 ? `Decant ${variant.size} ml` : `${variant.size} ml`}</span>
                                   <small>{money(variant.price)}</small>
                                 </button>
                               ))}
@@ -1572,7 +1657,7 @@ function App() {
                           className={selectedVariantId === variant.id ? "variant active" : "variant"}
                           onClick={() => setSelectedVariantId(variant.id)}
                         >
-                          {variant.size} ml
+                          {variant.size <= 15 ? `Decant ${variant.size} ml` : `${variant.size} ml`}
                           {variant.stock <= 0 && <small>Agotado</small>}
                         </button>
                       ))}
@@ -1696,7 +1781,7 @@ function App() {
                           <img src={item.product.image} alt="" loading="lazy" decoding="async" />
                           <div>
                             <strong>{item.product.name}</strong>
-                            <span>{item.variant.size} ml</span>
+                            <span>{item.variant.size <= 15 ? `Decant ${item.variant.size} ml` : `${item.variant.size} ml`}</span>
                             <label className="cart-quantity-control">
                               <span>Unidades</span>
                               <input
