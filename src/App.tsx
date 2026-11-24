@@ -161,6 +161,8 @@ import {
   SunMedium,
   Settings,
   ShieldCheck,
+  Check,
+  Share2,
   ShoppingBag,
   SlidersHorizontal,
   Sparkles,
@@ -471,6 +473,7 @@ function App() {
   }, [storefrontDialogOpen]);
 
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [search, setSearch] = useState("");
   const [brandFilter, setBrandFilter] = useState("Todas");
   const [category, setCategory] = useState("Todos");
@@ -862,7 +865,10 @@ function App() {
       const lowerSearch = search.toLowerCase().trim();
       const matchesSearch =
         `${p.brand} ${p.name}`.toLowerCase().includes(lowerSearch)
-        || (lowerSearch.includes("decant") && p.variants.some((v) => v.size <= 15));
+        || (lowerSearch.includes("decant") && p.variants.some((v) => v.size <= 15))
+        || (Boolean(p.family) && p.family.toLowerCase().includes(lowerSearch))
+        || (Boolean(p.description) && p.description.toLowerCase().includes(lowerSearch))
+        || (Array.isArray(p.climate) && p.climate.some((c) => c.toLowerCase().includes(lowerSearch)));
       const matchesBrand = brandFilter === "Todas" || p.brand === brandFilter;
       const matchesCategory = category === "Todos" || p.category === category;
       const matchesGender = genderFilter === "Todos" || p.gender === genderFilter;
@@ -971,6 +977,17 @@ function App() {
       )?.id ?? product.variants.find((variant) => variant.stock > 0)?.id ?? product.variants[0].id
     );
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const perfumeParam = params.get("perfume") || params.get("p");
+    if (perfumeParam && products.length > 0) {
+      const found = products.find((prod) => prod.id === perfumeParam);
+      if (found) {
+        openProduct(found);
+      }
+    }
+  }, [products]);
 
   const selectedVariant =
     selectedProduct?.variants.find((v) => v.id === selectedVariantId) ??
@@ -1195,6 +1212,37 @@ function App() {
                     <span>Elige tu perfume, presentación y recibimos tu pedido por WhatsApp.</span>
                   </div>
                 )}
+              </div>
+            </section>
+
+            <section className="store-trust-bar" aria-label="Garantías y beneficios">
+              <div className="store-trust-item">
+                <div className="store-trust-icon"><ShieldCheck size={22} /></div>
+                <div>
+                  <strong>100% Originales & Sellados</strong>
+                  <span>Garantía de autenticidad en cada botella</span>
+                </div>
+              </div>
+              <div className="store-trust-item">
+                <div className="store-trust-icon"><Sparkles size={22} /></div>
+                <div>
+                  <strong>Decants 10 ml Certificados</strong>
+                  <span>Muestras en atomizador de vidrio para probar</span>
+                </div>
+              </div>
+              <div className="store-trust-item">
+                <div className="store-trust-icon"><Truck size={22} /></div>
+                <div>
+                  <strong>Envíos a toda Colombia</strong>
+                  <span>Empaque reforzado y entregas el mismo día en Barranquilla</span>
+                </div>
+              </div>
+              <div className="store-trust-item">
+                <div className="store-trust-icon"><CreditCard size={22} /></div>
+                <div>
+                  <strong>Medios de Pago Seguros</strong>
+                  <span>Nequi, Bancolombia, Wompi y Contraentrega</span>
+                </div>
               </div>
             </section>
 
@@ -1626,7 +1674,7 @@ function App() {
                   <div className="product-rating">
                   <PeekRating
                     key={selectedProduct.id}
-                    defaultValue={3}
+                    defaultValue={5}
                     count={5}
                     shape="star"
                     labels={["Malo", "Regular", "Bueno", "Muy Bueno", "Excelente"]}
@@ -1634,7 +1682,7 @@ function App() {
                     idleColor="#52525b"
                     tipColor="#27272a"
                     tipTextColor="#f5f5f5"
-                    size={40}
+                    size={36}
                     lift={8}
                     magnify={1.15}
                     riseDuration={320}
@@ -1645,6 +1693,9 @@ function App() {
                     showLabels
                     readOnly={false}
                   />
+                  <span className="product-guarantee-pill">
+                    <ShieldCheck size={14} aria-hidden="true" /> 100% Original Garantizado
+                  </span>
                   </div>
 
                   <div className="detail-block">
@@ -1667,6 +1718,38 @@ function App() {
                   <div className="detail-meta">
                     <div><b>Familia</b><span>{selectedProduct.family}</span></div>
                     <div><b>Clima</b><span>{selectedProduct.climate.join(" · ")}</span></div>
+                  </div>
+
+                  <div className="product-modal-actions">
+                    <button
+                      type="button"
+                      className="share-product-btn"
+                      onClick={() => {
+                        const url = `${window.location.origin}/?p=${encodeURIComponent(selectedProduct.id)}`;
+                        if (navigator.share) {
+                          navigator.share({
+                            title: `${selectedProduct.name} · Perfumes SAAD`,
+                            text: `Mira ${selectedProduct.name} de ${selectedProduct.brand} en Perfumes SAAD`,
+                            url,
+                          }).catch(() => {});
+                        } else {
+                          navigator.clipboard.writeText(url);
+                          setCopiedLink(true);
+                          setTimeout(() => setCopiedLink(false), 2500);
+                        }
+                      }}
+                      title="Compartir este perfume"
+                    >
+                      {copiedLink ? (
+                        <>
+                          <Check size={15} /> ¡Enlace copiado!
+                        </>
+                      ) : (
+                        <>
+                          <Share2 size={15} /> Compartir perfume
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   {/* En movil esta barra queda fija al pie del modal: el precio y el
@@ -1755,9 +1838,9 @@ function App() {
                           <Truck size={14} aria-hidden="true" />
                           <span>
                             {total >= FREE_SHIPPING_THRESHOLD ? (
-                              <>¡Ya tienes <strong>envío gratis</strong> en tu pedido!</>
+                              <>¡Ya tienes <strong>envío gratis</strong> local! (Nacional desde $320.000)</>
                             ) : (
-                              <>Te faltan <strong>{money(FREE_SHIPPING_THRESHOLD - total)}</strong> para <strong>envío gratis</strong></>
+                              <>Te faltan <strong>{money(FREE_SHIPPING_THRESHOLD - total)}</strong> para <strong>envío gratis</strong> local (Nacional desde $320.000)</>
                             )}
                           </span>
                         </div>
@@ -1836,12 +1919,20 @@ function App() {
                       </div>
                       <strong>{money(total)}</strong>
                     </div>
+                    <div className="cart-payment-methods-note">
+                      <small>Medios de pago aceptados por WhatsApp:</small>
+                      <div className="cart-pay-pills">
+                        <span>📲 Nequi</span>
+                        <span>🏦 Bancolombia</span>
+                        <span>💳 Wompi</span>
+                        <span>💵 Efectivo</span>
+                      </div>
+                    </div>
                     <p className="checkout-note">
-                      Genera tu recibo tipo impresora, verifica los datos del cliente y
-                      envía el pedido a {storeSettings.store_name} por WhatsApp.
+                      Ingresa tus datos de entrega para confirmar tu pedido y coordinar el pago de forma segura por WhatsApp.
                     </p>
-                    <button className="primary full" onClick={() => setReceiptOpen(true)}>
-                      Generar recibo del pedido
+                    <button className="primary full checkout-action-btn" onClick={() => setReceiptOpen(true)}>
+                      Pedir por WhatsApp →
                     </button>
                   </>
                 )}
@@ -1849,18 +1940,50 @@ function App() {
             </div>
           )}
 
-          <footer>
-            <div className="footer-brand">{storeSettings.store_name}</div>
-            <span>Perfumería · Barranquilla · Colombia</span>
-            {storeSettings.contact_email && <a href={`mailto:${storeSettings.contact_email}`}>{storeSettings.contact_email}</a>}
-            <a href="#" onClick={(e) => { e.preventDefault(); setShowTracking(true); }}>
-              Rastrear pedido
-            </a>
-            {isStaff && (
-              <a href="#" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
-                Administración
-              </a>
-            )}
+          <footer className="storefront-footer">
+            <div className="footer-content-grid">
+              <div className="footer-col-main">
+                <div className="footer-brand">{storeSettings.store_name}</div>
+                <p className="footer-tagline">
+                  Perfumería exclusiva de diseñador, árabes y nicho 100% originales en Colombia. Muestras decants (10 ml) y botellas selladas.
+                </p>
+                <div className="footer-payment-badges" aria-label="Medios de pago aceptados">
+                  <span className="pay-badge">Nequi</span>
+                  <span className="pay-badge">Bancolombia</span>
+                  <span className="pay-badge">Wompi</span>
+                  <span className="pay-badge">Contraentrega</span>
+                </div>
+              </div>
+              <div className="footer-col-links">
+                <h4>Atención & Envíos</h4>
+                <a href="#" onClick={(e) => { e.preventDefault(); setShowTracking(true); }}>
+                  📦 Rastrear mi pedido
+                </a>
+                <a
+                  href={`https://wa.me/${storeSettings.whatsapp_number.replace(/\D/g, "")}?text=${encodeURIComponent("Hola Perfumes SAAD, me gustaría recibir asesoría para elegir un perfume.")}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  💬 Asesoría por WhatsApp
+                </a>
+                {storeSettings.contact_email && (
+                  <a href={`mailto:${storeSettings.contact_email}`}>✉️ {storeSettings.contact_email}</a>
+                )}
+              </div>
+              <div className="footer-col-info">
+                <h4>Garantía SAAD</h4>
+                <p>📍 Barranquilla & Soledad: Entregas locales y pago contraentrega disponible.</p>
+                <p>🇨🇴 Envíos certificados con empaque reforzado a toda Colombia.</p>
+                {isStaff && (
+                  <a href="#" className="admin-footer-link" onClick={(e) => { e.preventDefault(); requestAdminAccess(); }}>
+                    Panel de Administración →
+                  </a>
+                )}
+              </div>
+            </div>
+            <div className="footer-bottom-bar">
+              <span>© {new Date().getFullYear()} {storeSettings.store_name}. Fragancias originales y decants exclusivos.</span>
+            </div>
           </footer>
         </>
       ) : isStaff ? (

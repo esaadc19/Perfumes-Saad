@@ -248,8 +248,12 @@ export default function ReceiptDialog({
         <button className="close" onClick={onClose} aria-label="Cerrar recibo"><X /></button>
         <div className="receipt-heading">
           <p className="eyebrow">TU PEDIDO</p>
-          <h2 id="receipt-title">{receipt ? "Recibo listo" : "Generar recibo"}</h2>
-          <p>Revisa el comprobante y envía el pedido directamente por WhatsApp.</p>
+          <h2 id="receipt-title">{receipt ? "¡Pedido confirmado!" : "Finalizar pedido"}</h2>
+          <p>
+            {receipt
+              ? "Tu pedido ha sido registrado con éxito. Ábrelo en WhatsApp para coordinar el pago y envío."
+              : "Ingresa tus datos de entrega para enviar tu orden directamente por WhatsApp."}
+          </p>
         </div>
 
         {saving ? (
@@ -281,7 +285,7 @@ export default function ReceiptDialog({
           {!receipt && (
             <form className="receipt-customer" onSubmit={(event) => void submitOrder(event)}>
               <div className="receipt-customer-heading">
-                <strong>Datos del cliente</strong>
+                <strong>Datos de entrega</strong>
                 {user && <span>Datos de tu cuenta</span>}
               </div>
               {profileLoading ? (
@@ -315,7 +319,7 @@ export default function ReceiptDialog({
                     No se realiza ningún cobro en línea.
                   </p>
                   <button className="primary full receipt-submit" type="submit" disabled={saving || cart.length === 0}>
-                    {saving ? "Generando recibo..." : "Generar recibo"}
+                    {saving ? "Confirmando pedido..." : "Confirmar y pedir por WhatsApp →"}
                   </button>
                 </>
               )}
