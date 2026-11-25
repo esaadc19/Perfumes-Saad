@@ -5,6 +5,7 @@ import {
   Bell,
   Calendar,
   Check,
+  MessageCircle,
   Package,
   Pencil,
   ReceiptText,
@@ -698,6 +699,49 @@ export default function OrdersPage({
                 </label>
               </div>
               <div className="order-actions">
+                <AdminButton
+                  tone="secondary"
+                  compact
+                  type="button"
+                  title="Preguntar disponibilidad al mayorista por WhatsApp"
+                  onClick={() => {
+                    const itemsList = order.order_items.map((item) =>
+                      `• ${item.product_name_snapshot} (${item.size_ml} ml) ×${item.quantity}`
+                    ).join("\n");
+                    const supplierMessage = `Hola, ¿tienes disponible para despacho hoy estos perfumes?\n\n${itemsList}\n\nQuedo atento para confirmar. ¡Gracias!`;
+                    window.open(
+                      `https://wa.me/?text=${encodeURIComponent(supplierMessage)}`,
+                      "_blank",
+                      "noopener,noreferrer"
+                    );
+                  }}
+                >
+                  <MessageCircle size={15} /> Pedir a proveedor
+                </AdminButton>
+                <AdminButton
+                  tone="secondary"
+                  compact
+                  type="button"
+                  title="Notificar despacho con guía al cliente por WhatsApp"
+                  onClick={() => {
+                    const orderCode = order.id.slice(0, 8).toUpperCase();
+                    const trackingLink = `${window.location.origin}${window.location.pathname}?track=${orderCode}`;
+                    const phone = order.customers?.phone?.replace(/\D/g, "") || "";
+                    const customerName = order.customers?.full_name || "cliente";
+                    const guidePrompt = window.prompt("Ingresa el número de guía de Coordinadora (o deja vacío si es entrega local en Barranquilla):");
+                    if (guidePrompt === null) return;
+                    const carrierInfo = guidePrompt.trim()
+                      ? `va en camino por Coordinadora (Guía: ${guidePrompt.trim()})`
+                      : "va en camino con nuestro domiciliario local en Barranquilla";
+                    const message = `Hola ${customerName} ✨\n\nTu pedido #${orderCode} de Perfumes SAAD ${carrierInfo}.\n\nPuedes rastrear el estado de tu entrega aquí: ${trackingLink}\n\n¡Gracias por tu compra!`;
+                    const waUrl = phone
+                      ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+                      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+                    window.open(waUrl, "_blank", "noopener,noreferrer");
+                  }}
+                >
+                  <Truck size={15} /> Notificar envío
+                </AdminButton>
                 <AdminButton
                   tone="secondary"
                   compact

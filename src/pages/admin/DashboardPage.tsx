@@ -3,6 +3,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  Bell,
   CalendarDays,
   CheckCircle2,
   CreditCard,
@@ -11,6 +12,7 @@ import {
   ShoppingBag,
   Sparkles,
   TrendingUp,
+  Truck,
   Wallet,
 } from "lucide-react";
 import { money } from "../../lib/format";
@@ -106,6 +108,36 @@ export default function DashboardPage({
   const creditOutstanding = Number(metrics.credit_outstanding_balance ?? 0);
   const creditOverdue = Number(metrics.credit_overdue_balance ?? 0);
   const creditCustomersWithOverdue = Number(metrics.credit_customers_with_overdue ?? 0);
+
+  // Centro de comando operativo diario
+  const dailyCommandStats = useMemo(() => {
+    const todayStr = toBogotaDateStr(new Date().toISOString());
+    let pendingConfirmation = 0;
+    let todayDeliveries = 0;
+    let personalPendingReimbursement = 0;
+
+    for (const o of orders) {
+      if (o.status === "pending_confirmation") {
+        pendingConfirmation += 1;
+      }
+      const b = getOrderFinancialBreakdown(o);
+      const orderDateStr = toBogotaDateStr(b.isPaid ? (o.paid_at ?? o.created_at) : o.created_at);
+      if (orderDateStr === todayStr && o.status !== "cancelled" && o.status !== "delivered") {
+        todayDeliveries += 1;
+      }
+      if (o.cost_funded_by === "personal" && b.isPaid) {
+        if (b.unrecoveredCost > 0) {
+          personalPendingReimbursement += b.unrecoveredCost;
+        }
+      }
+    }
+
+    return {
+      pendingConfirmation,
+      todayDeliveries,
+      personalPendingReimbursement,
+    };
+  }, [orders]);
 
   // Desglose de ingresos cobrados: ventas de contado vs abonos de cartera
   const { paidOrdersTotal, paidOrdersCount, abonosTotal, abonosCount } = useMemo(() => {
@@ -294,6 +326,72 @@ export default function DashboardPage({
           BANNER DE BIENVENIDA Y FRASE INSPIRACIONAL
          ======================================================== */}
       <InspirationalBanner userName={userName} />
+
+      {/* ========================================================
+          CENTRO DE COMANDO OPERATIVO DEL DÍA
+         ======================================================== */}
+      <section className="command-center-banner" aria-label="Centro de Comando del Día">
+        <div className="command-center-header">
+          <div className="command-header-title">
+            <span className="command-pulse-dot" />
+            <strong>Centro de Comando · Pendientes de hoy</strong>
+          </div>
+          <span className="command-header-hint">Toca una tarjeta para ir directo al área</span>
+        </div>
+        <div className="command-center-grid">
+          <button
+            type="button"
+            className={`command-center-card ${dailyCommandStats.pendingConfirmation > 0 ? "has-urgent" : ""}`}
+            onClick={() => onSectionChange("transactions")}
+          >
+            <div className="command-card-top">
+              <span className="command-badge-icon warning"><Bell size={15} /></span>
+              <span className="command-card-count">{dailyCommandStats.pendingConfirmation}</span>
+            </div>
+            <strong>Por pedir a proveedor</strong>
+            <small>{dailyCommandStats.pendingConfirmation === 1 ? "1 pedido nuevo esperando stock" : `${dailyCommandStats.pendingConfirmation} pedidos nuevos esperando stock`}</small>
+          </button>
+
+          <button
+            type="button"
+            className="command-center-card"
+            onClick={() => onSectionChange("transactions")}
+          >
+            <div className="command-card-top">
+              <span className="command-badge-icon info"><Truck size={15} /></span>
+              <span className="command-card-count">{dailyCommandStats.todayDeliveries}</span>
+            </div>
+            <strong>Entregas de hoy</strong>
+            <small>Despachos locales / Coordinadora</small>
+          </button>
+
+          <button
+            type="button"
+            className={`command-center-card ${creditCustomersWithOverdue > 0 ? "has-urgent" : ""}`}
+            onClick={() => onSectionChange("collect")}
+          >
+            <div className="command-card-top">
+              <span className="command-badge-icon danger"><CalendarDays size={15} /></span>
+              <span className="command-card-count">{creditCustomersWithOverdue}</span>
+            </div>
+            <strong>Cobros de quincena</strong>
+            <small>{money(creditOverdue)} en cartera vencida</small>
+          </button>
+
+          <button
+            type="button"
+            className="command-center-card"
+            onClick={() => onSectionChange("finance")}
+          >
+            <div className="command-card-top">
+              <span className="command-badge-icon success"><Wallet size={15} /></span>
+              <span className="command-card-count">{money(dailyCommandStats.personalPendingReimbursement)}</span>
+            </div>
+            <strong>De tu bolsillo por cobrar</strong>
+            <small>Dinero adelantado a reembolsar</small>
+          </button>
+        </div>
+      </section>
 
       {/* ========================================================
           2. PANEL FINTECH PRINCIPAL (SOLO LO PEDIDO)

@@ -435,37 +435,55 @@ export default function ProductsPage({
                   </div>
                 </div>
                 <div className="variant-cost-list">
-                  {product.variants.map((variant) => (
-                    <label key={variant.id}>
-                      <span>
-                        {variant.size} ml · precio {money(variant.price)}
-                        {variant.active === false && <small className="variant-hidden-label">Oculta en tienda</small>}
-                      </span>
-                      <span className="cost-input-wrap">
-                        <span>Costo</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          aria-label={`Costo unitario de ${product.name} ${variant.size} ml`}
-                          value={costDrafts[variant.id] ?? (variant.cost == null ? "" : String(variant.cost))}
-                          placeholder="Sin costo"
-                          disabled={savingCostVariantId === variant.id}
-                          onChange={(event) => onCostDraftChange(variant.id, event.target.value)}
-                          onBlur={(event) => {
-                            const rawCost = event.target.value.trim();
-                            if (!rawCost) return;
-                            const cost = Number(rawCost);
-                            if (!Number.isFinite(cost) || cost < 0) return;
-                            void onVariantCostChange(variant.id, cost)
-                              .then(() => onCostDraftClear(variant.id))
-                              .catch(() => {});
-                          }}
-                        />
-                      </span>
-                      {savingCostVariantId === variant.id && <small>Guardando…</small>}
-                    </label>
-                  ))}
+                  {product.variants.map((variant) => {
+                    const hasCost = variant.cost != null && variant.cost > 0;
+                    const profit = hasCost ? variant.price - variant.cost! : null;
+                    const isDecant = variant.size <= 15;
+                    const minProfit = isDecant ? 15000 : 50000;
+                    const targetProfit = isDecant ? 18000 : 70000;
+                    const isLowMargin = profit != null && profit < minProfit;
+                    const isGoodMargin = profit != null && profit >= targetProfit;
+
+                    return (
+                      <label key={variant.id}>
+                        <span>
+                          {variant.size} ml · precio {money(variant.price)}
+                          {profit != null && (
+                            <span
+                              className={`variant-margin-badge ${isLowMargin ? "low" : isGoodMargin ? "good" : "medium"}`}
+                              title={isLowMargin ? "Margen bajo frente a la regla operativa de SAAD" : "Margen de ganancia calculado"}
+                            >
+                              {isLowMargin ? "⚠️ " : "✨ "}Margen: {money(profit)}
+                            </span>
+                          )}
+                          {variant.active === false && <small className="variant-hidden-label">Oculta en tienda</small>}
+                        </span>
+                        <span className="cost-input-wrap">
+                          <span>Costo</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            aria-label={`Costo unitario de ${product.name} ${variant.size} ml`}
+                            value={costDrafts[variant.id] ?? (variant.cost == null ? "" : String(variant.cost))}
+                            placeholder="Sin costo"
+                            disabled={savingCostVariantId === variant.id}
+                            onChange={(event) => onCostDraftChange(variant.id, event.target.value)}
+                            onBlur={(event) => {
+                              const rawCost = event.target.value.trim();
+                              if (!rawCost) return;
+                              const cost = Number(rawCost);
+                              if (!Number.isFinite(cost) || cost < 0) return;
+                              void onVariantCostChange(variant.id, cost)
+                                .then(() => onCostDraftClear(variant.id))
+                                .catch(() => {});
+                            }}
+                          />
+                        </span>
+                        {savingCostVariantId === variant.id && <small>Guardando…</small>}
+                      </label>
+                    );
+                  })}
                   {product.variants.map((variant) => (
                     <div className="stock-control-group" key={`stock-${variant.id}`}>
                     <label className="stock-control">
