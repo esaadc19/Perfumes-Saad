@@ -141,8 +141,21 @@ export async function getCreditOrders(): Promise<CreditOrderSummary[]> {
     .map((order) => {
       const orderPayments = paymentsByOrder.get(order.id) ?? [];
       const paidAmount = orderPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-      const creditAmount = Number(order.credit_amount);
       const isPaid = order.payment_status === "paid";
+      const total = Number(order.total);
+      
+      // Saldo real = Total - Abonos (o 0 si está marcado como pagado o saldado)
+      const calculatedBalance = isPaid ? 0 : Math.max(0, total - paidAmount);
+      
+      // Si credit_amount en la BD estaba desincronizado (ej. total completo sin restar abonos),
+      // nos aseguramos de que el saldo mostrado nunca supere el saldo real restante.
+      const rawCreditAmount = Number(order.credit_amount);
+      const creditAmount = isPaid
+        ? 0
+        : (rawCreditAmount > 0 && rawCreditAmount < calculatedBalance
+            ? Math.max(0, rawCreditAmount - paidAmount)
+            : calculatedBalance);
+
       const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
       // Solo es vencido si ademas debe algo: un fiado ya saldado no mora.
       const overdue = !isPaid && Boolean(order.credit_due_date)
@@ -158,14 +171,14 @@ export async function getCreditOrders(): Promise<CreditOrderSummary[]> {
         customer_id: order.customer_id,
         customer_name: customer?.full_name ?? "",
         customer_phone: customer?.phone ?? "",
-        total: Number(order.total),
-        credit_amount: isPaid ? 0 : creditAmount,
+        total,
+        credit_amount: creditAmount,
         paid_amount: paidAmount,
         credit_due_date: order.credit_due_date,
         overdue,
         days_overdue: daysOverdue,
         payments: orderPayments,
-        status: (isPaid ? "paid" : order.payment_status) as "credit" | "partial" | "paid",
+        status: (isPaid || creditAmount === 0 ? "paid" : order.payment_status) as "credit" | "partial" | "paid",
         created_at: order.created_at,
       };
     })
