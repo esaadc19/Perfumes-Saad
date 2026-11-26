@@ -2150,7 +2150,7 @@ function App() {
           </div>
         </div>
       )}
-      <AiChatWidget isAdmin={false} />
+      {view === "store" && <AiChatWidget isAdmin={false} />}
     </div>
   );
 }
@@ -3105,7 +3105,7 @@ function Admin({
       console.error("No se pudo actualizar el estado del pedido:", updateError);
       const msg = updateError instanceof Error
         ? updateError.message
-        : "No se pudo actualizar el pedido. Revisa tus permisos.";
+        : (updateError as { message?: string })?.message || "No se pudo actualizar el pedido. Revisa tus permisos.";
       setSectionError(msg);
       notifyError(msg);
     } finally {

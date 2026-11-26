@@ -566,7 +566,7 @@ export async function updateAdminOrderStatus(
   });
   if (error) {
     console.error("No se pudo actualizar el pedido:", error);
-    throw error;
+    throw new Error(error.message || "No se pudo actualizar el pedido.");
   }
 }
 
@@ -634,7 +634,7 @@ export async function updateAdminOrderWithCredit(
   });
   if (error) {
     console.error("No se pudo actualizar el pedido:", error);
-    throw error;
+    throw new Error(error.message || "No se pudo actualizar el pedido.");
   }
 }
 
