@@ -103,21 +103,21 @@ export default function OrdersPage({
   const activeCustomTo = onPeriodCustomRangeChange ? periodCustomTo : localCustomTo;
   const activeIsAllTime = onPeriodToggleAllTime ? isPeriodAllTime : localIsAllTime;
 
-  // Pedidos programados o entregados en la fecha de hoy
+  // Pedidos pendientes por entregar programados para la fecha de hoy
   const todayOrders = useMemo(() => {
     return orders.filter((order) => {
       const isPaid = order.payment_status === "paid";
       const dateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
-      return dateStr === localToday && order.status !== "cancelled";
+      return dateStr === localToday && order.status !== "cancelled" && order.status !== "delivered";
     });
   }, [orders, localToday]);
 
-  // Pedidos agendados para fechas futuras
+  // Pedidos agendados para fechas futuras que siguen pendientes
   const futureOrders = useMemo(() => {
     return orders.filter((order) => {
       const isPaid = order.payment_status === "paid";
       const dateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
-      return dateStr > localToday && order.status !== "cancelled";
+      return dateStr > localToday && order.status !== "cancelled" && order.status !== "delivered";
     });
   }, [orders, localToday]);
 
@@ -326,9 +326,9 @@ export default function OrdersPage({
             <Calendar size={13} aria-hidden="true" />
             <span>
               {quickDateFilter === "today"
-                ? "🔔 Pedidos programados para HOY"
+                ? "🔔 Pedidos pendientes para HOY"
                 : quickDateFilter === "future"
-                ? "📅 Pedidos programados a FUTURO"
+                ? "📅 Pedidos pendientes programados a FUTURO"
                 : activePeriodFilter.label}
             </span>
             <span className="order-period-count">
@@ -517,17 +517,18 @@ export default function OrdersPage({
           const orderDateStr = toBogotaDateStr(isPaid ? (order.paid_at ?? order.created_at) : order.created_at);
           const isToday = orderDateStr === localToday;
           const isFuture = orderDateStr > localToday;
+          const isPendingDelivery = order.status !== "delivered" && order.status !== "cancelled";
           return (
             <div className="table-row transaction-row" key={order.id}>
               <div className="profile-cell" aria-readonly="true">
                 <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                   <strong>#{order.id.slice(0, 8).toUpperCase()} · {order.customers?.full_name || "Cliente"}</strong>
-                  {isToday && (
-                    <span className="order-timing-badge order-timing-badge--today" title="Pedido para entrega hoy">
+                  {isToday && isPendingDelivery && (
+                    <span className="order-timing-badge order-timing-badge--today" title="Pedido pendiente para entrega hoy">
                       🔔 Entrega hoy
                     </span>
                   )}
-                  {isFuture && (
+                  {isFuture && isPendingDelivery && (
                     <span className="order-timing-badge order-timing-badge--future" title="Pedido agendado para entrega futura">
                       📅 Programado ({new Date(order.created_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota", day: "numeric", month: "short" })})
                     </span>
@@ -795,8 +796,20 @@ export default function OrdersPage({
         {!loading && visibleOrders.length === 0 && (
           <EmptyState
             icon={<ReceiptText size={26} />}
-            title="No hay pedidos que coincidan con la búsqueda."
-            hint="Ajusta el término de búsqueda o cambia el filtro de estado."
+            title={
+              quickDateFilter === "today"
+                ? "No hay pedidos pendientes por entregar hoy."
+                : quickDateFilter === "future"
+                ? "No hay pedidos futuros pendientes."
+                : "No hay pedidos que coincidan con la búsqueda."
+            }
+            hint={
+              quickDateFilter === "today"
+                ? "Todos los pedidos de hoy ya fueron entregados o no hay pedidos agendados para esta fecha."
+                : quickDateFilter === "future"
+                ? "Los pedidos agendados para fechas posteriores aparecerán aquí."
+                : "Ajusta el término de búsqueda o cambia el filtro de estado."
+            }
           />
         )}
       </div>

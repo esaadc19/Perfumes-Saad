@@ -116,6 +116,7 @@ Deno.serve(async (req) => {
       .gte("created_at", startOfToday)
       .lte("created_at", endOfToday)
       .neq("status", "cancelled")
+      .neq("status", "delivered")
       .order("created_at", { ascending: true });
 
     if (ordersError) throw ordersError;
@@ -150,6 +151,7 @@ Deno.serve(async (req) => {
       .gt("created_at", endOfToday)
       .lte("created_at", `${in7DaysStr}T23:59:59-05:00`)
       .neq("status", "cancelled")
+      .neq("status", "delivered")
       .order("created_at", { ascending: true });
 
     const ordersCount = todayOrders?.length ?? 0;
