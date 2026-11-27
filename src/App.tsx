@@ -2711,7 +2711,7 @@ function Admin({
           if (active) {
             metricsResult.period_from = activePeriodFilter.from;
             metricsResult.period_to = activePeriodFilter.to;
-            setMetrics(applyProgressiveMetrics(metricsResult, ordersResult));
+            setMetrics(applyProgressiveMetrics(metricsResult, ordersResult, expenseResult));
             const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
             const enrichedOrders = ordersResult.map((order) => ({
               ...order,
@@ -2735,7 +2735,7 @@ function Admin({
           if (active) {
             metricsResult.period_from = activePeriodFilter.from;
             metricsResult.period_to = activePeriodFilter.to;
-            setMetrics(applyProgressiveMetrics(metricsResult, ordersResult));
+            setMetrics(applyProgressiveMetrics(metricsResult, ordersResult, expenseResult));
             const advisorMap = new Map(advisorsResult.map((a) => [a.id, a.full_name]));
             const enrichedOrders = ordersResult.map((order) => ({
               ...order,

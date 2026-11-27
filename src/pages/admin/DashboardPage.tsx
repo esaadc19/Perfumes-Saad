@@ -546,7 +546,7 @@ export default function DashboardPage({
           <div className="fintech-metric-amount-row">
             <h2 className="fintech-card-amount">{money(totalExpenses)}</h2>
             <span className="fintech-badge-sub text-muted">
-              {metrics.committed_expenses > 0 ? "Con pendientes" : "Pagados en el periodo"}
+              {totalExpenses === 0 ? "Sin gastos en el periodo" : "Pagados en el periodo"}
             </span>
           </div>
 
@@ -566,27 +566,16 @@ export default function DashboardPage({
               </div>
               <strong className="fintech-breakdown-value">{money(administrativeExpenses)}</strong>
             </div>
-
-            {metrics.committed_expenses > 0 && (
-              <div className="fintech-breakdown-item">
-                <div className="fintech-breakdown-info">
-                  <span className="fintech-dot dot-committed" />
-                  <span className="fintech-breakdown-name">Comprometidos (por pagar)</span>
-                </div>
-                <strong className="fintech-breakdown-value text-amber">
-                  {money(Number(metrics.committed_expenses))}
-                </strong>
-              </div>
-            )}
-
-            <div className="fintech-breakdown-item">
-              <div className="fintech-breakdown-info">
-                <span className="fintech-dot dot-cost" />
-                <span className="fintech-breakdown-name">Costo de logística / fletes</span>
-              </div>
-              <strong className="fintech-breakdown-value">{money(deliveryCost)}</strong>
-            </div>
           </div>
+
+          {metrics.committed_expenses > 0 && (
+            <div className="fintech-card-subnote">
+              <span className="text-muted">Fijos mensuales activos:</span>
+              <strong className="text-amber">
+                {money(Number(metrics.committed_expenses))}/mes
+              </strong>
+            </div>
+          )}
         </div>
 
         {/* TARJETA 4: NET PROFIT CON BARRA SEGMENTADA (IGUAL A LA IMAGEN) */}
@@ -654,7 +643,10 @@ export default function DashboardPage({
                 <span className="legend-dot dot--profit" />
                 <span className="legend-label">Utilidad {profitBarPct}%</span>
               </div>
-              <div className="fintech-legend-item">
+              <div
+                className="fintech-legend-item"
+                title={`Productos: ${money(salesCost)} · Fletes: ${money(deliveryCost)}`}
+              >
                 <span className="legend-dot dot--costs" />
                 <span className="legend-label">Mercancía {costsBarPct}%</span>
               </div>
